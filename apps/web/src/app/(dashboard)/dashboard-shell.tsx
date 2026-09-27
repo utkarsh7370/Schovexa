@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Settings, ShieldCheck, Users, CalendarDays, LogOut, School, BookOpen, GraduationCap } from 'lucide-react';
+import { LayoutDashboard, Settings, ShieldCheck, Users, CalendarDays, LogOut, School, BookOpen, GraduationCap, IdCard, UserRound } from 'lucide-react';
 import { LogoMark, Spinner } from '@schovexa/ui';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { useCurrentSchool } from '../../hooks/useCurrentSchool';
@@ -26,6 +26,8 @@ const NAV_ITEMS = [
   { href: '/dashboard/classes', label: 'Classes', icon: School },
   { href: '/dashboard/subjects', label: 'Subjects', icon: BookOpen },
   { href: '/dashboard/teachers', label: 'Teachers', icon: GraduationCap },
+  { href: '/dashboard/students', label: 'Students', icon: IdCard },
+  { href: '/dashboard/parents', label: 'Parents', icon: UserRound },
 ];
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
