@@ -117,6 +117,17 @@ different (valid) school and asserts the server still only ever touches
 the session's actual active school — proving the field is ignored, not
 merely that a mismatched value errors.
 
+**Phase 4 status**: rows 1, 3, 4, 5, 6, 9, 10, 11, 12 are implemented as
+automated tests (`authorization.service.spec.ts` for the scope-resolver
+logic; `students.e2e-spec.ts` for the full HTTP pipeline), proven
+against the one real permission-gated endpoint that exists so far
+(`GET /students/:id`). Rows 2, 7, and 8 are **not yet testable** — they
+require the Fees, School-settings, and Platform-admin modules
+respectively, none of which exist yet. This is not a gap being
+overlooked: each of those rows becomes mandatory the moment its
+underlying module is built, per the "binding for Step 6 implementation"
+rule above — a module without its matching row's test is not done.
+
 ## 6. Tenant Isolation and Background Jobs
 
 When background jobs are introduced (Phase 2, `docs/architecture.md`

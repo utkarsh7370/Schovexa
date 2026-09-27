@@ -5,7 +5,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { AuthService } from '../src/auth/auth.service';
 import { PrismaService } from '../src/prisma/prisma.service';
-import { resetAuthTestData } from './db-helpers';
+import { resetTestData } from './db-helpers';
 
 // End-to-end tests through the real HTTP stack (guards, middleware,
 // pipes, exception filter) — verifies things a service-level unit test
@@ -38,7 +38,7 @@ describe('Auth (e2e)', () => {
   });
 
   beforeEach(async () => {
-    await resetAuthTestData(prisma);
+    await resetTestData(prisma);
   });
 
   const agent = () => request(app.getHttpServer());

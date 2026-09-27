@@ -153,18 +153,27 @@ MVP payments) are consistent with it.
 | POST | `/api/v1/auth/forgot-password` | None | Rate limited; always 200, generic body (no enumeration) |
 | POST | `/api/v1/auth/reset-password` | None | Single-use token; invalidates all other sessions on success |
 | POST | `/api/v1/auth/accept-invite` | None | Single-use token; activates an `INVITED` user |
+| GET | `/api/v1/students/:id` | Session + School + Permission | `student.view`; scope-checked against the specific student. Phase 4 demonstration endpoint only — see note below |
 
-"Session" in the Auth column means `AuthGuard` (docs/authorization.md §2)
-— user-level session validity only, not membership/permission/scope,
-which is Phase 4's `SchoolContextGuard`/`PermissionGuard`. There is
-deliberately no `POST /api/v1/auth/invitations` (admin-creates-invite)
-endpoint yet: creating an invitation is a permission-gated action
-(`user.create`) that requires the authorization guard built in Phase 4
-to exist first — the underlying `AuthService.createInvitation()` is
-implemented and tested, just not yet exposed over HTTP. As each further
-module ships, its endpoints are appended to this table with method,
-path, required permission, and scope — not written speculatively ahead
-of the implementation.
+"Session" means `AuthGuard` only (user-level validity). "Session +
+School" adds `SchoolContextGuard` (re-verifies active membership).
+"Session + School + Permission" adds `PermissionGuard` +
+`@RequirePermission(...)` (resolves the role's grant and scope) — the
+full pipeline from `docs/authorization.md` §2, with the final
+resource-level check (`authorizeResource`) made explicitly by the
+handler.
+
+`GET /students/:id` is deliberately the *only* Students endpoint right
+now — a minimal, real, permission-gated resource built specifically to
+prove the Phase 4 authorization pipeline end-to-end (not a Students CRUD
+module; that's its own later phase per `docs/modules.md`). There is
+still no `POST /api/v1/auth/invitations` (admin-creates-invite) endpoint
+for the same reason invitations were deferred in Phase 3: it's
+permission-gated (`user.create`) and belongs alongside a real
+School/User management module, not bolted onto Auth or Students. As
+each further module ships, its endpoints are appended to this table
+with method, path, required permission, and scope — not written
+speculatively ahead of the implementation.
 
 ## 8. What This Endpoint Contract Does Not Replace
 

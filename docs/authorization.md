@@ -67,17 +67,24 @@ appears — not reimplemented per module.
 | Scope | Resolution query |
 |---|---|
 | `ALL_SCHOOL` | No further check beyond `resource.schoolId === auth.schoolId`. |
-| `SELF` | `resource belongs to auth.userId` (e.g. `Student.userId === auth.userId` once student portal accounts exist, or `resource.id === auth.studentProfileId`). |
+| `SELF` | `resource belongs to auth.userId` — `Student.userId === auth.userId` for a Student resource (this column was added in Phase 4; it was missing from the original Phase 2 design), or `resource.id === auth.userId` for a User resource. |
 | `OWN_CHILDREN` | `StudentParent` row exists linking `auth.parentProfileId` (resolved from `auth.userId` + `schoolId`) to the target `studentId`. |
 | `OWN_STUDENTS` | The target student's `sectionId` is one where `auth.teacherProfileId` is the `classTeacherId` (Section.classTeacherId), or is covered by a `TeacherAssignment`. |
 | `OWN_CLASS` | `TeacherAssignment` row exists for `auth.teacherProfileId` + the target `sectionId` (any subject), or `Section.classTeacherId === auth.teacherProfileId`. |
-| `OWN_SUBJECT` | `TeacherAssignment` row exists for `auth.teacherProfileId` + the target `sectionId` + the specific `subjectId` in question. |
-| `READ_ONLY` (modifier) | Combined with another scope; if the requested action is a mutation (`create`/`update`/`delete`/`collect`/`publish`/etc.) and the role's grant for this permission carries `READ_ONLY`, deny regardless of the base scope passing. |
+| `OWN_SUBJECT` | `TeacherAssignment` row exists for `auth.teacherProfileId` + the target `subjectId` (MVP simplification: checked independent of section — a per-section-and-subject check applies naturally once a module passes both ids, e.g. exam results). |
 
-Each resolver is a pure function of `(authContext, resourceId) => boolean`
-backed by a single indexed query (see `docs/database.md` §4–5 for the
-`TeacherAssignment` / `StudentParent` tables these depend on) — never an
-in-memory filter over a full table scan.
+`readOnly` is not a location scope and has no resolver of its own — it is
+a boolean modifier on the `RolePermission` row (`docs/database.md` §3,
+`docs/permissions.md` §3). `PermissionGuard` checks it directly against
+the permission's `action` *before* any location resolver runs: if
+`readOnly` is true and the action is a mutation
+(`create`/`update`/`delete`/`collect`/`publish`/etc.), the request is
+denied regardless of which location scope would otherwise pass.
+
+Each location resolver is a pure function of `(authContext, resourceId)
+=> boolean` backed by a single indexed query (see `docs/database.md`
+§4–5 for the `TeacherAssignment` / `StudentParent` tables these depend
+on) — never an in-memory filter over a full table scan.
 
 ## 4. Denial Semantics
 

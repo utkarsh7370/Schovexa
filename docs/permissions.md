@@ -70,7 +70,17 @@ client.
 | `OWN_STUDENTS` | Students the user is directly responsible for (e.g. a class teacher's roster) |
 | `OWN_CHILDREN` | A parent's linked children only |
 | `SELF` | The user's own record only |
-| `READ_ONLY` | Modifier: view allowed, mutating actions denied regardless of other scope |
+
+These six are **location** scopes — they answer "which resources." A
+separate, orthogonal **modifier**, `readOnly` (a boolean, not a seventh
+location value), answers "read or write": when set on a `RolePermission`
+row, it allows the `view` action but denies every mutating action
+(`create`/`update`/`delete`/`collect`/`publish`/etc.) for that
+permission, regardless of which location scope also applies. This is
+stored as a separate `RolePermission.readOnly` column precisely because
+it needs to combine with any of the six location scopes above (e.g.
+"`ALL_SCHOOL`, but read-only") — a single scope column couldn't
+represent that combination, which is why this is two fields, not one.
 
 Scopes are stored per `RolePermission` (or per membership override) and
 are extensible — adding a new scope value requires updating the
@@ -107,7 +117,7 @@ fee.view              → ALL_SCHOOL (read-only oversight)
 fee.view       → ALL_SCHOOL
 fee.collect    → ALL_SCHOOL
 fee.refund     → ALL_SCHOOL (subject to approval workflow, Phase 2+)
-student.view   → ALL_SCHOOL + READ_ONLY
+student.view   → ALL_SCHOOL, readOnly: true
 ```
 
 **Parent**
@@ -116,7 +126,7 @@ student.view   → OWN_CHILDREN
 fee.view       → OWN_CHILDREN
 result.view    → OWN_CHILDREN
 attendance.view→ OWN_CHILDREN
-notice.view    → ALL_SCHOOL + READ_ONLY (school-wide notices)
+notice.view    → ALL_SCHOOL, readOnly: true (school-wide notices)
 ```
 
 **Student**
@@ -124,7 +134,7 @@ notice.view    → ALL_SCHOOL + READ_ONLY (school-wide notices)
 student.view    → SELF
 result.view     → SELF
 attendance.view → SELF
-homework.view   → OWN_CLASS + READ_ONLY
+homework.view   → OWN_CLASS, readOnly: true
 ```
 
 ## 5. Enforcement Contract

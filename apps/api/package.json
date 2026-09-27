@@ -24,7 +24,8 @@
     "transform": { "^.+\\.ts$": "ts-jest" },
     "testEnvironment": "node",
     "setupFiles": ["<rootDir>/test/jest-setup.ts"],
-    "testTimeout": 20000
+    "testTimeout": 20000,
+    "maxWorkers": 1
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"

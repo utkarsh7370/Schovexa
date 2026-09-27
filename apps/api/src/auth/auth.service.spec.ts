@@ -2,7 +2,7 @@ import { UserStatus } from '@prisma/client';
 import { AuthService } from './auth.service';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { resetAuthTestData } from '../../test/db-helpers';
+import { resetTestData } from '../../test/db-helpers';
 import { hashToken } from './token.util';
 
 // Integration-style tests against the real schovexa_test database
@@ -27,7 +27,7 @@ describe('AuthService', () => {
   });
 
   beforeEach(async () => {
-    await resetAuthTestData(prisma);
+    await resetTestData(prisma);
   });
 
   async function createActiveUser(email = 'active@example.test', password = 'correct-horse-battery') {

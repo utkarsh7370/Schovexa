@@ -135,7 +135,8 @@ model RolePermission {
   id            String     @id @default(cuid())
   roleId        String
   permissionId  String
-  scope         PermissionScope // ALL_SCHOOL, OWN_CLASS, OWN_SUBJECT, OWN_STUDENTS, OWN_CHILDREN, SELF, READ_ONLY
+  scope         PermissionScope // ALL_SCHOOL, OWN_CLASS, OWN_SUBJECT, OWN_STUDENTS, OWN_CHILDREN, SELF
+  readOnly      Boolean    @default(false) // modifier, not a location — see docs/permissions.md §3
 
   role          Role       @relation(fields: [roleId], references: [id])
   permission    Permission @relation(fields: [permissionId], references: [id])
@@ -276,6 +277,7 @@ to answer "is this section/subject one this teacher is assigned to" for
 model Student {
   id             String   @id @default(cuid())
   schoolId       String
+  userId         String?  // nullable: not every student has a portal login; resolves the SELF scope (docs/authorization.md §3) when set
   admissionNo    String
   firstName      String
   lastName       String
@@ -288,6 +290,7 @@ model Student {
   deletedAt      DateTime?
 
   school         School   @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  user           User?    @relation(fields: [userId], references: [id])
   section        Section? @relation(fields: [sectionId], references: [id])
   parents        StudentParent[]
   attendance     Attendance[]
@@ -635,8 +638,9 @@ alongside the generated schema, at Step 6. Applies at minimum to:
 `User.email`, `SchoolMembership(userId, schoolId)`, `Role(schoolId,
 name)`, `AcademicYear(schoolId, name)`, `Class(academicYearId, name)`,
 `Section(classId, name)`, `Subject(schoolId, name)`, `Teacher(schoolId,
-userId)`, `Student(schoolId, admissionNo)`, `FeeCategory(schoolId,
-name)`.
+userId)`, `Student(schoolId, admissionNo)`, `Student(schoolId, userId)`
+(added in Phase 4, when the `userId` column itself was added — see
+`docs/authorization.md` §3), `FeeCategory(schoolId, name)`.
 
 ## 11. Cascade & Deletion Policy
 
