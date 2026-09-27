@@ -100,6 +100,12 @@ export class AuthorizationService {
         });
         return !!row;
       }
+      case 'Class': {
+        const row = await this.prisma.class.findFirst({
+          where: { id: resourceId, schoolId: auth.schoolId, deletedAt: null },
+        });
+        return !!row;
+      }
       case 'Section': {
         const row = await this.prisma.section.findFirst({
           where: { id: resourceId, schoolId: auth.schoolId, deletedAt: null },
@@ -108,6 +114,12 @@ export class AuthorizationService {
       }
       case 'Subject': {
         const row = await this.prisma.subject.findFirst({
+          where: { id: resourceId, schoolId: auth.schoolId, deletedAt: null },
+        });
+        return !!row;
+      }
+      case 'Teacher': {
+        const row = await this.prisma.teacher.findFirst({
           where: { id: resourceId, schoolId: auth.schoolId, deletedAt: null },
         });
         return !!row;

@@ -111,3 +111,63 @@ export const createAcademicYearSchema = z.object({
   endDate: z.string().min(1, 'End date is required'),
 });
 export type CreateAcademicYearInput = z.infer<typeof createAcademicYearSchema>;
+
+// --- Academic Management (docs/modules.md Phase 6) -------------------------
+
+export const createClassSchema = z.object({
+  academicYearId: z.string().min(1, 'Academic year is required'),
+  name: z.string().min(1, 'Class name is required'),
+  order: z.coerce.number().int(),
+});
+export type CreateClassInput = z.infer<typeof createClassSchema>;
+
+export const updateClassSchema = z.object({
+  name: z.string().min(1).optional(),
+  order: z.coerce.number().int().optional(),
+});
+export type UpdateClassInput = z.infer<typeof updateClassSchema>;
+
+export const createSectionSchema = z.object({
+  name: z.string().min(1, 'Section name is required'),
+  // '' means "no class teacher yet" — a select left on its placeholder
+  // option, same empty-string-as-unset pattern as updateSchoolSchema above.
+  classTeacherId: z.union([z.literal(''), z.string()]).optional(),
+});
+export type CreateSectionInput = z.infer<typeof createSectionSchema>;
+
+export const updateSectionSchema = z.object({
+  name: z.string().min(1).optional(),
+  classTeacherId: z.union([z.literal(''), z.string()]).optional(),
+});
+export type UpdateSectionInput = z.infer<typeof updateSectionSchema>;
+
+export const createSubjectSchema = z.object({
+  name: z.string().min(1, 'Subject name is required'),
+  code: z.string().optional(),
+});
+export type CreateSubjectInput = z.infer<typeof createSubjectSchema>;
+
+export const updateSubjectSchema = z.object({
+  name: z.string().min(1).optional(),
+  code: z.string().optional(),
+});
+export type UpdateSubjectInput = z.infer<typeof updateSubjectSchema>;
+
+export const createTeacherSchema = z.object({
+  userId: z.string().min(1, 'A staff member is required'),
+  employeeCode: z.string().optional(),
+  joiningDate: z.union([z.literal(''), z.string()]).optional(),
+});
+export type CreateTeacherInput = z.infer<typeof createTeacherSchema>;
+
+export const updateTeacherSchema = z.object({
+  employeeCode: z.string().optional(),
+  joiningDate: z.union([z.literal(''), z.string()]).optional(),
+});
+export type UpdateTeacherInput = z.infer<typeof updateTeacherSchema>;
+
+export const createTeacherAssignmentSchema = z.object({
+  sectionId: z.string().min(1, 'Section is required'),
+  subjectId: z.string().min(1, 'Subject is required'),
+});
+export type CreateTeacherAssignmentInput = z.infer<typeof createTeacherAssignmentSchema>;

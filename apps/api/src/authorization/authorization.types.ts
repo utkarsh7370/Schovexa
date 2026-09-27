@@ -20,8 +20,10 @@ export interface AuthContext {
 export type ResourceType =
   | 'User'
   | 'Student'
+  | 'Class'
   | 'Section'
   | 'Subject'
+  | 'Teacher'
   | 'Role'
   | 'AcademicYear'
   | 'SchoolMembership';

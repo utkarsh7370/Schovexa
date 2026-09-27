@@ -12,6 +12,10 @@ import { SchoolsModule } from './schools/schools.module';
 import { RolesModule } from './roles/roles.module';
 import { MembershipsModule } from './memberships/memberships.module';
 import { AcademicYearsModule } from './academic-years/academic-years.module';
+import { ClassesModule } from './classes/classes.module';
+import { SectionsModule } from './sections/sections.module';
+import { SubjectsModule } from './subjects/subjects.module';
+import { TeachersModule } from './teachers/teachers.module';
 import { HttpExceptionFilter } from './common/http-exception.filter';
 import { RequestIdMiddleware } from './common/request-id.middleware';
 import { OriginCheckMiddleware } from './common/origin-check.middleware';
@@ -33,6 +37,10 @@ import { OriginCheckMiddleware } from './common/origin-check.middleware';
     RolesModule,
     MembershipsModule,
     AcademicYearsModule,
+    ClassesModule,
+    SectionsModule,
+    SubjectsModule,
+    TeachersModule,
     StudentsModule,
     // Further domain modules are added here one at a time as each is
     // implemented, per docs/modules.md's phase order.
