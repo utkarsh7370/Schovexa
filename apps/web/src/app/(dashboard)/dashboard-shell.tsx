@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Settings, ShieldCheck, Users, CalendarDays, LogOut } from 'lucide-react';
+import { LayoutDashboard, Settings, ShieldCheck, Users, CalendarDays, LogOut, School, BookOpen, GraduationCap } from 'lucide-react';
 import { LogoMark, Spinner } from '@schovexa/ui';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { useCurrentSchool } from '../../hooks/useCurrentSchool';
@@ -23,6 +23,9 @@ const NAV_ITEMS = [
   { href: '/dashboard/roles', label: 'Roles', icon: ShieldCheck },
   { href: '/dashboard/staff', label: 'Staff', icon: Users },
   { href: '/dashboard/academic-years', label: 'Academic Years', icon: CalendarDays },
+  { href: '/dashboard/classes', label: 'Classes', icon: School },
+  { href: '/dashboard/subjects', label: 'Subjects', icon: BookOpen },
+  { href: '/dashboard/teachers', label: 'Teachers', icon: GraduationCap },
 ];
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
