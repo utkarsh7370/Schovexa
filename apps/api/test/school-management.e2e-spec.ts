@@ -83,6 +83,7 @@ describe('School Management (e2e)', () => {
       expect(roles.body.map((r: { name: string }) => r.name).sort()).toEqual([
         'Accountant',
         'Director',
+        'Parent',
         'Receptionist',
         'Teacher',
       ]);

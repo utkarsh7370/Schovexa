@@ -16,6 +16,9 @@ import { ClassesModule } from './classes/classes.module';
 import { SectionsModule } from './sections/sections.module';
 import { SubjectsModule } from './subjects/subjects.module';
 import { TeachersModule } from './teachers/teachers.module';
+import { ParentsModule } from './parents/parents.module';
+import { DocumentsModule } from './documents/documents.module';
+import { StorageModule } from './storage/storage.module';
 import { HttpExceptionFilter } from './common/http-exception.filter';
 import { RequestIdMiddleware } from './common/request-id.middleware';
 import { OriginCheckMiddleware } from './common/origin-check.middleware';
@@ -31,6 +34,7 @@ import { OriginCheckMiddleware } from './common/origin-check.middleware';
     PrismaModule,
     AuditModule,
     AuthorizationModule,
+    StorageModule,
     HealthModule,
     AuthModule,
     SchoolsModule,
@@ -42,6 +46,8 @@ import { OriginCheckMiddleware } from './common/origin-check.middleware';
     SubjectsModule,
     TeachersModule,
     StudentsModule,
+    ParentsModule,
+    DocumentsModule,
     // Further domain modules are added here one at a time as each is
     // implemented, per docs/modules.md's phase order.
   ],

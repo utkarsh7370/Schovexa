@@ -124,6 +124,18 @@ export class AuthorizationService {
         });
         return !!row;
       }
+      case 'Parent': {
+        const row = await this.prisma.parent.findFirst({
+          where: { id: resourceId, schoolId: auth.schoolId, deletedAt: null },
+        });
+        return !!row;
+      }
+      case 'Document': {
+        const row = await this.prisma.document.findFirst({
+          where: { id: resourceId, schoolId: auth.schoolId, deletedAt: null },
+        });
+        return !!row;
+      }
       case 'Role': {
         const row = await this.prisma.role.findFirst({
           where: { id: resourceId, schoolId: auth.schoolId, deletedAt: null },
@@ -160,6 +172,12 @@ export class AuthorizationService {
         return resourceId === auth.userId;
       case 'Student': {
         const row = await this.prisma.student.findFirst({
+          where: { id: resourceId, schoolId: auth.schoolId, userId: auth.userId, deletedAt: null },
+        });
+        return !!row;
+      }
+      case 'Parent': {
+        const row = await this.prisma.parent.findFirst({
           where: { id: resourceId, schoolId: auth.schoolId, userId: auth.userId, deletedAt: null },
         });
         return !!row;

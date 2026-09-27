@@ -171,3 +171,42 @@ export const createTeacherAssignmentSchema = z.object({
   subjectId: z.string().min(1, 'Subject is required'),
 });
 export type CreateTeacherAssignmentInput = z.infer<typeof createTeacherAssignmentSchema>;
+
+// --- Student Management (docs/modules.md Phase 7) ---------------------------
+
+const studentStatusSchema = z.enum(['ENROLLED', 'TRANSFERRED', 'GRADUATED', 'WITHDRAWN']);
+
+export const createStudentSchema = z.object({
+  admissionNo: z.string().min(1, 'Admission number is required'),
+  firstName: z.string().min(1, 'First name is required'),
+  lastName: z.string().min(1, 'Last name is required'),
+  dateOfBirth: z.union([z.literal(''), z.string()]).optional(),
+  gender: z.string().optional(),
+  sectionId: z.union([z.literal(''), z.string()]).optional(),
+});
+export type CreateStudentInput = z.infer<typeof createStudentSchema>;
+
+export const updateStudentSchema = z.object({
+  firstName: z.string().min(1).optional(),
+  lastName: z.string().min(1).optional(),
+  dateOfBirth: z.union([z.literal(''), z.string()]).optional(),
+  gender: z.string().optional(),
+  sectionId: z.union([z.literal(''), z.string()]).optional(),
+  status: studentStatusSchema.optional(),
+});
+export type UpdateStudentInput = z.infer<typeof updateStudentSchema>;
+
+export const createParentSchema = z.object({
+  firstName: z.string().min(1, 'First name is required'),
+  lastName: z.string().min(1, 'Last name is required'),
+  phone: z.string().optional(),
+  email: z.union([z.literal(''), z.string().email()]).optional(),
+});
+export type CreateParentInput = z.infer<typeof createParentSchema>;
+
+export const linkParentSchema = z.object({
+  parentId: z.string().min(1, 'Parent is required'),
+  relation: z.string().min(1, 'Relation is required'),
+  isPrimary: z.boolean().optional().default(false),
+});
+export type LinkParentInput = z.infer<typeof linkParentSchema>;

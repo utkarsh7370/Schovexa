@@ -24,6 +24,8 @@ export type ResourceType =
   | 'Section'
   | 'Subject'
   | 'Teacher'
+  | 'Parent'
+  | 'Document'
   | 'Role'
   | 'AcademicYear'
   | 'SchoolMembership';

@@ -66,5 +66,17 @@ export function getDefaultRoleDefinitions(catalog: Permission[]): DefaultRoleDef
     ].filter((grant): grant is DefaultRoleGrant => !!grant),
   };
 
-  return [director, teacher, accountant, receptionist];
+  // OWN_CHILDREN only resolves once a Parent row's userId is set (a
+  // later phase wires up inviting a parent to the portal and linking
+  // that login to their Parent profile) — seeded now regardless, same
+  // as Teacher's attendance.* grants existed before Attendance was
+  // built, so the role is ready the moment that linking lands.
+  const parent: DefaultRoleDefinition = {
+    name: 'Parent',
+    grants: [
+      byKey('student.view') && { permissionKey: 'student.view', scope: 'OWN_CHILDREN' as PermissionScope },
+    ].filter((grant): grant is DefaultRoleGrant => !!grant),
+  };
+
+  return [director, teacher, accountant, receptionist, parent];
 }

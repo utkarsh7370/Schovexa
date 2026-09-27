@@ -12,6 +12,7 @@ import { PrismaClient } from '@prisma/client';
 // entire class of bug.
 export async function resetTestData(prisma: PrismaClient): Promise<void> {
   await prisma.auditLog.deleteMany();
+  await prisma.document.deleteMany();
   await prisma.session.deleteMany();
   await prisma.authToken.deleteMany();
   await prisma.studentParent.deleteMany();
