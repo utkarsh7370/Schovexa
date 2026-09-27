@@ -237,6 +237,11 @@ not only displayed in the UI.
 - Three environments: development, staging, production. Production
   secrets never in source control; `.env.example` holds placeholders
   only.
+- **CORS**: the API uses an explicit allow-list of known frontend
+  origins for `Access-Control-Allow-Origin` — never a wildcard — because
+  session cookies are sent with `credentials: 'include'` across the
+  web/api subdomains; a wildcard origin combined with credentialed
+  requests is a data-leak risk, not just a misconfiguration.
 - Automated, encrypted database backups with a documented, *tested*
   restore procedure before production launch (see `docs/backup.md`, to
   be written in Phase 15).
@@ -273,7 +278,16 @@ Internet → CDN/HTTPS → Next.js Web → API (NestJS) → { PostgreSQL, Redis,
 ```
 
 Provider (AWS vs Vercel vs other) is an open decision (see
-`docs/product-requirements.md` §9) that does not block Phases 0–2. The
+`docs/product-requirements.md` §9) that does not block Phases 0–2.
+
+**Connection pooling requirement**: whatever the deployment target, if
+the API is not a small fixed number of long-running processes (e.g. it
+runs as short-lived serverless functions), a connection pooler
+(PgBouncer, RDS Proxy, Prisma Accelerate, or the provider's managed
+equivalent) sits between the API and Postgres. Prisma/Postgres
+connections are not free-scaling; without a pooler, connection
+exhaustion is a realistic production failure mode well before genuine
+user-load limits are hit. The
 architecture must not preclude future per-school subdomains
 (`school-a.schovexa.com`) or custom domains — not implemented in MVP, but
 not architecturally blocked either (routing/tenant-resolution already

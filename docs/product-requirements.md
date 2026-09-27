@@ -153,6 +153,11 @@ requirement) before database/auth implementation begins:
    domain availability have not been verified. Does not block engineering
    work, but should not be treated as final before public launch or
    registration.
+6. **MVP deployment shape** (single API instance vs. scaled from day
+   one): determines whether login/reset rate limiting needs a
+   Redis-backed shared store in MVP or can start with a simpler
+   in-process limiter. Raised by the Step 5 security/scalability review
+   (`docs/security-scalability-review.md`, finding F3).
 
 These are called out explicitly rather than silently decided, per the
 change-management rule in the engineering brief.
