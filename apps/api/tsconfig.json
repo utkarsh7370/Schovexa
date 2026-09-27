@@ -4,12 +4,11 @@
     "module": "commonjs",
     "declaration": false,
     "outDir": "./dist",
-    "rootDir": "./src",
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "incremental": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false
   },
-  "include": ["src"]
+  "include": ["src", "test"]
 }

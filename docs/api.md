@@ -145,14 +145,26 @@ MVP payments) are consistent with it.
 
 | Method | Path | Auth | Notes |
 |---|---|---|---|
-| GET | `/api/v1/health` | None | Liveness only, no internal detail |
+| GET | `/api/v1/health` | None | Liveness + DB connectivity check, no internal detail |
+| POST | `/api/v1/auth/login` | None | Rate limited (IP+email); sets the session cookie |
+| POST | `/api/v1/auth/logout` | Session | Idempotent; clears the session cookie |
+| GET | `/api/v1/auth/me` | Session | Current user + their school memberships |
+| POST | `/api/v1/auth/select-school` | Session | Re-verifies membership server-side before attaching it to the session |
+| POST | `/api/v1/auth/forgot-password` | None | Rate limited; always 200, generic body (no enumeration) |
+| POST | `/api/v1/auth/reset-password` | None | Single-use token; invalidates all other sessions on success |
+| POST | `/api/v1/auth/accept-invite` | None | Single-use token; activates an `INVITED` user |
 
-Auth endpoints are specified in `docs/authentication.md` §3 and are
-implemented next (Database phase → Authentication phase per
-`docs/modules.md`); they are not duplicated here until built, to avoid
-two documents drifting out of sync. As each module ships, its endpoints
-are appended to this table with method, path, required permission, and
-scope — not written speculatively ahead of the implementation.
+"Session" in the Auth column means `AuthGuard` (docs/authorization.md §2)
+— user-level session validity only, not membership/permission/scope,
+which is Phase 4's `SchoolContextGuard`/`PermissionGuard`. There is
+deliberately no `POST /api/v1/auth/invitations` (admin-creates-invite)
+endpoint yet: creating an invitation is a permission-gated action
+(`user.create`) that requires the authorization guard built in Phase 4
+to exist first — the underlying `AuthService.createInvitation()` is
+implemented and tested, just not yet exposed over HTTP. As each further
+module ships, its endpoints are appended to this table with method,
+path, required permission, and scope — not written speculatively ahead
+of the implementation.
 
 ## 8. What This Endpoint Contract Does Not Replace
 

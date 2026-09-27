@@ -19,3 +19,19 @@ export const resetPasswordSchema = z.object({
   password: passwordSchema,
 });
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+
+export const acceptInviteSchema = z.object({
+  token: z.string().min(1),
+  password: passwordSchema,
+});
+export type AcceptInviteInput = z.infer<typeof acceptInviteSchema>;
+
+export const selectSchoolSchema = z.object({
+  membershipId: z.string().min(1),
+});
+export type SelectSchoolInput = z.infer<typeof selectSchoolSchema>;

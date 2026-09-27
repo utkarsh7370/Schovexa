@@ -62,11 +62,17 @@ POST   /api/v1/auth/login              email + password -> session cookie
 POST   /api/v1/auth/logout             destroys session
 POST   /api/v1/auth/forgot-password    email -> sends reset link (always 200, no user enumeration)
 POST   /api/v1/auth/reset-password     token + new password
-POST   /api/v1/auth/verify-email       token -> marks emailVerifiedAt
 POST   /api/v1/auth/accept-invite      invite token + password -> activates INVITED user
 GET    /api/v1/auth/me                 current user + memberships (no schoolId trusted from client)
 POST   /api/v1/auth/select-school      membershipId -> sets activeMembershipId on session (re-validated server-side)
 ```
+
+`POST /auth/verify-email` as a standalone endpoint was not implemented:
+the only provisioning path that exists (invite-based) already proves
+email ownership at `accept-invite` time (§8), so a separate verification
+step has nothing to do yet. It is added back when a self-serve
+registration flow (§3 above, Phase 2/admissions) actually needs it,
+rather than built ahead of that need.
 
 No public self-registration endpoint in MVP — school staff accounts are
 always created via `accept-invite` (see §5). A future parent/student
@@ -140,16 +146,19 @@ attacker who already has a session survives the victim's own reset.
 
 | State | Login allowed? |
 |---|---|
-| `INVITED` | No — must complete `accept-invite` first |
+| `INVITED` | No |
 | `ACTIVE` | Yes |
-| `SUSPENDED` | No — generic "account not available" message, no detail leaked |
-| `DISABLED` | No — same generic message |
-| `DELETED` | No — same generic message |
+| `SUSPENDED` | No |
+| `DISABLED` | No |
+| `DELETED` | No |
 
-The login error message is identical across "wrong password", "no such
-user", and "account not active" states to avoid user enumeration; the
-specific reason is available to admins via the user's status field, not
-via the login error.
+Every "No" row above produces the exact same login error as a wrong
+password or an unknown email — one single generic message, not a
+per-state variant. Message differences are themselves a user-enumeration
+channel, so "wrong password," "no such user," and every non-ACTIVE
+status must be indistinguishable to the caller; the specific reason is
+available to admins via the user's status field, never via the login
+error.
 
 ## 8. Email Verification
 

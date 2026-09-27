@@ -115,6 +115,12 @@ enum SubscriptionStatus {
   CANCELED
 }
 
+enum AuthTokenPurpose {
+  RESET
+  INVITE
+  EMAIL_VERIFICATION
+}
+
 // ---------------------------------------------------------------------
 // Identity & Tenancy (docs/database.md §2)
 // ---------------------------------------------------------------------
@@ -141,8 +147,51 @@ model User {
   notifications Notification[]
   noticeReads NoticeRead[]
   documentsUploaded Document[]
+  sessions    Session[]
+  authTokens  AuthToken[]
 
   @@index([email])
+}
+
+// Server-side session (docs/authentication.md §2). The cookie carries a
+// high-entropy random token; only its SHA-256 hash is stored here, so a
+// database read alone never hands over a valid session (mirrors the
+// AuthToken hashing rationale below). Sliding expiration: `expiresAt` is
+// pushed forward on each validated request by the auth guard.
+model Session {
+  id                 String    @id @default(cuid())
+  tokenHash          String    @unique
+  userId             String
+  activeMembershipId String?
+  createdAt          DateTime  @default(now())
+  lastSeenAt         DateTime  @default(now())
+  expiresAt          DateTime
+  revokedAt          DateTime?
+
+  user             User              @relation(fields: [userId], references: [id])
+  activeMembership SchoolMembership? @relation(fields: [activeMembershipId], references: [id])
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// Single-use, short-lived tokens for password reset / invite acceptance /
+// email verification (docs/authentication.md §4-6). Hashed with a FAST
+// hash (SHA-256) per docs/security-scalability-review.md finding F5 —
+// NOT Argon2id, since the token's security comes from its own entropy,
+// not from resisting a guessing attack on a human-chosen secret.
+model AuthToken {
+  id        String           @id @default(cuid())
+  userId    String
+  tokenHash String           @unique
+  purpose   AuthTokenPurpose
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, purpose])
 }
 
 model School {
@@ -198,9 +247,10 @@ model SchoolMembership {
   updatedAt DateTime         @updatedAt
   deletedAt DateTime?
 
-  user   User   @relation(fields: [userId], references: [id])
-  school School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
-  role   Role   @relation(fields: [roleId], references: [id])
+  user     User      @relation(fields: [userId], references: [id])
+  school   School    @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  role     Role      @relation(fields: [roleId], references: [id])
+  sessions Session[]
 
   @@index([userId, schoolId]) // F1: uniqueness enforced by partial index
   @@index([schoolId])
