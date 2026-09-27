@@ -1,0 +1,27 @@
+{
+  "name": "schovexa",
+  "private": true,
+  "version": "0.0.1",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev -w @schovexa/web",
+    "dev:api": "npm run dev -w @schovexa/api",
+    "build": "npm run build -w @schovexa/types && npm run build -w @schovexa/validation && npm run build -w @schovexa/api && npm run build -w @schovexa/web",
+    "lint": "npm run lint -w @schovexa/api && npm run lint -w @schovexa/web",
+    "typecheck": "npm run typecheck -w @schovexa/api && npm run typecheck -w @schovexa/web && npm run typecheck -w @schovexa/types && npm run typecheck -w @schovexa/validation",
+    "test": "npm run test -w @schovexa/api --if-present"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3"
+  },
+  "overrides": {
+    "qs": "^6.16.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
