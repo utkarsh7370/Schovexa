@@ -9,9 +9,9 @@
   "scripts": {
     "dev:web": "npm run dev -w @schovexa/web",
     "dev:api": "npm run dev -w @schovexa/api",
-    "build": "npm run build -w @schovexa/types && npm run build -w @schovexa/validation && npm run build -w @schovexa/api && npm run build -w @schovexa/web",
+    "build": "npm run build -w @schovexa/types && npm run build -w @schovexa/validation && npm run build -w @schovexa/ui && npm run build -w @schovexa/api && npm run build -w @schovexa/web",
     "lint": "npm run lint -w @schovexa/api && npm run lint -w @schovexa/web",
-    "typecheck": "npm run typecheck -w @schovexa/api && npm run typecheck -w @schovexa/web && npm run typecheck -w @schovexa/types && npm run typecheck -w @schovexa/validation",
+    "typecheck": "npm run typecheck -w @schovexa/types && npm run typecheck -w @schovexa/validation && npm run typecheck -w @schovexa/ui && npm run typecheck -w @schovexa/api && npm run typecheck -w @schovexa/web",
     "test": "npm run test -w @schovexa/api --if-present"
   },
   "devDependencies": {

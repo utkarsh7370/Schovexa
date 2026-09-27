@@ -50,9 +50,14 @@ export type RegisterSchoolInput = z.infer<typeof registerSchoolSchema>;
 export const updateSchoolSchema = z.object({
   name: z.string().min(2).optional(),
   address: z.string().optional(),
-  contactEmail: z.string().email().optional(),
+  // z.string().email().optional() only accepts undefined, not '' — an
+  // untouched optional field a form initializes as '' would then fail
+  // "invalid email" even though the user never typed anything. Allowing
+  // '' explicitly (as "clear this field") fixes that for both this form
+  // and the API, which validates the same shared schema.
+  contactEmail: z.union([z.literal(''), z.string().email()]).optional(),
   contactPhone: z.string().optional(),
-  website: z.string().url().optional(),
+  website: z.union([z.literal(''), z.string().url()]).optional(),
   timezone: z.string().optional(),
   currency: z.string().optional(),
   dateFormat: z.string().optional(),

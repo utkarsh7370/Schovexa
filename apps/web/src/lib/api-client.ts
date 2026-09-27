@@ -1,0 +1,49 @@
+// The one place that calls fetch against the API — docs/frontend-
+// architecture.md §4. Never reads or sends a schoolId from client state:
+// the API derives tenant context entirely from the session cookie
+// (docs/multi-tenancy.md §2), so this client doesn't need to either.
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
+
+export class ApiError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly details?: { field: string; message: string }[],
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+
+  static async fromResponse(res: Response): Promise<ApiError> {
+    try {
+      const body = await res.json();
+      return new ApiError(body?.error?.code ?? 'ERROR', body?.error?.message ?? 'Request failed', body?.error?.details);
+    } catch {
+      return new ApiError('ERROR', 'Request failed');
+    }
+  }
+}
+
+async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    ...init,
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...init?.headers },
+  });
+
+  if (!res.ok) {
+    throw await ApiError.fromResponse(res);
+  }
+
+  if (res.status === 204) return undefined as T;
+  return res.json();
+}
+
+export const api = {
+  get: <T>(path: string) => apiRequest<T>(path, { method: 'GET' }),
+  post: <T>(path: string, body?: unknown) =>
+    apiRequest<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
+  patch: <T>(path: string, body?: unknown) =>
+    apiRequest<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
+};
