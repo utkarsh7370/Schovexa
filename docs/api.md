@@ -1,0 +1,164 @@
+# Schovexa — API Architecture
+
+Status: Phase 1 design deliverable (closes the API-architecture gap
+tracked in `docs/architecture.md` §16). Defines the contract every
+endpoint follows; the endpoint-by-endpoint reference grows as each
+module is implemented, appended to §7 below rather than pre-invented.
+
+## 1. Versioning & Base Path
+
+```
+https://api.schovexa.com/api/v1/...
+```
+
+- All routes are prefixed `/api/v1` (already applied globally in
+  `apps/api/src/main.ts` via `app.setGlobalPrefix('api/v1')`).
+- A breaking change to an existing endpoint's contract ships as `/api/v2`
+  for that resource rather than mutating `/api/v1` in place; additive
+  changes (new optional field, new endpoint) do not require a version
+  bump.
+
+## 2. Resource Paths
+
+Plural nouns, nested only where the nesting reflects real ownership:
+
+```
+/api/v1/auth/*                     (docs/authentication.md §3)
+/api/v1/schools
+/api/v1/schools/:schoolId/settings
+/api/v1/users
+/api/v1/roles
+/api/v1/permissions
+/api/v1/students
+/api/v1/parents
+/api/v1/teachers
+/api/v1/classes
+/api/v1/sections
+/api/v1/subjects
+/api/v1/attendance
+/api/v1/fees
+/api/v1/payments
+/api/v1/notices
+/api/v1/reports
+/api/v1/audit
+/api/v1/health                     (implemented, unauthenticated)
+```
+
+`schoolId` never appears as a client-supplied route/query/body parameter
+for tenant-scoped resources (`/students`, `/attendance`, `/fees`, etc.) —
+it is resolved server-side from the session per `docs/multi-tenancy.md`
+§2. It appears explicitly only in genuinely platform-scoped routes
+(e.g. `/api/v1/platform/schools/:id`) where a platform admin is
+addressing a specific school by design, governed by
+`docs/authorization.md` §8.
+
+## 3. Request / Response Conventions
+
+**Success envelope** — a resource or list directly, no unnecessary
+wrapper:
+
+```json
+// GET /api/v1/students/:id
+{ "id": "...", "firstName": "...", "lastName": "...", "sectionId": "..." }
+```
+
+```json
+// GET /api/v1/students (list)
+{
+  "data": [ { "id": "...", ... } ],
+  "meta": { "page": 1, "pageSize": 20, "total": 137 }
+}
+```
+
+**Error envelope** — consistent shape for every 4xx/5xx, produced by a
+single global exception filter, never a raw framework/database error:
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_FAILED",
+    "message": "email must be a valid email address",
+    "details": [{ "field": "email", "message": "Invalid email" }]
+  }
+}
+```
+
+- `code` is a stable machine-readable string (`UNAUTHORIZED`,
+  `FORBIDDEN`, `NOT_FOUND`, `VALIDATION_FAILED`, `CONFLICT`,
+  `RATE_LIMITED`, `INTERNAL_ERROR`) — frontend code branches on `code`,
+  never on `message` text.
+- `message` is safe for display; it never contains a stack trace, SQL
+  fragment, file path, or internal identifier beyond what the user
+  already has access to.
+- `details` is present only for `VALIDATION_FAILED` and mirrors the Zod/
+  class-validator field errors.
+
+## 4. HTTP Status Codes (binding)
+
+| Code | Meaning here |
+|---|---|
+| 200 | Success (GET, successful mutation returning a body) |
+| 201 | Resource created |
+| 204 | Success, no body (e.g. DELETE) |
+| 400 | Malformed request / validation failure |
+| 401 | No valid session (`docs/authentication.md`) |
+| 403 | Valid session, permission genuinely absent, or feature not entitled |
+| 404 | Resource doesn't exist **or** exists outside the caller's tenant/scope (`docs/authorization.md` §4 — deliberately indistinguishable) |
+| 409 | Conflict (e.g. duplicate admission number, concurrent update) |
+| 422 | Semantically invalid but well-formed (business rule violation) |
+| 429 | Rate limited (`docs/authentication.md` §4) |
+| 500 | Unhandled server error — logged with full detail server-side, returned to the client as a generic `INTERNAL_ERROR` with no internal detail |
+
+## 5. Pagination, Filtering, Sorting
+
+List endpoints accept:
+
+```
+GET /api/v1/students?page=1&pageSize=20&sortBy=lastName&sortOrder=asc&status=ENROLLED
+```
+
+- `page`/`pageSize` are always required in effect (server applies a
+  default and a hard maximum `pageSize`, e.g. 100) — no endpoint returns
+  an entire table unbounded, per `docs/architecture.md` §27/§37.
+- Filters are explicit, allow-listed query params per endpoint (never a
+  generic `where` passthrough) — this is also what keeps filtering
+  tenant/scope-safe, since the filter builder always starts from the
+  `AuthContext`-scoped base query (`docs/multi-tenancy.md` §7), and a
+  client-supplied filter can only narrow it further, never widen it.
+- CSV export (`docs/architecture.md` §27) is a separate endpoint
+  (`GET /api/v1/reports/:report/export`) rather than a `format=csv` flag
+  on the JSON endpoint, so export permission/rate-limiting can differ
+  from view permission.
+
+## 6. Idempotency
+
+Mutation endpoints with real-world side effects that could be
+double-submitted (payment recording, refund processing) accept an
+`Idempotency-Key` header; a repeated request with the same key and same
+authenticated user returns the original result rather than creating a
+duplicate record. This matters most once payment gateway webhooks
+(`docs/architecture.md` §10) are implemented in Phase 2, but the header
+convention is established now so early endpoints (e.g. manually recorded
+MVP payments) are consistent with it.
+
+## 7. Endpoint Reference (grows per module — current state only)
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| GET | `/api/v1/health` | None | Liveness only, no internal detail |
+
+Auth endpoints are specified in `docs/authentication.md` §3 and are
+implemented next (Database phase → Authentication phase per
+`docs/modules.md`); they are not duplicated here until built, to avoid
+two documents drifting out of sync. As each module ships, its endpoints
+are appended to this table with method, path, required permission, and
+scope — not written speculatively ahead of the implementation.
+
+## 8. What This Endpoint Contract Does Not Replace
+
+Authorization (which permission/scope a route requires) is documented
+per-route in code via the `@RequirePermission(...)` decorator
+(`docs/authorization.md` §2), which is the source of truth; this
+document's endpoint table references the permission key for
+discoverability but the decorator is authoritative if they ever
+disagree — a discrepancy is a bug in this doc, not in the code.

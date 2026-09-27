@@ -287,36 +287,68 @@ runs as short-lived serverless functions), a connection pooler
 equivalent) sits between the API and Postgres. Prisma/Postgres
 connections are not free-scaling; without a pooler, connection
 exhaustion is a realistic production failure mode well before genuine
-user-load limits are hit. The
-architecture must not preclude future per-school subdomains
+user-load limits are hit.
+
+The architecture must not preclude future per-school subdomains
 (`school-a.schovexa.com`) or custom domains — not implemented in MVP, but
 not architecturally blocked either (routing/tenant-resolution already
 derives tenant from authenticated membership, not from hostname, so
 hostname-based routing can be layered on later without a rewrite).
 
-## 16. What This Document Deliberately Defers
+## 16. Phase 1 Design Set — Status
 
-- Full ERD with field-level detail, cascade rules → `docs/database.md`
-  (Phase 2 of implementation plan)
-- API endpoint-by-endpoint contract → `docs/api.md`
-- Detailed auth flow diagrams/token formats → `docs/authentication.md`
-- Security audit findings → `docs/security-audit.md`
-- Performance findings → `docs/performance.md`
-- Backup/restore runbook → `docs/backup.md`
+Phase 1 (System Architecture) is now fully designed across the
+following documents, each covering the area named in the master brief's
+Phase 1 scope:
 
-These are produced at their respective phases (Phase 2 database design,
-Phase 13 security audit, Phase 14 performance audit, Phase 15
-infrastructure) per the mandated development order, not written
-speculatively now.
+| Area | Document |
+|---|---|
+| Application architecture | This document, §1–2 |
+| Database architecture | `docs/database.md`, this document §7 |
+| Authentication architecture | `docs/authentication.md` |
+| Authorization architecture | `docs/authorization.md` |
+| Multi-tenant architecture | `docs/multi-tenancy.md`, this document §3–4 |
+| API architecture | `docs/api.md` |
+| Frontend architecture | `docs/frontend-architecture.md` |
+| File storage architecture | This document, §8 |
+| Notification architecture | This document, §9; `docs/database.md` §8 |
+| Payment architecture | This document, §10 |
+| Queue architecture | This document, §11 |
+| Logging architecture | `docs/logging.md` |
+| Deployment architecture | This document, §15 |
 
-## 17. Validation Checklist Before Implementation Begins
+Deliberately **not** written yet, because they belong to later phases,
+not Phase 1, per the mandated development order:
 
-- [ ] Product requirements reviewed (`docs/product-requirements.md`)
-- [ ] Roles reviewed (`docs/user-roles.md`)
-- [ ] Permission model reviewed (`docs/permissions.md`)
-- [ ] Module/phase plan reviewed (`docs/modules.md`)
-- [ ] Architecture reviewed (this document)
-- [ ] Open questions in `docs/product-requirements.md` §9 answered
+- Security audit findings → `docs/security-audit.md` (Phase 13, reviews
+  actual implemented code — distinct from the Step 5 design-level review
+  already done in `docs/security-scalability-review.md`)
+- Performance findings → `docs/performance.md` (Phase 14)
+- Backup/restore runbook → `docs/backup.md` (Phase 15)
+
+## 17. Validation Checklist — Phase 1 Complete
+
+- [x] Product requirements reviewed (`docs/product-requirements.md`)
+- [x] Roles reviewed (`docs/user-roles.md`)
+- [x] Permission model reviewed (`docs/permissions.md`)
+- [x] Module/phase plan reviewed (`docs/modules.md`)
+- [x] Architecture reviewed (this document, plus `docs/database.md`,
+      `docs/authentication.md`, `docs/authorization.md`,
+      `docs/multi-tenancy.md`, `docs/api.md`,
+      `docs/frontend-architecture.md`, `docs/logging.md`)
+- [x] Design-level security & scalability review performed
+      (`docs/security-scalability-review.md`, 0 Critical findings)
+- [ ] Open questions in `docs/product-requirements.md` §9 answered —
+      still open (payments-in-MVP, storage provider, deployment target,
+      single-active-school assumption, trademark note, MVP deployment
+      shape); none of them block continued implementation, since
+      defaults for each are already stated and in use in the Foundation
+      code (`apps/api`, `apps/web`) — they are decisions to confirm or
+      override, not gates.
+
+Phase 1 (System Architecture) is complete. Implementation continues per
+`docs/modules.md`'s phase order: Foundation (done) → Database → Auth →
+Multi-tenancy → RBAC → ...
 - [ ] Explicit go-ahead to begin Phase 2 (database schema design)
 
 Per the mandated process, implementation (starting with the Prisma
