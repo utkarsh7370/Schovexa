@@ -1,0 +1,712 @@
+// Schovexa — Prisma schema
+//
+// Generated from docs/database.md (Phase 2 database design). Follow that
+// document for the rationale behind each table; this file is the
+// implementation of it, amended per docs/security-scalability-review.md
+// finding F1:
+//
+//   Every unique constraint on a table that also has `deletedAt` is
+//   modeled here as a plain `@@index` (for query performance), NOT
+//   `@@unique` — Prisma's `@@unique` cannot express a `WHERE deletedAt
+//   IS NULL` clause, and a plain unique constraint would permanently
+//   block reuse of a soft-deleted row's value (e.g. a disabled user's
+//   email could never be reinvited). The actual uniqueness is enforced
+//   by a partial unique index added by hand in the generated SQL
+//   migration (see prisma/migrations/.../migration.sql) — Postgres
+//   supports `CREATE UNIQUE INDEX ... WHERE "deletedAt" IS NULL`, Prisma
+//   schema syntax does not. Tables affected are marked "-- F1" below.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  DISABLED
+  DELETED
+}
+
+enum SchoolStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum MembershipStatus {
+  ACTIVE
+  SUSPENDED
+  DISABLED
+}
+
+enum PermissionScope {
+  ALL_SCHOOL
+  OWN_CLASS
+  OWN_SUBJECT
+  OWN_STUDENTS
+  OWN_CHILDREN
+  SELF
+  READ_ONLY
+}
+
+enum StudentStatus {
+  ENROLLED
+  TRANSFERRED
+  GRADUATED
+  WITHDRAWN
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum FeeFrequency {
+  ONE_TIME
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+}
+
+enum StudentFeeStatus {
+  PENDING
+  PARTIALLY_PAID
+  PAID
+  WAIVED
+}
+
+enum PaymentMethod {
+  CASH
+  CHEQUE
+  BANK_TRANSFER
+  ONLINE
+}
+
+enum NoticeAudience {
+  ALL_SCHOOL
+  CLASS
+  SECTION
+  INDIVIDUAL
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+// ---------------------------------------------------------------------
+// Identity & Tenancy (docs/database.md §2)
+// ---------------------------------------------------------------------
+
+model User {
+  id              String    @id @default(cuid())
+  email           String // F1: uniqueness enforced by partial index (deletedAt IS NULL)
+  passwordHash    String
+  firstName       String
+  lastName        String
+  phone           String?
+  status          UserStatus @default(INVITED)
+  emailVerifiedAt DateTime?
+  lastLoginAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  memberships SchoolMembership[]
+  teacher     Teacher[]
+  parent      Parent[]
+  auditLogs   AuditLog[]
+  notices     Notice[]           @relation("NoticePublisher")
+  notifications Notification[]
+  noticeReads NoticeRead[]
+  documentsUploaded Document[]
+
+  @@index([email])
+}
+
+model School {
+  id           String       @id @default(cuid())
+  name         String
+  slug         String       @unique
+  logoUrl      String?
+  address      String?
+  contactEmail String?
+  contactPhone String?
+  website      String?
+  timezone     String       @default("Asia/Kolkata")
+  currency     String       @default("INR")
+  dateFormat   String       @default("DD/MM/YYYY")
+  status       SchoolStatus @default(ACTIVE)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  deletedAt    DateTime?
+
+  memberships       SchoolMembership[]
+  roles             Role[]
+  academicYears     AcademicYear[]
+  classes           Class[]
+  sections          Section[]
+  subjects          Subject[]
+  teachers          Teacher[]
+  teacherAssignments TeacherAssignment[]
+  students          Student[]
+  parents           Parent[]
+  studentParents    StudentParent[]
+  attendance        Attendance[]
+  feeCategories     FeeCategory[]
+  feeStructures     FeeStructure[]
+  studentFees       StudentFee[]
+  payments          Payment[]
+  receipts          Receipt[]
+  notices           Notice[]
+  notifications     Notification[]
+  noticeReads       NoticeRead[]
+  documents         Document[]
+  auditLogs         AuditLog[]
+  subscription      Subscription?
+}
+
+model SchoolMembership {
+  id        String           @id @default(cuid())
+  userId    String
+  schoolId  String
+  roleId    String
+  status    MembershipStatus @default(ACTIVE)
+  isPrimary Boolean          @default(true)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  deletedAt DateTime?
+
+  user   User   @relation(fields: [userId], references: [id])
+  school School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  @@index([userId, schoolId]) // F1: uniqueness enforced by partial index
+  @@index([schoolId])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------
+// RBAC / Permissions (docs/database.md §3, docs/permissions.md)
+// ---------------------------------------------------------------------
+
+model Permission {
+  id          String  @id @default(cuid())
+  key         String  @unique // global catalog, not soft-deleted — plain unique is correct here
+  module      String
+  action      String
+  description String?
+
+  rolePermissions RolePermission[]
+
+  @@index([module])
+}
+
+model Role {
+  id        String    @id @default(cuid())
+  schoolId  String? // null for platform roles
+  name      String
+  isSystem  Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  school      School?            @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  permissions RolePermission[]
+  memberships SchoolMembership[]
+
+  @@index([schoolId, name]) // F1: uniqueness enforced by partial index
+  @@index([schoolId])
+}
+
+model RolePermission {
+  id           String          @id @default(cuid())
+  roleId       String
+  permissionId String
+  scope        PermissionScope
+
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([roleId, permissionId]) // no deletedAt on this table — plain unique is correct
+  @@index([roleId])
+}
+
+// ---------------------------------------------------------------------
+// Academic Structure (docs/database.md §4)
+// ---------------------------------------------------------------------
+
+model AcademicYear {
+  id        String    @id @default(cuid())
+  schoolId  String
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  isCurrent Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  school  School  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  classes Class[]
+  feeStructures FeeStructure[]
+
+  @@index([schoolId, name]) // F1: uniqueness enforced by partial index
+  @@index([schoolId])
+}
+
+model Class {
+  id             String    @id @default(cuid())
+  schoolId       String
+  academicYearId String
+  name           String
+  order          Int
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  school       School       @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  sections     Section[]
+  feeStructures FeeStructure[]
+
+  @@index([academicYearId, name]) // F1: uniqueness enforced by partial index
+  @@index([schoolId])
+}
+
+model Section {
+  id             String    @id @default(cuid())
+  schoolId       String
+  classId        String
+  name           String
+  classTeacherId String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  school       School              @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  class        Class               @relation(fields: [classId], references: [id], onDelete: Restrict)
+  classTeacher Teacher?            @relation("ClassTeacherOf", fields: [classTeacherId], references: [id])
+  students     Student[]
+  assignments  TeacherAssignment[]
+  attendance   Attendance[]
+
+  @@index([classId, name]) // F1: uniqueness enforced by partial index
+  @@index([schoolId])
+}
+
+model Subject {
+  id        String    @id @default(cuid())
+  schoolId  String
+  name      String
+  code      String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  school      School              @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  assignments TeacherAssignment[]
+
+  @@index([schoolId, name]) // F1: uniqueness enforced by partial index
+  @@index([schoolId])
+}
+
+model Teacher {
+  id           String    @id @default(cuid())
+  schoolId     String
+  userId       String
+  employeeCode String?
+  joiningDate  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  school         School              @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  user           User                @relation(fields: [userId], references: [id])
+  assignments    TeacherAssignment[]
+  classTeacherOf Section[]           @relation("ClassTeacherOf")
+
+  @@index([schoolId, userId]) // F1: uniqueness enforced by partial index
+  @@index([schoolId])
+}
+
+// Resolves OWN_CLASS / OWN_SUBJECT scope checks — docs/authorization.md §3
+model TeacherAssignment {
+  id        String    @id @default(cuid())
+  schoolId  String
+  teacherId String
+  sectionId String
+  subjectId String
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  school  School  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  teacher Teacher @relation(fields: [teacherId], references: [id])
+  section Section @relation(fields: [sectionId], references: [id])
+  subject Subject @relation(fields: [subjectId], references: [id])
+
+  @@unique([teacherId, sectionId, subjectId]) // no deletedAt-reuse concern in practice; kept plain
+  @@index([schoolId])
+  @@index([sectionId])
+  @@index([teacherId])
+}
+
+// ---------------------------------------------------------------------
+// Students & Parents (docs/database.md §5)
+// ---------------------------------------------------------------------
+
+model Student {
+  id          String        @id @default(cuid())
+  schoolId    String
+  admissionNo String
+  firstName   String
+  lastName    String
+  dateOfBirth DateTime?
+  gender      String?
+  sectionId   String?
+  status      StudentStatus @default(ENROLLED)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  deletedAt   DateTime?
+
+  school     School          @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  section    Section?        @relation(fields: [sectionId], references: [id])
+  parents    StudentParent[]
+  attendance Attendance[]
+  fees       StudentFee[]
+  // Documents owned by a student are queried via Document.ownerType/
+  // ownerId (polymorphic — see Document model), not a Prisma relation.
+
+  @@index([schoolId, admissionNo]) // F1: uniqueness enforced by partial index
+  @@index([schoolId])
+  @@index([sectionId])
+}
+
+model Parent {
+  id        String    @id @default(cuid())
+  schoolId  String
+  userId    String?
+  firstName String
+  lastName  String
+  phone     String?
+  email     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  school   School          @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  user     User?           @relation(fields: [userId], references: [id])
+  children StudentParent[]
+
+  @@index([schoolId])
+}
+
+// Resolves OWN_CHILDREN scope checks — docs/authorization.md §3
+model StudentParent {
+  id        String  @id @default(cuid())
+  schoolId  String
+  studentId String
+  parentId  String
+  relation  String
+  isPrimary Boolean @default(false)
+
+  school  School  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  student Student @relation(fields: [studentId], references: [id])
+  parent  Parent  @relation(fields: [parentId], references: [id])
+
+  @@unique([studentId, parentId]) // no deletedAt on this table — plain unique is correct
+  @@index([schoolId])
+  @@index([parentId])
+}
+
+// ---------------------------------------------------------------------
+// Attendance (docs/database.md §6)
+// ---------------------------------------------------------------------
+
+model Attendance {
+  id         String           @id @default(cuid())
+  schoolId   String
+  studentId  String
+  sectionId  String
+  date       DateTime         @db.Date
+  status     AttendanceStatus
+  markedById String
+  remarks    String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  school  School  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  student Student @relation(fields: [studentId], references: [id])
+  section Section @relation(fields: [sectionId], references: [id])
+
+  @@unique([studentId, date]) // no soft delete on this table — plain unique is correct
+  @@index([schoolId, date])
+  @@index([sectionId, date])
+}
+
+// ---------------------------------------------------------------------
+// Fees & Payments (docs/database.md §7)
+// ---------------------------------------------------------------------
+
+model FeeCategory {
+  id        String    @id @default(cuid())
+  schoolId  String
+  name      String
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  school     School         @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  structures FeeStructure[]
+
+  @@index([schoolId, name]) // F1: uniqueness enforced by partial index
+  @@index([schoolId])
+}
+
+model FeeStructure {
+  id             String       @id @default(cuid())
+  schoolId       String
+  feeCategoryId  String
+  academicYearId String
+  classId        String?
+  amountMinor    Int
+  frequency      FeeFrequency
+  createdAt      DateTime     @default(now())
+  deletedAt      DateTime?
+
+  school       School       @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  feeCategory  FeeCategory  @relation(fields: [feeCategoryId], references: [id])
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
+  class        Class?       @relation(fields: [classId], references: [id])
+  studentFees  StudentFee[]
+
+  @@index([schoolId])
+}
+
+model StudentFee {
+  id             String           @id @default(cuid())
+  schoolId       String
+  studentId      String
+  feeStructureId String
+  amountDueMinor Int
+  dueDate        DateTime?
+  status         StudentFeeStatus @default(PENDING)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  deletedAt      DateTime?
+
+  school       School       @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  student      Student      @relation(fields: [studentId], references: [id])
+  feeStructure FeeStructure @relation(fields: [feeStructureId], references: [id])
+  payments     Payment[]
+
+  @@index([schoolId])
+  @@index([studentId])
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  schoolId      String
+  studentFeeId  String
+  amountMinor   Int
+  method        PaymentMethod
+  collectedById String
+  paidAt        DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+  deletedAt     DateTime?
+
+  school     School     @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  studentFee StudentFee @relation(fields: [studentFeeId], references: [id])
+  receipt    Receipt?
+
+  @@index([schoolId])
+  @@index([studentFeeId])
+}
+
+model Receipt {
+  id        String   @id @default(cuid())
+  schoolId  String
+  paymentId String   @unique // Payment is never deleted, so this 1:1 is always live — plain unique correct
+  receiptNo String
+  issuedAt  DateTime @default(now())
+
+  school  School  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  payment Payment @relation(fields: [paymentId], references: [id])
+
+  @@unique([schoolId, receiptNo]) // receipts are never soft-deleted — plain unique correct
+  @@index([schoolId])
+}
+
+// ---------------------------------------------------------------------
+// Communication & Documents (docs/database.md §8, amended per F4)
+// ---------------------------------------------------------------------
+
+model Notice {
+  id            String    @id @default(cuid())
+  schoolId      String
+  title         String
+  body          String
+  audienceType  NoticeAudience
+  audienceRefId String?
+  publishedById String
+  publishedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  deletedAt     DateTime?
+
+  school        School         @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  publishedBy   User           @relation("NoticePublisher", fields: [publishedById], references: [id])
+  notifications Notification[]
+  reads         NoticeRead[]
+
+  @@index([schoolId])
+}
+
+// One row per (user, notice) — used for triggered/individual notifications
+// with naturally small audiences. NOT used for broad-audience notices —
+// see NoticeRead below and docs/security-scalability-review.md finding F4.
+model Notification {
+  id        String              @id @default(cuid())
+  schoolId  String
+  userId    String
+  noticeId  String?
+  channel   NotificationChannel
+  title     String
+  body      String
+  readAt    DateTime?
+  createdAt DateTime            @default(now())
+
+  school School  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  user   User    @relation(fields: [userId], references: [id])
+  notice Notice? @relation(fields: [noticeId], references: [id])
+
+  @@index([schoolId, userId])
+}
+
+// Lazily-populated read-tracking for broad-audience notices (F4 fix).
+model NoticeRead {
+  id       String   @id @default(cuid())
+  schoolId String
+  noticeId String
+  userId   String
+  readAt   DateTime @default(now())
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  notice Notice @relation(fields: [noticeId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([noticeId, userId])
+  @@index([schoolId])
+}
+
+model Document {
+  id           String    @id @default(cuid())
+  schoolId     String
+  ownerType    String
+  ownerId      String
+  fileKey      String
+  fileName     String
+  mimeType     String
+  sizeBytes    Int
+  uploadedById String
+  createdAt    DateTime  @default(now())
+  deletedAt    DateTime?
+
+  school     School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  uploadedBy User   @relation(fields: [uploadedById], references: [id])
+  // ownerType/ownerId is a deliberately polymorphic reference (Student,
+  // Teacher, etc. per docs/database.md §8), not a typed FK — a Document
+  // can belong to any of several owner types, so referential integrity
+  // for the owner is enforced by the application/authorization layer
+  // (docs/authorization.md), not by a database constraint here.
+
+  @@index([schoolId])
+  @@index([ownerType, ownerId])
+}
+
+// ---------------------------------------------------------------------
+// Audit (docs/database.md §9)
+// ---------------------------------------------------------------------
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  schoolId     String?
+  userId       String?
+  action       String
+  module       String
+  resourceType String
+  resourceId   String
+  metadata     Json?
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  school School? @relation(fields: [schoolId], references: [id])
+  actor  User?   @relation(fields: [userId], references: [id])
+
+  @@index([schoolId, createdAt])
+  @@index([resourceType, resourceId])
+}
+
+// ---------------------------------------------------------------------
+// Subscriptions & Entitlements (docs/database.md §10)
+// ---------------------------------------------------------------------
+
+model Plan {
+  id           String @id @default(cuid())
+  name         String @unique
+  priceMinor   Int
+  billingCycle String
+
+  features      PlanFeature[]
+  subscriptions Subscription[]
+}
+
+model Feature {
+  id  String @id @default(cuid())
+  key String @unique
+
+  planFeatures PlanFeature[]
+}
+
+model PlanFeature {
+  id        String @id @default(cuid())
+  planId    String
+  featureId String
+
+  plan    Plan    @relation(fields: [planId], references: [id])
+  feature Feature @relation(fields: [featureId], references: [id])
+
+  @@unique([planId, featureId])
+}
+
+model Subscription {
+  id               String             @id @default(cuid())
+  schoolId         String             @unique
+  planId           String
+  status           SubscriptionStatus
+  startedAt        DateTime           @default(now())
+  currentPeriodEnd DateTime?
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  plan   Plan   @relation(fields: [planId], references: [id])
+}
