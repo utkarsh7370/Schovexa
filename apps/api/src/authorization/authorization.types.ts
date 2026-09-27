@@ -17,4 +17,11 @@ export interface AuthContext {
 // explicit union — extended one entry at a time as each business module
 // is built, never speculatively ahead of a real resourceId check that
 // needs it (docs/authorization.md §3).
-export type ResourceType = 'User' | 'Student' | 'Section' | 'Subject';
+export type ResourceType =
+  | 'User'
+  | 'Student'
+  | 'Section'
+  | 'Subject'
+  | 'Role'
+  | 'AcademicYear'
+  | 'SchoolMembership';

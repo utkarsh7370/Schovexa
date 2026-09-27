@@ -112,6 +112,24 @@ export class AuthorizationService {
         });
         return !!row;
       }
+      case 'Role': {
+        const row = await this.prisma.role.findFirst({
+          where: { id: resourceId, schoolId: auth.schoolId, deletedAt: null },
+        });
+        return !!row;
+      }
+      case 'AcademicYear': {
+        const row = await this.prisma.academicYear.findFirst({
+          where: { id: resourceId, schoolId: auth.schoolId, deletedAt: null },
+        });
+        return !!row;
+      }
+      case 'SchoolMembership': {
+        const row = await this.prisma.schoolMembership.findFirst({
+          where: { id: resourceId, schoolId: auth.schoolId, deletedAt: null },
+        });
+        return !!row;
+      }
       case 'User':
         // A bare User record has no schoolId of its own (it's a global
         // identity, docs/architecture.md §4) — ALL_SCHOOL has no

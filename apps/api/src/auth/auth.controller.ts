@@ -13,19 +13,9 @@ import { AuthGuard } from './guards/auth.guard';
 import { LoginThrottlerGuard } from './guards/login-throttler.guard';
 import { CurrentSession } from './decorators/current-session.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
-import { SESSION_COOKIE_NAME, SESSION_TTL_MS } from './auth.constants';
+import { SESSION_COOKIE_NAME, SESSION_COOKIE_OPTIONS } from './auth.constants';
+import { requestMeta } from '../common/request-meta.util';
 import type { SessionContext } from './auth.service';
-
-function requestMeta(req: Request) {
-  return { ipAddress: req.ip ?? null, userAgent: req.headers['user-agent'] ?? null };
-}
-
-const SESSION_COOKIE_OPTIONS = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax' as const,
-  maxAge: SESSION_TTL_MS,
-};
 
 // Note: the Zod pipe is bound to the @Body() parameter specifically, not
 // via a method-level @UsePipes(). @UsePipes applies to every parameter

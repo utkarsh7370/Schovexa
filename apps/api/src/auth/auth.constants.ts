@@ -19,3 +19,13 @@ export const INVITE_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 // docs/authentication.md §7: message differences are themselves a user-
 // enumeration channel, so all three cases must be indistinguishable.
 export const GENERIC_LOGIN_ERROR = 'Invalid email or password.';
+
+// Shared by every controller that sets the session cookie (login,
+// school registration's auto-login, ...) — one definition, not one per
+// call site.
+export const SESSION_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax' as const,
+  maxAge: SESSION_TTL_MS,
+};
