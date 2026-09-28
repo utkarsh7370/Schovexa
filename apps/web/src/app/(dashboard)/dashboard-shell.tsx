@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Settings, ShieldCheck, Users, CalendarDays, LogOut, School, BookOpen, GraduationCap, IdCard, UserRound, ClipboardCheck, Wallet } from 'lucide-react';
+import { LayoutDashboard, Settings, ShieldCheck, Users, CalendarDays, LogOut, School, BookOpen, GraduationCap, IdCard, UserRound, ClipboardCheck, Wallet, Bell } from 'lucide-react';
 import { LogoMark, Spinner } from '@schovexa/ui';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { useCurrentSchool } from '../../hooks/useCurrentSchool';
 import { useLogout } from '../../hooks/useLogout';
+import { useNotices } from '../../hooks/useNotices';
 import { ApiError } from '../../lib/api-client';
 import { useEffect } from 'react';
 
@@ -30,14 +31,17 @@ const NAV_ITEMS = [
   { href: '/dashboard/parents', label: 'Parents', icon: UserRound },
   { href: '/dashboard/attendance', label: 'Attendance', icon: ClipboardCheck },
   { href: '/dashboard/fees', label: 'Fees', icon: Wallet },
+  { href: '/dashboard/notices', label: 'Notices', icon: Bell },
 ];
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { data: me, error: meError, isLoading: meLoading } = useCurrentUser();
-  const { data: school, error: schoolError, isLoading: schoolLoading } = useCurrentSchool();
+  const { data: school } = useCurrentSchool();
+  const { data: notices } = useNotices();
   const logout = useLogout();
+  const unreadCount = notices?.filter((n) => n.publishedAt && !n.isRead).length ?? 0;
 
   useEffect(() => {
     if (meError instanceof ApiError && meError.code === 'UNAUTHORIZED') {
@@ -46,15 +50,21 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   }, [meError, router]);
 
   useEffect(() => {
-    // No active school selected on this session — send them to pick one
-    // rather than showing a broken dashboard (SchoolContextGuard denies
-    // every school-scoped call until a school is selected).
-    if (schoolError instanceof ApiError && schoolError.code === 'FORBIDDEN') {
+    // No active school selected on this session — send them to pick
+    // one. Checked via /auth/me's activeSchoolId (readable by every
+    // authenticated role, no permission gate) rather than /schools/me's
+    // error code: that endpoint additionally requires school.view, so a
+    // role without it — Teacher, Parent, Receptionist — 403s there even
+    // with an active school correctly selected. Treating that 403 the
+    // same as "no active school" sent every such role into a redirect
+    // loop between /dashboard and /select-school, caught via Phase 10
+    // live verification logging in as a Teacher for the first time.
+    if (me && me.activeSchoolId === null) {
       router.push('/select-school');
     }
-  }, [schoolError, router]);
+  }, [me, router]);
 
-  if (meLoading || schoolLoading || !me || !school) {
+  if (meLoading || !me || me.activeSchoolId === null) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Spinner size={28} />
@@ -67,7 +77,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <aside className="flex w-64 flex-col border-r border-slate-200 bg-white">
         <div className="flex items-center gap-2 border-b border-slate-200 px-5 py-5">
           <LogoMark size={32} />
-          <span className="truncate text-sm font-semibold text-navy">{school.name}</span>
+          {/* school is undefined for a role without school.view (e.g.
+              Teacher) — the sidebar still renders, just without a name. */}
+          <span className="truncate text-sm font-semibold text-navy">{school?.name ?? 'Dashboard'}</span>
         </div>
 
         <nav className="flex-1 space-y-1 p-3">
@@ -85,6 +97,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               >
                 <Icon size={18} strokeWidth={2} />
                 {item.label}
+                {item.href === '/dashboard/notices' && unreadCount > 0 && (
+                  <span className="ml-auto rounded-full bg-brand-blue px-2 py-0.5 text-xs font-semibold text-white">
+                    {unreadCount}
+                  </span>
+                )}
               </Link>
             );
           })}
