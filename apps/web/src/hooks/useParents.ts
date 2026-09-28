@@ -7,6 +7,7 @@ export interface Parent {
   lastName: string;
   phone: string | null;
   email: string | null;
+  userId: string | null;
 }
 
 export const PARENTS_QUERY_KEY = ['parents'];

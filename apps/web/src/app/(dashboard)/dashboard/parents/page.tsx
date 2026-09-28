@@ -14,6 +14,11 @@ export default function ParentsPage() {
   const queryClient = useQueryClient();
   const [creating, setCreating] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [invitingParentId, setInvitingParentId] = useState<string | null>(null);
+  const [inviteEmailDraft, setInviteEmailDraft] = useState('');
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteResult, setInviteResult] = useState<{ parentId: string; link: string } | null>(null);
+  const [busyParentId, setBusyParentId] = useState<string | null>(null);
 
   const {
     register,
@@ -31,6 +36,37 @@ export default function ParentsPage() {
       setCreating(false);
     } catch (err) {
       setServerError(err instanceof ApiError ? err.message : 'Could not create parent profile.');
+    }
+  };
+
+  const startInvite = (parentId: string) => {
+    setInvitingParentId(parentId);
+    setInviteEmailDraft('');
+    setInviteError(null);
+    setInviteResult(null);
+  };
+
+  const sendInvite = async (parentId: string, email: string) => {
+    setInviteError(null);
+    setBusyParentId(parentId);
+    try {
+      const result = await api.post<{ userId: string; inviteToken: string | null }>(`/parents/${parentId}/invite`, {
+        ...(email ? { email } : {}),
+      });
+      await queryClient.invalidateQueries({ queryKey: PARENTS_QUERY_KEY });
+      setInvitingParentId(null);
+      if (result.inviteToken) {
+        setInviteResult({ parentId, link: `${window.location.origin}/accept-invite?token=${result.inviteToken}` });
+      } else {
+        // No token: this email already had an active portal login (e.g.
+        // a sibling's parent invited earlier) — this parent record was
+        // just linked to it, nothing more for the admin to share.
+        setInviteResult({ parentId, link: '' });
+      }
+    } catch (err) {
+      setInviteError(err instanceof ApiError ? err.message : 'Could not invite this parent.');
+    } finally {
+      setBusyParentId(null);
     }
   };
 
@@ -70,13 +106,66 @@ export default function ParentsPage() {
 
       <div className="mt-6 flex flex-col gap-2">
         {parents?.map((parent) => (
-          <Card key={parent.id} className="flex items-center justify-between p-4">
-            <div>
-              <p className="font-medium text-navy">
-                {parent.firstName} {parent.lastName}
-              </p>
-              <p className="text-sm text-slate-500">{[parent.phone, parent.email].filter(Boolean).join(' · ') || 'No contact info'}</p>
+          <Card key={parent.id} className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-navy">
+                  {parent.firstName} {parent.lastName}
+                </p>
+                <p className="text-sm text-slate-500">
+                  {[parent.phone, parent.email].filter(Boolean).join(' · ') || 'No contact info'}
+                </p>
+              </div>
+              {parent.userId ? (
+                <span className="text-sm font-medium text-green-600">Portal login active</span>
+              ) : invitingParentId !== parent.id ? (
+                <Button size="sm" variant="secondary" onClick={() => startInvite(parent.id)}>
+                  Invite to portal
+                </Button>
+              ) : null}
             </div>
+
+            {invitingParentId === parent.id && (
+              <div className="mt-4 flex flex-col gap-2 border-t border-slate-200 pt-4">
+                {inviteError && <Alert variant="error">{inviteError}</Alert>}
+                {!parent.email && (
+                  <TextField
+                    label="Email"
+                    type="email"
+                    placeholder="parent@example.com"
+                    value={inviteEmailDraft}
+                    onChange={(e) => setInviteEmailDraft(e.target.value)}
+                  />
+                )}
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    loading={busyParentId === parent.id}
+                    onClick={() => sendInvite(parent.id, inviteEmailDraft)}
+                  >
+                    Send invite
+                  </Button>
+                  <Button size="sm" variant="secondary" onClick={() => setInvitingParentId(null)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {inviteResult?.parentId === parent.id &&
+              (inviteResult.link ? (
+                <Alert variant="success" className="mt-4">
+                  <p>Invitation created. Share this link with them (no email delivery yet):</p>
+                  <code className="mt-2 block break-all rounded bg-white/60 px-2 py-1 text-xs text-green-900">
+                    {inviteResult.link}
+                  </code>
+                </Alert>
+              ) : (
+                <Alert variant="success" className="mt-4">
+                  This parent already has a portal login (linked via a sibling) — they can log in with their existing
+                  password.
+                </Alert>
+              ))}
           </Card>
         ))}
         {parents?.length === 0 && !creating && (
