@@ -83,6 +83,6 @@ export class StudentFeesController {
     @Query('academicYearId') academicYearId: string | undefined,
     @CurrentAuthContext() auth: AuthContext,
   ) {
-    return this.studentFeesService.outstanding(auth.schoolId, academicYearId);
+    return this.studentFeesService.outstanding(auth, academicYearId);
   }
 }

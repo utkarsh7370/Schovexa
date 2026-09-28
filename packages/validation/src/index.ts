@@ -211,6 +211,14 @@ export const linkParentSchema = z.object({
 });
 export type LinkParentInput = z.infer<typeof linkParentSchema>;
 
+// Email is optional here (not required) because a Parent record's own
+// `email` field is used as the default target — only overridden when
+// that field is empty or the admin wants to send the invite elsewhere.
+export const inviteParentSchema = z.object({
+  email: z.string().email('Enter a valid email').optional(),
+});
+export type InviteParentInput = z.infer<typeof inviteParentSchema>;
+
 // --- Attendance (docs/modules.md Phase 8) -----------------------------------
 
 const attendanceStatusSchema = z.enum(['PRESENT', 'ABSENT', 'LATE', 'EXCUSED']);

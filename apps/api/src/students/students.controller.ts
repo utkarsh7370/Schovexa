@@ -26,7 +26,7 @@ export class StudentsController {
     @Query('status') status: string | undefined,
     @CurrentAuthContext() auth: AuthContext,
   ) {
-    return this.studentsService.list(auth.schoolId, { sectionId, status });
+    return this.studentsService.list(auth, { sectionId, status });
   }
 
   @Post()

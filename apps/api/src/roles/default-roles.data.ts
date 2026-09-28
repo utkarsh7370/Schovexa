@@ -79,6 +79,7 @@ export function getDefaultRoleDefinitions(catalog: Permission[]): DefaultRoleDef
     grants: [
       byKey('student.view') && { permissionKey: 'student.view', scope: 'OWN_CHILDREN' as PermissionScope },
       byKey('attendance.view') && { permissionKey: 'attendance.view', scope: 'OWN_CHILDREN' as PermissionScope },
+      byKey('fee.view') && { permissionKey: 'fee.view', scope: 'OWN_CHILDREN' as PermissionScope },
       byKey('notice.view') && { permissionKey: 'notice.view', scope: 'ALL_SCHOOL' as PermissionScope },
     ].filter((grant): grant is DefaultRoleGrant => !!grant),
   };

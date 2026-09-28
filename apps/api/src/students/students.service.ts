@@ -1,21 +1,83 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { CreateStudentInput, LinkParentInput, UpdateStudentInput } from '@schovexa/validation';
+import type { AuthContext } from '../authorization/authorization.types';
 
 @Injectable()
 export class StudentsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(schoolId: string, filters: { sectionId?: string; status?: string }) {
+  // A single resourceId (e.g. GET /students/:id) is scope-checked by
+  // AuthorizationService.authorizeResource() in the controller — but a
+  // *list* has no single resourceId for it to check against, so the
+  // filtering has to happen here, at query-build time, or a caller with
+  // e.g. OWN_STUDENTS/OWN_CHILDREN scope would see every student in the
+  // school instead of just the ones their scope actually covers.
+  async list(auth: AuthContext, filters: { sectionId?: string; status?: string }) {
+    const scopeFilter = await this.buildScopeFilter(auth);
+    if (scopeFilter === null) return [];
+
     return this.prisma.student.findMany({
       where: {
-        schoolId,
+        schoolId: auth.schoolId,
         deletedAt: null,
+        ...scopeFilter,
         ...(filters.sectionId ? { sectionId: filters.sectionId } : {}),
         ...(filters.status ? { status: filters.status as never } : {}),
       },
       orderBy: { admissionNo: 'asc' },
     });
+  }
+
+  // Returns null when the caller's scope resolves to "no students" (no
+  // Parent/Teacher profile yet, or one with no linked children/sections)
+  // — the list() caller above turns that into an empty array, never a
+  // fall-through to the unfiltered ALL_SCHOOL query below it.
+  private async buildScopeFilter(auth: AuthContext): Promise<Prisma.StudentWhereInput | null> {
+    switch (auth.scope) {
+      case 'ALL_SCHOOL':
+        return {};
+
+      case 'OWN_CHILDREN': {
+        const parent = await this.prisma.parent.findFirst({
+          where: { schoolId: auth.schoolId, userId: auth.userId, deletedAt: null },
+        });
+        if (!parent) return null;
+        const links = await this.prisma.studentParent.findMany({
+          where: { schoolId: auth.schoolId, parentId: parent.id },
+          select: { studentId: true },
+        });
+        if (!links.length) return null;
+        return { id: { in: links.map((l) => l.studentId) } };
+      }
+
+      case 'OWN_STUDENTS': {
+        const teacher = await this.prisma.teacher.findFirst({
+          where: { schoolId: auth.schoolId, userId: auth.userId, deletedAt: null },
+        });
+        if (!teacher) return null;
+        const [classTeacherOf, assignments] = await Promise.all([
+          this.prisma.section.findMany({
+            where: { schoolId: auth.schoolId, classTeacherId: teacher.id, deletedAt: null },
+            select: { id: true },
+          }),
+          this.prisma.teacherAssignment.findMany({
+            where: { schoolId: auth.schoolId, teacherId: teacher.id, deletedAt: null },
+            select: { sectionId: true },
+          }),
+        ]);
+        const sectionIds = [...new Set([...classTeacherOf.map((s) => s.id), ...assignments.map((a) => a.sectionId)])];
+        if (!sectionIds.length) return null;
+        return { sectionId: { in: sectionIds } };
+      }
+
+      default:
+        // SELF/OWN_CLASS/OWN_SUBJECT are not meaningful scopes for a
+        // student list and no role is seeded with student.view under
+        // them — deny rather than silently fall through to ALL_SCHOOL.
+        return null;
+    }
   }
 
   async create(schoolId: string, input: CreateStudentInput) {

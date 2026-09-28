@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma, StudentFeeStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AssignFeeToStudentInput, RecordPaymentInput, UpdateStudentFeeInput } from '@schovexa/validation';
+import type { AuthContext } from '../authorization/authorization.types';
 
 const FEE_INCLUDE = { feeStructure: { include: { feeCategory: true } }, payments: true } as const;
 type FeeWithRelations = Prisma.StudentFeeGetPayload<{ include: typeof FEE_INCLUDE }>;
@@ -156,12 +157,22 @@ export class StudentFeesService {
     throw new Error('Could not record payment.');
   }
 
-  async outstanding(schoolId: string, academicYearId?: string) {
+  // This is a school-wide report by nature (unlike listForStudent, it
+  // has no single resourceId for the controller to run through
+  // authorizeResource()) — so a caller whose fee.view grant is scoped to
+  // OWN_CHILDREN (a Parent) must be filtered down here, or they would
+  // see every family's outstanding balance in the school, not just
+  // their own child's.
+  async outstanding(auth: AuthContext, academicYearId?: string) {
+    const studentFilter = await this.buildStudentFilter(auth);
+    if (studentFilter === null) return [];
+
     const fees = await this.prisma.studentFee.findMany({
       where: {
-        schoolId,
+        schoolId: auth.schoolId,
         deletedAt: null,
         status: { in: [StudentFeeStatus.PENDING, StudentFeeStatus.PARTIALLY_PAID] },
+        ...studentFilter,
         ...(academicYearId ? { feeStructure: { academicYearId } } : {}),
       },
       include: { ...FEE_INCLUDE, student: true },
@@ -177,6 +188,31 @@ export class StudentFeesService {
         lastName: fee.student.lastName,
       },
     }));
+  }
+
+  private async buildStudentFilter(auth: AuthContext): Promise<Prisma.StudentFeeWhereInput | null> {
+    switch (auth.scope) {
+      case 'ALL_SCHOOL':
+        return {};
+
+      case 'OWN_CHILDREN': {
+        const parent = await this.prisma.parent.findFirst({
+          where: { schoolId: auth.schoolId, userId: auth.userId, deletedAt: null },
+        });
+        if (!parent) return null;
+        const links = await this.prisma.studentParent.findMany({
+          where: { schoolId: auth.schoolId, parentId: parent.id },
+          select: { studentId: true },
+        });
+        if (!links.length) return null;
+        return { studentId: { in: links.map((l) => l.studentId) } };
+      }
+
+      default:
+        // No role is seeded with fee.view under any other scope — deny
+        // rather than silently fall through to a school-wide report.
+        return null;
+    }
   }
 
   private toDto(fee: FeeWithRelations) {
