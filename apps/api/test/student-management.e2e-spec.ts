@@ -85,7 +85,20 @@ describe('Student Management (e2e)', () => {
       .set('Origin', WEB_ORIGIN)
       .send({ token: invite.body.inviteToken, password });
     const login = await agent().post('/api/v1/auth/login').set('Origin', WEB_ORIGIN).send({ email, password });
-    return { cookie: login.headers['set-cookie'] as string };
+    const cookie = login.headers['set-cookie'] as string;
+    // Login does NOT auto-select a school (only registration does,
+    // docs/multi-tenancy.md §2) — every school-scoped call after this
+    // would otherwise 403 from SchoolContextGuard for having no active
+    // school, not from the permission check these tests actually mean
+    // to exercise.
+    const me = await agent().get('/api/v1/auth/me').set('Cookie', cookie);
+    const membershipId = me.body.memberships[0].membershipId;
+    await agent()
+      .post('/api/v1/auth/select-school')
+      .set('Origin', WEB_ORIGIN)
+      .set('Cookie', cookie)
+      .send({ membershipId });
+    return { cookie };
   }
 
   describe('Students', () => {

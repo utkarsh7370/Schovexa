@@ -210,3 +210,28 @@ export const linkParentSchema = z.object({
   isPrimary: z.boolean().optional().default(false),
 });
 export type LinkParentInput = z.infer<typeof linkParentSchema>;
+
+// --- Attendance (docs/modules.md Phase 8) -----------------------------------
+
+const attendanceStatusSchema = z.enum(['PRESENT', 'ABSENT', 'LATE', 'EXCUSED']);
+
+export const markAttendanceSchema = z.object({
+  sectionId: z.string().min(1, 'Section is required'),
+  date: z.string().min(1, 'Date is required'),
+  records: z
+    .array(
+      z.object({
+        studentId: z.string().min(1),
+        status: attendanceStatusSchema,
+        remarks: z.string().optional(),
+      }),
+    )
+    .min(1, 'At least one attendance record is required'),
+});
+export type MarkAttendanceInput = z.infer<typeof markAttendanceSchema>;
+
+export const updateAttendanceSchema = z.object({
+  status: attendanceStatusSchema.optional(),
+  remarks: z.string().optional(),
+});
+export type UpdateAttendanceInput = z.infer<typeof updateAttendanceSchema>;
