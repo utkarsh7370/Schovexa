@@ -65,6 +65,13 @@ export function getDefaultRoleDefinitions(catalog: Permission[]): DefaultRoleDef
       byKey('student.view') && { permissionKey: 'student.view', scope: 'ALL_SCHOOL' as PermissionScope },
       byKey('student.create') && { permissionKey: 'student.create', scope: 'ALL_SCHOOL' as PermissionScope },
       byKey('student.update') && { permissionKey: 'student.update', scope: 'ALL_SCHOOL' as PermissionScope },
+      // Front desk registers parent contacts during admission — the
+      // sidebar has always linked to Parents for this role; it 403'd on
+      // click until this grant existed (UI/UX audit finding, not a new
+      // feature).
+      byKey('parent.view') && { permissionKey: 'parent.view', scope: 'ALL_SCHOOL' as PermissionScope },
+      byKey('parent.create') && { permissionKey: 'parent.create', scope: 'ALL_SCHOOL' as PermissionScope },
+      byKey('parent.update') && { permissionKey: 'parent.update', scope: 'ALL_SCHOOL' as PermissionScope },
       byKey('notice.view') && { permissionKey: 'notice.view', scope: 'ALL_SCHOOL' as PermissionScope },
     ].filter((grant): grant is DefaultRoleGrant => !!grant),
   };
