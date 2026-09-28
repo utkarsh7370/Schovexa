@@ -10,6 +10,10 @@ export interface Membership {
 
 export const MEMBERSHIPS_QUERY_KEY = ['memberships'];
 
-export function useMemberships() {
-  return useQuery({ queryKey: MEMBERSHIPS_QUERY_KEY, queryFn: () => api.get<Membership[]>('/memberships') });
+export function useMemberships(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: MEMBERSHIPS_QUERY_KEY,
+    queryFn: () => api.get<Membership[]>('/memberships'),
+    enabled: options?.enabled,
+  });
 }

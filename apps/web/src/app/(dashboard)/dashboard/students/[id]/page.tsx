@@ -7,7 +7,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { linkParentSchema, type LinkParentInput } from '@schovexa/validation';
-import { Button, Card, TextField, Alert, Spinner } from '@schovexa/ui';
+import { Button, Card, TextField, Alert, Spinner, ConfirmDialog, Badge, useToast } from '@schovexa/ui';
 import { ArrowLeft } from 'lucide-react';
 import { useStudent, studentQueryKey, type StudentStatus } from '../../../../../hooks/useStudents';
 import { useParents } from '../../../../../hooks/useParents';
@@ -105,6 +105,7 @@ function ParentsPanel({
   const [linking, setLinking] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [busyParentId, setBusyParentId] = useState<string | null>(null);
+  const [confirmingUnlink, setConfirmingUnlink] = useState<{ id: string; name: string } | null>(null);
 
   const linkedParentIds = new Set(linkedParents.map((l) => l.parent.id));
   const availableParents = parents?.filter((p) => !linkedParentIds.has(p.id));
@@ -128,13 +129,15 @@ function ParentsPanel({
     }
   };
 
-  const unlink = async (parentId: string) => {
-    setBusyParentId(parentId);
+  const unlink = async () => {
+    if (!confirmingUnlink) return;
+    setBusyParentId(confirmingUnlink.id);
     try {
-      await api.delete(`/students/${studentId}/parents/${parentId}`);
+      await api.delete(`/students/${studentId}/parents/${confirmingUnlink.id}`);
       await queryClient.invalidateQueries({ queryKey: studentQueryKey(studentId) });
     } finally {
       setBusyParentId(null);
+      setConfirmingUnlink(null);
     }
   };
 
@@ -160,7 +163,9 @@ function ParentsPanel({
               size="sm"
               variant="danger"
               loading={busyParentId === link.parent.id}
-              onClick={() => unlink(link.parent.id)}
+              onClick={() =>
+                setConfirmingUnlink({ id: link.parent.id, name: `${link.parent.firstName} ${link.parent.lastName}` })
+              }
             >
               Unlink
             </Button>
@@ -168,6 +173,17 @@ function ParentsPanel({
         ))}
         {linkedParents.length === 0 && !linking && <p className="text-sm text-slate-500">No parents linked yet.</p>}
       </div>
+
+      <ConfirmDialog
+        open={!!confirmingUnlink}
+        title={`Unlink ${confirmingUnlink?.name ?? 'this parent'}?`}
+        description="They will no longer be able to see this student's attendance, fees, or records."
+        confirmLabel="Unlink"
+        tone="danger"
+        loading={busyParentId === confirmingUnlink?.id}
+        onConfirm={unlink}
+        onCancel={() => setConfirmingUnlink(null)}
+      />
 
       {linking && (
         <form onSubmit={handleSubmit(onLink)} className="mt-4 flex flex-col gap-3 rounded-lg border border-slate-200 p-3">
@@ -296,6 +312,19 @@ function DocumentsPanel({ studentId }: { studentId: string }) {
   );
 }
 
+const ATTENDANCE_STATUS_LABELS: Record<string, string> = {
+  PRESENT: 'Present',
+  ABSENT: 'Absent',
+  LATE: 'Late',
+  EXCUSED: 'Excused',
+};
+const ATTENDANCE_STATUS_TONES: Record<string, 'success' | 'danger' | 'warning' | 'neutral'> = {
+  PRESENT: 'success',
+  ABSENT: 'danger',
+  LATE: 'warning',
+  EXCUSED: 'neutral',
+};
+
 function AttendancePanel({ studentId }: { studentId: string }) {
   const [from] = useState(() => {
     const d = new Date();
@@ -312,7 +341,9 @@ function AttendancePanel({ studentId }: { studentId: string }) {
         {history?.map((record) => (
           <div key={record.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
             <span className="text-navy">{new Date(record.date).toLocaleDateString()}</span>
-            <span className="font-medium text-navy">{record.status}</span>
+            <Badge tone={ATTENDANCE_STATUS_TONES[record.status] ?? 'neutral'}>
+              {ATTENDANCE_STATUS_LABELS[record.status] ?? record.status}
+            </Badge>
             {record.remarks && <span className="text-slate-500">{record.remarks}</span>}
           </div>
         ))}
@@ -323,11 +354,30 @@ function AttendancePanel({ studentId }: { studentId: string }) {
 }
 
 const PAYMENT_METHODS = ['CASH', 'CHEQUE', 'BANK_TRANSFER', 'ONLINE'] as const;
+const PAYMENT_METHOD_LABELS: Record<(typeof PAYMENT_METHODS)[number], string> = {
+  CASH: 'Cash',
+  CHEQUE: 'Cheque',
+  BANK_TRANSFER: 'Bank transfer',
+  ONLINE: 'Online',
+};
+const FEE_STATUS_LABELS: Record<string, string> = {
+  PENDING: 'Pending',
+  PARTIALLY_PAID: 'Partially paid',
+  PAID: 'Paid',
+  WAIVED: 'Waived',
+};
+const FEE_STATUS_TONES: Record<string, 'neutral' | 'success' | 'warning' | 'danger' | 'info' | 'brand'> = {
+  PENDING: 'warning',
+  PARTIALLY_PAID: 'info',
+  PAID: 'success',
+  WAIVED: 'neutral',
+};
 
 function FeesPanel({ studentId }: { studentId: string }) {
   const { data: fees } = useStudentFees(studentId);
   const { data: structures } = useFeeStructures();
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [assigning, setAssigning] = useState(false);
   const [selectedStructureId, setSelectedStructureId] = useState('');
   const [payingId, setPayingId] = useState<string | null>(null);
@@ -335,6 +385,7 @@ function FeesPanel({ studentId }: { studentId: string }) {
   const [paymentMethod, setPaymentMethod] = useState<(typeof PAYMENT_METHODS)[number]>('CASH');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [confirmingWaive, setConfirmingWaive] = useState<string | null>(null);
 
   const assignedStructureIds = new Set(fees?.map((f) => f.feeStructureId));
   const availableStructures = structures?.filter((s) => !assignedStructureIds.has(s.id));
@@ -355,13 +406,16 @@ function FeesPanel({ studentId }: { studentId: string }) {
     }
   };
 
-  const waive = async (feeId: string) => {
-    setBusyId(feeId);
+  const waive = async () => {
+    if (!confirmingWaive) return;
+    setBusyId(confirmingWaive);
     try {
-      await api.patch(`/student-fees/${feeId}/waive`);
+      await api.patch(`/student-fees/${confirmingWaive}/waive`);
       await queryClient.invalidateQueries({ queryKey: studentFeesQueryKey(studentId) });
+      toast.show({ tone: 'success', title: 'Fee waived' });
     } finally {
       setBusyId(null);
+      setConfirmingWaive(null);
     }
   };
 
@@ -374,13 +428,18 @@ function FeesPanel({ studentId }: { studentId: string }) {
     setServerError(null);
     setBusyId(feeId);
     try {
-      await api.post(`/student-fees/${feeId}/payments`, {
+      const payment = await api.post<{ receipt: { receiptNo: string } | null }>(`/student-fees/${feeId}/payments`, {
         amountMinor: majorToMinor(amount),
         method: paymentMethod,
       });
       await queryClient.invalidateQueries({ queryKey: studentFeesQueryKey(studentId) });
       setPayingId(null);
       setPaymentAmount('');
+      toast.show({
+        tone: 'success',
+        title: 'Payment recorded',
+        description: payment.receipt ? `Receipt #${payment.receipt.receiptNo}` : undefined,
+      });
     } catch (err) {
       setServerError(err instanceof ApiError ? err.message : 'Could not record payment.');
     } finally {
@@ -438,8 +497,11 @@ function FeesPanel({ studentId }: { studentId: string }) {
                 <p className="text-sm font-medium text-navy">
                   {fee.feeCategory.name} · Due {formatMinor(fee.amountDueMinor)}
                 </p>
-                <p className="text-xs text-slate-500">
-                  Paid {formatMinor(fee.paidMinor)} · Balance {formatMinor(fee.balanceMinor)} · {fee.status}
+                <p className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+                  <span>
+                    Paid {formatMinor(fee.paidMinor)} · Balance {formatMinor(fee.balanceMinor)}
+                  </span>
+                  <Badge tone={FEE_STATUS_TONES[fee.status] ?? 'neutral'}>{FEE_STATUS_LABELS[fee.status] ?? fee.status}</Badge>
                 </p>
               </div>
               {fee.status !== 'WAIVED' && fee.status !== 'PAID' && (
@@ -447,7 +509,7 @@ function FeesPanel({ studentId }: { studentId: string }) {
                   <Button size="sm" variant="secondary" onClick={() => setPayingId(payingId === fee.id ? null : fee.id)}>
                     Record payment
                   </Button>
-                  <Button size="sm" variant="danger" loading={busyId === fee.id} onClick={() => waive(fee.id)}>
+                  <Button size="sm" variant="danger" loading={busyId === fee.id} onClick={() => setConfirmingWaive(fee.id)}>
                     Waive
                   </Button>
                 </div>
@@ -470,7 +532,7 @@ function FeesPanel({ studentId }: { studentId: string }) {
                 >
                   {PAYMENT_METHODS.map((m) => (
                     <option key={m} value={m}>
-                      {m}
+                      {PAYMENT_METHOD_LABELS[m]}
                     </option>
                   ))}
                 </select>
@@ -483,6 +545,17 @@ function FeesPanel({ studentId }: { studentId: string }) {
         ))}
         {fees?.length === 0 && !assigning && <p className="text-sm text-slate-500">No fees assigned yet.</p>}
       </div>
+
+      <ConfirmDialog
+        open={!!confirmingWaive}
+        title="Waive this fee?"
+        description="The outstanding balance will be cleared. This is recorded and cannot be undone from here."
+        confirmLabel="Waive fee"
+        tone="danger"
+        loading={busyId === confirmingWaive}
+        onConfirm={waive}
+        onCancel={() => setConfirmingWaive(null)}
+      />
     </Card>
   );
 }

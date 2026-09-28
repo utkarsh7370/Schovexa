@@ -5,20 +5,35 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { createInvitationSchema, type CreateInvitationInput } from '@schovexa/validation';
-import { Button, Card, TextField, Alert } from '@schovexa/ui';
+import { Button, Card, TextField, Alert, PageHeader, Badge, ConfirmDialog, useToast, type BadgeTone } from '@schovexa/ui';
+import { UserPlus2, Users } from 'lucide-react';
 import { useMemberships, MEMBERSHIPS_QUERY_KEY } from '../../../../hooks/useMemberships';
 import { useRoles } from '../../../../hooks/useRoles';
 import { api, ApiError } from '../../../../lib/api-client';
+
+const STATUS_LABELS: Record<string, string> = {
+  ACTIVE: 'Active',
+  INVITED: 'Invited — pending',
+  DISABLED: 'Disabled',
+};
+
+const STATUS_TONES: Record<string, BadgeTone> = {
+  ACTIVE: 'success',
+  INVITED: 'warning',
+  DISABLED: 'neutral',
+};
 
 export default function StaffPage() {
   const { data: memberships } = useMemberships();
   const { data: roles } = useRoles();
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   const [inviting, setInviting] = useState(false);
   const [inviteResult, setInviteResult] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [busyMembershipId, setBusyMembershipId] = useState<string | null>(null);
+  const [confirmingDisable, setConfirmingDisable] = useState<{ id: string; name: string } | null>(null);
 
   const {
     register,
@@ -45,13 +60,16 @@ export default function StaffPage() {
     }
   };
 
-  const disable = async (membershipId: string) => {
-    setBusyMembershipId(membershipId);
+  const disable = async () => {
+    if (!confirmingDisable) return;
+    setBusyMembershipId(confirmingDisable.id);
     try {
-      await api.post(`/memberships/${membershipId}/disable`);
+      await api.post(`/memberships/${confirmingDisable.id}/disable`);
       await queryClient.invalidateQueries({ queryKey: MEMBERSHIPS_QUERY_KEY });
+      toast.show({ tone: 'success', title: `${confirmingDisable.name}'s access was disabled` });
     } finally {
       setBusyMembershipId(null);
+      setConfirmingDisable(null);
     }
   };
 
@@ -67,20 +85,24 @@ export default function StaffPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-navy">Staff</h1>
-          <p className="mt-1 text-slate-600">Invite staff and manage their access.</p>
-        </div>
-        {!inviting && <Button onClick={() => setInviting(true)}>Invite staff</Button>}
-      </div>
+      <PageHeader
+        title="Staff"
+        description="Invite team members and manage their access."
+        action={
+          !inviting && (
+            <Button onClick={() => setInviting(true)}>
+              <UserPlus2 size={16} /> Invite staff
+            </Button>
+          )
+        }
+      />
 
       {inviting && (
         <Card className="mt-6 p-6">
           <h2 className="text-base font-semibold text-navy">Invite a staff member</h2>
           <form onSubmit={handleSubmit(onInvite)} className="mt-4 flex flex-col gap-4">
             {serverError && <Alert variant="error">{serverError}</Alert>}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <TextField label="First name" error={errors.firstName?.message} {...register('firstName')} />
               <TextField label="Last name" error={errors.lastName?.message} {...register('lastName')} />
             </div>
@@ -127,43 +149,65 @@ export default function StaffPage() {
       <div className="mt-6 flex flex-col gap-2">
         {memberships?.map((m) => (
           <Card key={m.membershipId} className="flex items-center justify-between p-4">
-            <div>
-              <p className="font-medium text-navy">
-                {m.user.firstName} {m.user.lastName}
-              </p>
-              <p className="text-sm text-slate-500">
-                {m.user.email} · {m.role.name} ·{' '}
-                <span
-                  className={
-                    m.status === 'ACTIVE' ? 'text-green-600' : 'text-slate-400'
-                  }
-                >
-                  {m.status}
-                </span>
-              </p>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-blue/10 text-sm font-semibold text-brand-blue">
+                {m.user.firstName[0]}
+                {m.user.lastName[0]}
+              </div>
+              <div>
+                <p className="font-medium text-navy">
+                  {m.user.firstName} {m.user.lastName}
+                </p>
+                <p className="text-sm text-slate-500">
+                  {m.user.email} · {m.role.name}
+                </p>
+              </div>
             </div>
-            {m.status === 'ACTIVE' ? (
-              <Button
-                size="sm"
-                variant="danger"
-                loading={busyMembershipId === m.membershipId}
-                onClick={() => disable(m.membershipId)}
-              >
-                Disable
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                variant="secondary"
-                loading={busyMembershipId === m.membershipId}
-                onClick={() => reactivate(m.membershipId)}
-              >
-                Reactivate
-              </Button>
-            )}
+            <div className="flex items-center gap-3">
+              <Badge tone={STATUS_TONES[m.status] ?? 'neutral'}>{STATUS_LABELS[m.status] ?? m.status}</Badge>
+              {m.status === 'ACTIVE' ? (
+                <Button
+                  size="sm"
+                  variant="danger"
+                  loading={busyMembershipId === m.membershipId}
+                  onClick={() => setConfirmingDisable({ id: m.membershipId, name: `${m.user.firstName} ${m.user.lastName}` })}
+                >
+                  Disable
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  loading={busyMembershipId === m.membershipId}
+                  onClick={() => reactivate(m.membershipId)}
+                >
+                  Reactivate
+                </Button>
+              )}
+            </div>
           </Card>
         ))}
+        {memberships?.length === 0 && !inviting && (
+          <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 px-6 py-12 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-slate-400 shadow-card">
+              <Users size={22} />
+            </div>
+            <p className="font-semibold text-navy">No staff invited yet</p>
+            <p className="max-w-sm text-sm text-slate-500">Invite your teachers and administrators to give them access.</p>
+          </div>
+        )}
       </div>
+
+      <ConfirmDialog
+        open={!!confirmingDisable}
+        title={`Disable ${confirmingDisable?.name ?? 'this account'}?`}
+        description="They will no longer be able to log in until you reactivate their account. Their records stay untouched."
+        confirmLabel="Disable access"
+        tone="danger"
+        loading={busyMembershipId === confirmingDisable?.id}
+        onConfirm={disable}
+        onCancel={() => setConfirmingDisable(null)}
+      />
     </div>
   );
 }

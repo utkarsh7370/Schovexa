@@ -67,8 +67,12 @@ export function useStudentFees(studentId: string | undefined) {
   });
 }
 
-export function useOutstandingFees() {
-  return useQuery({ queryKey: OUTSTANDING_QUERY_KEY, queryFn: () => api.get<OutstandingRow[]>('/fees/outstanding') });
+export function useOutstandingFees(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: OUTSTANDING_QUERY_KEY,
+    queryFn: () => api.get<OutstandingRow[]>('/fees/outstanding'),
+    enabled: options?.enabled,
+  });
 }
 
 export function useFeePayments(studentFeeId: string | undefined) {
