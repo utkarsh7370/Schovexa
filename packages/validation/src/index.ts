@@ -235,3 +235,46 @@ export const updateAttendanceSchema = z.object({
   remarks: z.string().optional(),
 });
 export type UpdateAttendanceInput = z.infer<typeof updateAttendanceSchema>;
+
+// --- Fees (docs/modules.md Phase 9) -----------------------------------------
+// Amounts are always minor units (paise/cents) on the wire, matching the
+// DB columns (FeeStructure.amountMinor, StudentFee.amountDueMinor,
+// Payment.amountMinor) — converting to/from a major-unit display value
+// (e.g. rupees) is a UI formatting concern, not a validation concern.
+
+const feeFrequencySchema = z.enum(['ONE_TIME', 'MONTHLY', 'QUARTERLY', 'ANNUAL']);
+const paymentMethodSchema = z.enum(['CASH', 'CHEQUE', 'BANK_TRANSFER', 'ONLINE']);
+
+export const createFeeCategorySchema = z.object({
+  name: z.string().min(1, 'Category name is required'),
+});
+export type CreateFeeCategoryInput = z.infer<typeof createFeeCategorySchema>;
+
+export const createFeeStructureSchema = z.object({
+  feeCategoryId: z.string().min(1, 'Fee category is required'),
+  academicYearId: z.string().min(1, 'Academic year is required'),
+  classId: z.union([z.literal(''), z.string()]).optional(),
+  amountMinor: z.coerce.number().int().positive('Amount must be greater than zero'),
+  frequency: feeFrequencySchema,
+});
+export type CreateFeeStructureInput = z.infer<typeof createFeeStructureSchema>;
+
+export const assignFeeToStudentSchema = z.object({
+  feeStructureId: z.string().min(1, 'Fee structure is required'),
+  amountDueMinor: z.coerce.number().int().positive().optional(),
+  dueDate: z.union([z.literal(''), z.string()]).optional(),
+});
+export type AssignFeeToStudentInput = z.infer<typeof assignFeeToStudentSchema>;
+
+export const updateStudentFeeSchema = z.object({
+  amountDueMinor: z.coerce.number().int().positive().optional(),
+  dueDate: z.union([z.literal(''), z.string()]).optional(),
+});
+export type UpdateStudentFeeInput = z.infer<typeof updateStudentFeeSchema>;
+
+export const recordPaymentSchema = z.object({
+  amountMinor: z.coerce.number().int().positive('Amount must be greater than zero'),
+  method: paymentMethodSchema,
+  paidAt: z.union([z.literal(''), z.string()]).optional(),
+});
+export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;

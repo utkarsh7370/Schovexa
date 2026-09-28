@@ -20,6 +20,9 @@ import { ParentsModule } from './parents/parents.module';
 import { DocumentsModule } from './documents/documents.module';
 import { StorageModule } from './storage/storage.module';
 import { AttendanceModule } from './attendance/attendance.module';
+import { FeeCategoriesModule } from './fee-categories/fee-categories.module';
+import { FeeStructuresModule } from './fee-structures/fee-structures.module';
+import { StudentFeesModule } from './student-fees/student-fees.module';
 import { HttpExceptionFilter } from './common/http-exception.filter';
 import { RequestIdMiddleware } from './common/request-id.middleware';
 import { OriginCheckMiddleware } from './common/origin-check.middleware';
@@ -50,6 +53,9 @@ import { OriginCheckMiddleware } from './common/origin-check.middleware';
     ParentsModule,
     DocumentsModule,
     AttendanceModule,
+    FeeCategoriesModule,
+    FeeStructuresModule,
+    StudentFeesModule,
     // Further domain modules are added here one at a time as each is
     // implemented, per docs/modules.md's phase order.
   ],
