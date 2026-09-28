@@ -138,7 +138,7 @@ export class AuthService {
 
   // --- /auth/me + school selection ---------------------------------------
 
-  async getCurrentUser(userId: string): Promise<CurrentUser> {
+  async getCurrentUser(userId: string, activeMembershipId: string | null): Promise<CurrentUser> {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
       include: {
@@ -149,12 +149,17 @@ export class AuthService {
       },
     });
 
+    const activeMembership = activeMembershipId
+      ? user.memberships.find((m) => m.id === activeMembershipId && m.status === 'ACTIVE')
+      : undefined;
+
     return {
       id: user.id,
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
       status: user.status,
+      activeSchoolId: activeMembership?.schoolId ?? null,
       memberships: user.memberships.map((m) => ({
         membershipId: m.id,
         schoolId: m.schoolId,

@@ -278,3 +278,20 @@ export const recordPaymentSchema = z.object({
   paidAt: z.union([z.literal(''), z.string()]).optional(),
 });
 export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;
+
+// --- Communication (docs/modules.md Phase 10) -------------------------------
+
+export const noticeAudienceSchema = z.enum(['ALL_SCHOOL', 'CLASS', 'SECTION', 'INDIVIDUAL']);
+
+export const createNoticeSchema = z
+  .object({
+    title: z.string().min(1, 'Title is required'),
+    body: z.string().min(1, 'Body is required'),
+    audienceType: noticeAudienceSchema,
+    audienceRefId: z.string().optional(),
+  })
+  .refine((data) => data.audienceType === 'ALL_SCHOOL' || !!data.audienceRefId, {
+    message: 'A target is required for this audience.',
+    path: ['audienceRefId'],
+  });
+export type CreateNoticeInput = z.infer<typeof createNoticeSchema>;

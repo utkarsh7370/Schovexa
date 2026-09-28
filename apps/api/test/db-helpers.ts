@@ -18,6 +18,9 @@ export async function resetTestData(prisma: PrismaClient): Promise<void> {
   await prisma.studentParent.deleteMany();
   await prisma.teacherAssignment.deleteMany();
   await prisma.attendance.deleteMany();
+  await prisma.noticeRead.deleteMany();
+  await prisma.notification.deleteMany();
+  await prisma.notice.deleteMany();
   await prisma.receipt.deleteMany();
   await prisma.payment.deleteMany();
   await prisma.studentFee.deleteMany();

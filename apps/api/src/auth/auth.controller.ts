@@ -61,7 +61,7 @@ export class AuthController {
   @Get('me')
   @UseGuards(AuthGuard)
   async me(@CurrentSession() session: SessionContext) {
-    return this.authService.getCurrentUser(session.userId);
+    return this.authService.getCurrentUser(session.userId, session.activeMembershipId);
   }
 
   @Post('select-school')

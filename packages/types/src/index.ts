@@ -39,5 +39,15 @@ export interface CurrentUser {
   firstName: string;
   lastName: string;
   status: UserStatus;
+  // The session's actively-selected school, if any — null means no
+  // school is selected yet (send the user to pick one). This is
+  // session state, not a permission check: it must stay readable by
+  // every authenticated role so the frontend can tell "no active
+  // school" apart from "active school, but this role can't view its
+  // settings" (GET /schools/me is gated by school.view and 403s for
+  // the second case too — conflating the two sent every role without
+  // school.view into a redirect loop, caught via Phase 10 live
+  // verification with a Teacher login).
+  activeSchoolId: string | null;
   memberships: SchoolMembershipSummary[];
 }
