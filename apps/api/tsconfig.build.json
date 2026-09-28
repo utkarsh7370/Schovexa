@@ -1,7 +1,17 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "rootDir": "./src"
+    "rootDir": "./src",
+    // tsconfig.json turns incremental on (useful for editors/typecheck,
+    // which never emit). This config DOES emit, and nest-cli.json has
+    // deleteOutDir:true — which wipes dist/ before every build/watch
+    // cycle without touching tsconfig.build.tsbuildinfo. TypeScript's
+    // incremental cache then sees "these outputs were already correct
+    // as of last run" and skips re-emitting them, leaving dist/ empty
+    // (or missing dist/main.js entirely) even though tsc reports
+    // "Found 0 errors." Disabling it here guarantees every build fully
+    // (re-)emits, matching what deleteOutDir already assumes.
+    "incremental": false
   },
   "exclude": ["node_modules", "dist", "test", "**/*.spec.ts"]
 }
