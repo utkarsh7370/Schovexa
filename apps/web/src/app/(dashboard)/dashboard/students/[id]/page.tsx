@@ -12,6 +12,7 @@ import { ArrowLeft } from 'lucide-react';
 import { useStudent, studentQueryKey, type StudentStatus } from '../../../../../hooks/useStudents';
 import { useParents } from '../../../../../hooks/useParents';
 import { useStudentDocuments, studentDocumentsQueryKey } from '../../../../../hooks/useDocuments';
+import { useAttendanceHistory } from '../../../../../hooks/useAttendance';
 import { api, ApiError } from '../../../../../lib/api-client';
 
 const STATUS_OPTIONS: StudentStatus[] = ['ENROLLED', 'TRANSFERRED', 'GRADUATED', 'WITHDRAWN'];
@@ -73,6 +74,10 @@ export default function StudentDetailPage() {
 
       <div className="mt-6">
         <ParentsPanel studentId={id} linkedParents={student.parents} />
+      </div>
+
+      <div className="mt-6">
+        <AttendancePanel studentId={id} />
       </div>
 
       <div className="mt-6">
@@ -281,6 +286,32 @@ function DocumentsPanel({ studentId }: { studentId: string }) {
         {documents?.length === 0 && <p className="text-sm text-slate-500">No documents uploaded yet.</p>}
       </div>
       <p className="mt-3 text-xs text-slate-400">PDF, JPEG, or PNG. Max 10MB.</p>
+    </Card>
+  );
+}
+
+function AttendancePanel({ studentId }: { studentId: string }) {
+  const [from] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 29);
+    return d.toISOString().slice(0, 10);
+  });
+  const [to] = useState(() => new Date().toISOString().slice(0, 10));
+  const { data: history } = useAttendanceHistory(studentId, from, to);
+
+  return (
+    <Card className="p-6">
+      <h2 className="text-base font-semibold text-navy">Attendance (last 30 days)</h2>
+      <div className="mt-4 flex flex-col gap-1">
+        {history?.map((record) => (
+          <div key={record.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
+            <span className="text-navy">{new Date(record.date).toLocaleDateString()}</span>
+            <span className="font-medium text-navy">{record.status}</span>
+            {record.remarks && <span className="text-slate-500">{record.remarks}</span>}
+          </div>
+        ))}
+        {history?.length === 0 && <p className="text-sm text-slate-500">No attendance recorded yet.</p>}
+      </div>
     </Card>
   );
 }
