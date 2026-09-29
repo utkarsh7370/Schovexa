@@ -93,13 +93,19 @@ const config: Config = {
           '40%': { transform: 'rotate(6deg)' },
         },
       },
+      // Entrance animations use fill-mode `backwards` (not `both`) on
+      // purpose: `both` would leave `transform: translateY(0)` applied
+      // after the animation ends, and any transformed ancestor becomes
+      // the containing block for `position: fixed` descendants — which
+      // pushed every Dialog/ConfirmDialog rendered inside an animated
+      // page wrapper off-center and under the sticky header.
       animation: {
         'fade-in': 'fade-in 0.3s ease-out both',
-        'fade-in-up': 'fade-in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both',
-        'scale-in': 'scale-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both',
+        'fade-in-up': 'fade-in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) backwards',
+        'scale-in': 'scale-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) backwards',
         'scale-out': 'scale-out 0.2s ease-in both',
-        'slide-in-right': 'slide-in-right 0.35s cubic-bezier(0.16, 1, 0.3, 1) both',
-        'slide-in-left': 'slide-in-left 0.3s cubic-bezier(0.16, 1, 0.3, 1) both',
+        'slide-in-right': 'slide-in-right 0.35s cubic-bezier(0.16, 1, 0.3, 1) backwards',
+        'slide-in-left': 'slide-in-left 0.3s cubic-bezier(0.16, 1, 0.3, 1) backwards',
         float: 'float 7s ease-in-out infinite',
         'float-delayed': 'float 7s ease-in-out 2.5s infinite',
         blob: 'blob 14s ease-in-out infinite',

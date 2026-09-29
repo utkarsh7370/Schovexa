@@ -1,12 +1,27 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { createTeacherAssignmentSchema, createTeacherSchema, type CreateTeacherInput } from '@schovexa/validation';
-import { Button, Card, TextField, Alert, PageHeader, EmptyState, SkeletonRows } from '@schovexa/ui';
-import { ChevronDown, ChevronRight, GraduationCap } from 'lucide-react';
+import {
+  Alert,
+  Avatar,
+  Badge,
+  Button,
+  Dialog,
+  EmptyState,
+  PageHeader,
+  Pagination,
+  SearchInput,
+  SelectField,
+  Skeleton,
+  StatCard,
+  TextField,
+  useToast,
+} from '@schovexa/ui';
+import { BookOpen, CalendarDays, ChevronDown, GraduationCap, Hash, Mail, Plus, SearchX, UserPlus2, Users, X } from 'lucide-react';
 import { useMemberships } from '../../../../hooks/useMemberships';
 import { useTeachers, TEACHERS_QUERY_KEY, useTeacherAssignments, teacherAssignmentsQueryKey } from '../../../../hooks/useTeachers';
 import { useClasses } from '../../../../hooks/useClasses';
@@ -14,13 +29,22 @@ import { useSections } from '../../../../hooks/useSections';
 import { useSubjects } from '../../../../hooks/useSubjects';
 import { api, ApiError } from '../../../../lib/api-client';
 
+const PAGE_SIZES = [10, 20, 50];
+
 export default function TeachersPage() {
   const { data: memberships } = useMemberships();
-  const { data: teachers, isLoading } = useTeachers();
+  const { data: teachers, isLoading, isError } = useTeachers();
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [creating, setCreating] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
-  const [expandedTeacherId, setExpandedTeacherId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Assignments load lazily, the first time a row is opened — and stay
+  // mounted afterwards so collapsing animates instead of snapping shut.
+  const [opened, setOpened] = useState<Set<string>>(new Set());
+  const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZES[0]);
 
   const teacherUserIds = new Set(teachers?.map((t) => t.user.id));
   const eligibleMembers = memberships?.filter((m) => m.status === 'ACTIVE' && !teacherUserIds.has(m.user.id));
@@ -32,116 +56,229 @@ export default function TeachersPage() {
     formState: { errors, isSubmitting },
   } = useForm<CreateTeacherInput>({ resolver: zodResolver(createTeacherSchema) });
 
+  const closeForm = () => {
+    setCreating(false);
+    setServerError(null);
+    reset();
+  };
+
   const onCreate = async (data: CreateTeacherInput) => {
     setServerError(null);
     try {
       await api.post('/teachers', data);
       await queryClient.invalidateQueries({ queryKey: TEACHERS_QUERY_KEY });
-      reset();
-      setCreating(false);
+      closeForm();
+      toast.show({ tone: 'success', title: 'Teacher profile created', description: 'You can now assign classes and subjects.' });
     } catch (err) {
       setServerError(err instanceof ApiError ? err.message : 'Could not create teacher profile.');
     }
   };
 
+  const filtered = useMemo(() => {
+    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.length) return teachers ?? [];
+    return (teachers ?? []).filter((t) => {
+      const haystack = `${t.user.firstName} ${t.user.lastName} ${t.user.email} ${t.employeeCode ?? ''}`.toLowerCase();
+      return words.every((w) => haystack.includes(w));
+    });
+  }, [teachers, query]);
+
+  useEffect(() => setPage(1), [query, pageSize]);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const visible = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  const toggle = (id: string) => {
+    setOpened((prev) => new Set(prev).add(id));
+    setExpandedId((current) => (current === id ? null : id));
+  };
+
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-4xl">
       <PageHeader
+        eyebrow="People"
         title="Teachers"
-        description="Manage teacher profiles and their class/subject assignments."
-        action={!creating && <Button onClick={() => setCreating(true)}>New teacher profile</Button>}
+        description="Teacher profiles and the classes and subjects they teach."
+        action={
+          <Button onClick={() => setCreating(true)}>
+            <UserPlus2 size={16} /> New teacher profile
+          </Button>
+        }
       />
 
-      {creating && (
-        <Card className="mt-6 p-6">
-          <form onSubmit={handleSubmit(onCreate)} className="flex flex-col gap-4">
-            {serverError && <Alert variant="error">{serverError}</Alert>}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-navy" htmlFor="userId">
-                Staff member
-              </label>
-              <select
-                id="userId"
-                className="h-10 rounded-lg border border-slate-300 px-3 text-sm focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue"
-                {...register('userId')}
-              >
-                <option value="">Select a staff member</option>
-                {eligibleMembers?.map((m) => (
-                  <option key={m.user.id} value={m.user.id}>
-                    {m.user.firstName} {m.user.lastName} ({m.user.email})
-                  </option>
-                ))}
-              </select>
-              {errors.userId && <p className="text-sm text-red-600">{errors.userId.message}</p>}
-              {eligibleMembers?.length === 0 && (
-                <p className="text-sm text-slate-500">
-                  Every active staff member already has a teacher profile. Invite more staff first.
-                </p>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <TextField
-                label="Employee code"
-                placeholder="EMP-001"
-                helperText="Optional."
-                error={errors.employeeCode?.message}
-                {...register('employeeCode')}
-              />
-              <TextField label="Joining date" type="date" error={errors.joiningDate?.message} {...register('joiningDate')} />
-            </div>
-            <div className="flex gap-2">
-              <Button type="submit" loading={isSubmitting}>
-                Create
-              </Button>
-              <Button type="button" variant="secondary" onClick={() => setCreating(false)}>
-                Cancel
-              </Button>
-            </div>
-          </form>
-        </Card>
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <StatCard label="Teacher profiles" tone="blue" icon={<GraduationCap size={18} />} value={teachers ? teachers.length : <Skeleton className="h-8 w-14" />} />
+        <StatCard
+          label="Staff without a teacher profile"
+          tone="amber"
+          icon={<Users size={18} />}
+          value={eligibleMembers ? eligibleMembers.length : <Skeleton className="h-8 w-14" />}
+          hint="Active staff you can promote to a teacher"
+        />
+      </div>
+
+      {teachers && teachers.length > 0 && (
+        <div className="mt-6">
+          <SearchInput value={query} onChange={setQuery} placeholder="Search teachers by name, email or employee code…" aria-label="Search teachers" />
+        </div>
       )}
 
       <div className="mt-6">
-        {isLoading && <SkeletonRows count={4} />}
-        {!isLoading && teachers?.length === 0 && !creating && (
-          <EmptyState icon={<GraduationCap size={22} />} title="No teacher profiles yet" />
-        )}
-        {!isLoading && teachers && teachers.length > 0 && (
-          <div className="flex flex-col gap-2">
-            {teachers.map((teacher) => (
-              <Card key={teacher.id} className="p-0">
-                <button
-                  onClick={() => setExpandedTeacherId(expandedTeacherId === teacher.id ? null : teacher.id)}
-                  className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-slate-50"
-                >
-                  <div className="flex items-center gap-2">
-                    {expandedTeacherId === teacher.id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                    <span className="font-medium text-navy">
-                      {teacher.user.firstName} {teacher.user.lastName}
-                    </span>
-                    <span className="text-sm text-slate-400">{teacher.user.email}</span>
-                  </div>
-                  {teacher.employeeCode && <span className="text-sm text-slate-500">{teacher.employeeCode}</span>}
-                </button>
-                {expandedTeacherId === teacher.id && (
-                  <div className="border-t border-slate-200 p-4">
-                    <AssignmentsPanel teacherId={teacher.id} />
-                  </div>
-                )}
-              </Card>
+        {isError && <Alert variant="error">We couldn’t load teachers. Please refresh and try again.</Alert>}
+        {isLoading && (
+          <div className="flex flex-col gap-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-20 rounded-2xl" />
             ))}
           </div>
         )}
+        {!isLoading && !isError && teachers?.length === 0 && (
+          <EmptyState
+            icon={<GraduationCap size={22} />}
+            title="No teacher profiles yet"
+            description="Invite staff first, then give them a teacher profile to assign classes and subjects."
+            action={<Button onClick={() => setCreating(true)}>Create a teacher profile</Button>}
+          />
+        )}
+        {teachers && teachers.length > 0 && filtered.length === 0 && (
+          <EmptyState
+            icon={<SearchX size={22} />}
+            title="No teachers match"
+            description={`Nothing matches “${query}”.`}
+            action={
+              <Button variant="secondary" onClick={() => setQuery('')}>
+                Clear search
+              </Button>
+            }
+          />
+        )}
+
+        <div className="flex flex-col gap-3">
+          {visible.map((teacher, i) => {
+            const name = `${teacher.user.firstName} ${teacher.user.lastName}`;
+            const open = expandedId === teacher.id;
+            return (
+              <article
+                key={teacher.id}
+                className={[
+                  'animate-fade-in-up overflow-hidden rounded-2xl border bg-white shadow-card transition-all duration-300',
+                  open ? 'border-brand-blue/30 shadow-elevated' : 'border-slate-200/80 hover:border-brand-blue/30 hover:shadow-elevated',
+                ].join(' ')}
+                style={{ animationDelay: `${Math.min(i, 10) * 40}ms` }}
+              >
+                <button
+                  type="button"
+                  onClick={() => toggle(teacher.id)}
+                  aria-expanded={open}
+                  className="flex w-full items-center gap-4 p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-blue sm:p-5"
+                >
+                  <Avatar name={name} tone="auto" size={48} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-base font-bold text-navy">{name}</p>
+                    <p className="mt-0.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
+                      <span className="inline-flex items-center gap-1.5 truncate">
+                        <Mail size={13} /> {teacher.user.email}
+                      </span>
+                      {teacher.joiningDate && (
+                        <span className="inline-flex items-center gap-1.5">
+                          <CalendarDays size={13} /> Joined {new Date(teacher.joiningDate).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  {teacher.employeeCode && (
+                    <span className="hidden items-center gap-1 rounded-lg bg-slate-100 px-2 py-1 font-mono text-xs font-semibold text-slate-600 sm:inline-flex">
+                      <Hash size={12} /> {teacher.employeeCode}
+                    </span>
+                  )}
+                  <span className={['flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition-transform duration-300', open ? 'rotate-180 bg-brand-blue/10 text-brand-blue' : ''].join(' ')}>
+                    <ChevronDown size={18} />
+                  </span>
+                </button>
+
+                <div className={['grid transition-[grid-template-rows] duration-300 ease-out', open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'].join(' ')}>
+                  <div className="overflow-hidden">
+                    {opened.has(teacher.id) && (
+                      <div className="border-t border-slate-100 bg-slate-50/60 p-4 sm:p-5">
+                        <AssignmentsPanel teacherId={teacher.id} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+
+        {filtered.length > 0 && (
+          <div className="mt-6">
+            <Pagination
+              page={safePage}
+              totalPages={totalPages}
+              total={filtered.length}
+              pageSize={pageSize}
+              noun={filtered.length === 1 ? 'teacher' : 'teachers'}
+              pageSizeOptions={PAGE_SIZES}
+              onPageChange={(p) => {
+                setPage(p);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              onPageSizeChange={setPageSize}
+            />
+          </div>
+        )}
       </div>
+
+      <Dialog
+        open={creating}
+        onClose={closeForm}
+        size="lg"
+        eyebrow={<span className="text-xs font-semibold uppercase tracking-wide text-brand-blue">New teacher</span>}
+        title="Create a teacher profile"
+        description="Pick an active staff member. Assign their classes and subjects after."
+        footer={
+          <>
+            <Button type="button" variant="secondary" onClick={closeForm}>
+              Cancel
+            </Button>
+            <Button type="submit" form="teacher-form" loading={isSubmitting} disabled={eligibleMembers?.length === 0}>
+              Create profile
+            </Button>
+          </>
+        }
+      >
+        <form id="teacher-form" onSubmit={handleSubmit(onCreate)} className="flex flex-col gap-4" noValidate>
+          {serverError && <Alert variant="error">{serverError}</Alert>}
+          <SelectField
+            label="Staff member"
+            leftIcon={<Users size={16} />}
+            error={errors.userId?.message}
+            helperText={eligibleMembers?.length === 0 ? 'Every active staff member already has a teacher profile. Invite more staff first.' : undefined}
+            {...register('userId')}
+          >
+            <option value="">Select a staff member</option>
+            {eligibleMembers?.map((m) => (
+              <option key={m.user.id} value={m.user.id}>
+                {m.user.firstName} {m.user.lastName} ({m.user.email})
+              </option>
+            ))}
+          </SelectField>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <TextField label="Employee code" placeholder="EMP-001" helperText="Optional." leftIcon={<Hash size={16} />} error={errors.employeeCode?.message} {...register('employeeCode')} />
+            <TextField label="Joining date" type="date" helperText="Optional." error={errors.joiningDate?.message} {...register('joiningDate')} />
+          </div>
+        </form>
+      </Dialog>
     </div>
   );
 }
 
 function AssignmentsPanel({ teacherId }: { teacherId: string }) {
-  const { data: assignments } = useTeacherAssignments(teacherId);
+  const { data: assignments, isLoading } = useTeacherAssignments(teacherId);
   const { data: classes } = useClasses();
   const { data: subjects } = useSubjects();
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [adding, setAdding] = useState(false);
   const [selectedClassId, setSelectedClassId] = useState('');
   const [serverError, setServerError] = useState<string | null>(null);
@@ -156,14 +293,20 @@ function AssignmentsPanel({ teacherId }: { teacherId: string }) {
     formState: { errors, isSubmitting },
   } = useForm({ resolver: zodResolver(createTeacherAssignmentSchema), defaultValues: { sectionId: '', subjectId: '' } });
 
+  const close = () => {
+    setAdding(false);
+    setSelectedClassId('');
+    setServerError(null);
+    reset();
+  };
+
   const onAdd = handleSubmit(async (data) => {
     setServerError(null);
     try {
       await api.post(`/teachers/${teacherId}/assignments`, data);
       await queryClient.invalidateQueries({ queryKey: teacherAssignmentsQueryKey(teacherId) });
-      reset();
-      setSelectedClassId('');
-      setAdding(false);
+      close();
+      toast.show({ tone: 'success', title: 'Assignment added' });
     } catch (err) {
       setServerError(err instanceof ApiError ? err.message : 'Could not add assignment.');
     }
@@ -174,98 +317,99 @@ function AssignmentsPanel({ teacherId }: { teacherId: string }) {
     try {
       await api.delete(`/teachers/${teacherId}/assignments/${assignmentId}`);
       await queryClient.invalidateQueries({ queryKey: teacherAssignmentsQueryKey(teacherId) });
+      toast.show({ tone: 'success', title: 'Assignment removed' });
     } finally {
       setBusyAssignmentId(null);
     }
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      {assignments?.map((a) => (
-        <div key={a.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
-          <p className="text-sm text-navy">
-            {a.section.class.name} - {a.section.name} · <span className="font-medium">{a.subject.name}</span>
-          </p>
-          <Button
-            size="sm"
-            variant="soft-danger"
-            loading={busyAssignmentId === a.id}
-            onClick={() => removeAssignment(a.id)}
-          >
-            Remove
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="flex items-center gap-2 text-sm font-bold text-navy">
+          <BookOpen size={16} className="text-brand-blue" /> Classes &amp; subjects
+          {assignments && <Badge tone="brand">{assignments.length}</Badge>}
+        </h3>
+        {!adding && (
+          <Button size="sm" variant="secondary" onClick={() => setAdding(true)}>
+            <Plus size={15} /> Add assignment
           </Button>
-        </div>
-      ))}
-      {assignments?.length === 0 && !adding && <p className="text-sm text-slate-500">No assignments yet.</p>}
+        )}
+      </div>
 
-      {adding ? (
-        <form onSubmit={onAdd} className="flex flex-col gap-2 rounded-lg border border-slate-200 p-3">
+      {isLoading && <Skeleton className="h-10 w-full" />}
+
+      {assignments && assignments.length > 0 && (
+        <ul className="flex flex-wrap gap-2">
+          {assignments.map((a) => (
+            <li
+              key={a.id}
+              className="group inline-flex animate-scale-in items-center gap-2 rounded-xl border border-slate-200 bg-white py-1.5 pl-3 pr-1.5 text-sm shadow-card"
+            >
+              <span className="font-semibold text-navy">
+                {a.section.class.name} · {a.section.name}
+              </span>
+              <span className="rounded-md bg-brand-blue/10 px-2 py-0.5 text-xs font-semibold text-brand-blue">{a.subject.name}</span>
+              <button
+                type="button"
+                onClick={() => removeAssignment(a.id)}
+                disabled={busyAssignmentId === a.id}
+                aria-label={`Remove ${a.section.class.name} ${a.section.name} ${a.subject.name}`}
+                className="rounded-lg p-1 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+              >
+                <X size={14} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {assignments?.length === 0 && !adding && <p className="text-sm text-slate-500">No classes or subjects assigned yet.</p>}
+
+      {adding && (
+        <form onSubmit={onAdd} className="flex animate-fade-in-up flex-col gap-4 rounded-2xl border border-brand-blue/20 bg-white p-4" noValidate>
           {serverError && <Alert variant="error">{serverError}</Alert>}
-          <div className="grid grid-cols-3 gap-2">
-            <select
-              className="h-9 rounded-md border border-slate-300 px-2 text-sm focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue"
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <SelectField
+              label="Class"
               value={selectedClassId}
               onChange={(e) => {
                 setSelectedClassId(e.target.value);
                 setValue('sectionId', '');
               }}
             >
-              <option value="">Class</option>
+              <option value="">Select class</option>
               {classes?.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
               ))}
-            </select>
-            <select
-              className="h-9 rounded-md border border-slate-300 px-2 text-sm focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue"
-              disabled={!selectedClassId}
-              {...register('sectionId')}
-            >
-              <option value="">Section</option>
+            </SelectField>
+            <SelectField label="Section" disabled={!selectedClassId} error={errors.sectionId ? 'Choose a section.' : undefined} {...register('sectionId')}>
+              <option value="">Select section</option>
               {sectionsForClass?.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name}
+                  Section {s.name}
                 </option>
               ))}
-            </select>
-            <select
-              className="h-9 rounded-md border border-slate-300 px-2 text-sm focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue"
-              {...register('subjectId')}
-            >
-              <option value="">Subject</option>
+            </SelectField>
+            <SelectField label="Subject" error={errors.subjectId ? 'Choose a subject.' : undefined} {...register('subjectId')}>
+              <option value="">Select subject</option>
               {subjects?.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </div>
-          {(errors.sectionId || errors.subjectId) && (
-            <p className="text-sm text-red-600">Choose a class, section, and subject.</p>
-          )}
           <div className="flex gap-2">
             <Button type="submit" size="sm" loading={isSubmitting}>
               Add assignment
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={() => {
-                setAdding(false);
-                setSelectedClassId('');
-                reset();
-              }}
-            >
+            <Button type="button" size="sm" variant="secondary" onClick={close}>
               Cancel
             </Button>
           </div>
         </form>
-      ) : (
-        <Button size="sm" variant="secondary" onClick={() => setAdding(true)}>
-          Add assignment
-        </Button>
       )}
     </div>
   );

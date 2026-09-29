@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { createStudentSchema, linkParentSchema, updateStudentSchema } from '@schovexa/validation';
 import type { CreateStudentInput, LinkParentInput, UpdateStudentInput } from '@schovexa/validation';
 import { AuthGuard } from '../auth/guards/auth.guard';
@@ -8,8 +8,39 @@ import { RequirePermission } from '../authorization/decorators/require-permissio
 import { CurrentAuthContext } from '../authorization/decorators/current-auth-context.decorator';
 import { AuthorizationService } from '../authorization/authorization.service';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
-import { StudentsService } from './students.service';
+import { MAX_PAGE_SIZE, StudentsService, type StudentListFilters } from './students.service';
 import type { AuthContext } from '../authorization/authorization.types';
+
+const STUDENT_STATUSES = ['ENROLLED', 'TRANSFERRED', 'GRADUATED', 'WITHDRAWN'];
+
+// Query strings arrive as untrusted text: clamp numbers, cap the search
+// length, and whitelist the status so nothing odd reaches Prisma.
+function parseListQuery(query: Record<string, string | undefined>): StudentListFilters {
+  const positiveInt = (value: string | undefined): number | undefined => {
+    if (value === undefined || value === '') return undefined;
+    const n = Number(value);
+    if (!Number.isInteger(n) || n < 1) {
+      throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'page and pageSize must be positive whole numbers.' });
+    }
+    return n;
+  };
+  const text = (value: string | undefined) => (typeof value === 'string' && value.trim() ? value.trim() : undefined);
+  const status = text(query.status);
+  if (status && !STUDENT_STATUSES.includes(status)) {
+    throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Unknown status.' });
+  }
+  const pageSize = positiveInt(query.pageSize);
+  const page = positiveInt(query.page) ?? (pageSize !== undefined ? 1 : undefined);
+  return {
+    sectionId: text(query.sectionId),
+    classId: text(query.classId),
+    classTeacherId: text(query.classTeacherId),
+    status,
+    search: text(query.search)?.slice(0, 80),
+    page,
+    pageSize: pageSize === undefined ? undefined : Math.min(pageSize, MAX_PAGE_SIZE),
+  };
+}
 
 @Controller('students')
 @UseGuards(AuthGuard, SchoolContextGuard, PermissionGuard)
@@ -21,12 +52,8 @@ export class StudentsController {
 
   @Get()
   @RequirePermission('student.view')
-  async list(
-    @Query('sectionId') sectionId: string | undefined,
-    @Query('status') status: string | undefined,
-    @CurrentAuthContext() auth: AuthContext,
-  ) {
-    return this.studentsService.list(auth, { sectionId, status });
+  async list(@Query() query: Record<string, string | undefined>, @CurrentAuthContext() auth: AuthContext) {
+    return this.studentsService.list(auth, parseListQuery(query));
   }
 
   @Post()

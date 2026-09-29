@@ -64,3 +64,24 @@ export const CheckIcon = ({ size = 18, ...p }: IconProps) => (
     <path d="m5 12.5 4.5 4.5L19 7.5" />
   </svg>
 );
+export const SearchIcon = ({ size = 18, ...p }: IconProps) => (
+  <svg {...base(size, p)}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.5-3.5" />
+  </svg>
+);
+export const ChevronDownIcon = ({ size = 18, ...p }: IconProps) => (
+  <svg {...base(size, p)}>
+    <path d="m6 9 6 6 6-6" />
+  </svg>
+);
+export const ChevronLeftIcon = ({ size = 18, ...p }: IconProps) => (
+  <svg {...base(size, p)}>
+    <path d="m15 6-6 6 6 6" />
+  </svg>
+);
+export const ChevronRightIcon = ({ size = 18, ...p }: IconProps) => (
+  <svg {...base(size, p)}>
+    <path d="m9 6 6 6-6 6" />
+  </svg>
+);

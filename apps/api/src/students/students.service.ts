@@ -4,6 +4,21 @@ import { PrismaService } from '../prisma/prisma.service';
 import type { CreateStudentInput, LinkParentInput, UpdateStudentInput } from '@schovexa/validation';
 import type { AuthContext } from '../authorization/authorization.types';
 
+export const DEFAULT_PAGE_SIZE = 12;
+export const MAX_PAGE_SIZE = 100;
+
+export interface StudentListFilters {
+  sectionId?: string;
+  classId?: string;
+  classTeacherId?: string;
+  status?: string;
+  search?: string;
+  // Pagination is opt-in: without `page` the list stays the plain array
+  // other screens (dashboard count, my-children, attendance) rely on.
+  page?: number;
+  pageSize?: number;
+}
+
 @Injectable()
 export class StudentsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -14,20 +29,84 @@ export class StudentsService {
   // filtering has to happen here, at query-build time, or a caller with
   // e.g. OWN_STUDENTS/OWN_CHILDREN scope would see every student in the
   // school instead of just the ones their scope actually covers.
-  async list(auth: AuthContext, filters: { sectionId?: string; status?: string }) {
+  async list(auth: AuthContext, filters: StudentListFilters) {
     const scopeFilter = await this.buildScopeFilter(auth);
-    if (scopeFilter === null) return [];
+    const paged = filters.page !== undefined;
+    if (scopeFilter === null) {
+      return paged ? this.emptyPage(filters) : [];
+    }
 
-    return this.prisma.student.findMany({
-      where: {
-        schoolId: auth.schoolId,
-        deletedAt: null,
-        ...scopeFilter,
-        ...(filters.sectionId ? { sectionId: filters.sectionId } : {}),
-        ...(filters.status ? { status: filters.status as never } : {}),
+    const where: Prisma.StudentWhereInput = {
+      schoolId: auth.schoolId,
+      deletedAt: null,
+      ...scopeFilter,
+      ...(filters.status ? { status: filters.status as never } : {}),
+      ...(filters.sectionId ? { sectionId: filters.sectionId } : {}),
+      ...this.buildSectionFilters(filters),
+      ...this.buildSearchFilter(filters.search),
+    };
+
+    // Section + class + class teacher ride along on every row so the
+    // list can render a full card (class, section, class teacher)
+    // without an N+1 of follow-up requests per student.
+    const include = {
+      section: {
+        include: {
+          class: true,
+          classTeacher: { include: { user: { select: { firstName: true, lastName: true } } } },
+        },
       },
-      orderBy: { admissionNo: 'asc' },
-    });
+    } satisfies Prisma.StudentInclude;
+    const orderBy: Prisma.StudentOrderByWithRelationInput[] = [{ admissionNo: 'asc' }, { id: 'asc' }];
+
+    if (!paged) {
+      return this.prisma.student.findMany({ where, orderBy, include });
+    }
+
+    const pageSize = filters.pageSize ?? DEFAULT_PAGE_SIZE;
+    const page = filters.page ?? 1;
+    const [total, items] = await Promise.all([
+      this.prisma.student.count({ where }),
+      this.prisma.student.findMany({ where, orderBy, include, skip: (page - 1) * pageSize, take: pageSize }),
+    ]);
+    return { items, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+  }
+
+  private emptyPage(filters: StudentListFilters) {
+    return { items: [], total: 0, page: filters.page ?? 1, pageSize: filters.pageSize ?? DEFAULT_PAGE_SIZE, totalPages: 1 };
+  }
+
+  // classId / classTeacherId live on Section, so both fold into one
+  // `section` relation filter (Prisma rejects two `section` keys).
+  private buildSectionFilters(filters: StudentListFilters): Prisma.StudentWhereInput {
+    const section: Prisma.SectionWhereInput = {};
+    if (filters.classId) section.classId = filters.classId;
+    if (filters.classTeacherId) section.classTeacherId = filters.classTeacherId;
+    return Object.keys(section).length ? { section: { is: { ...section, deletedAt: null } } } : {};
+  }
+
+  // Global search: every whitespace-separated word must match at least
+  // one of — the student's own name/admission number, their class or
+  // section name, or a linked parent's name/phone. So "riya sharma",
+  // "A-014", "grade 5 b" and a parent's phone number all find people.
+  private buildSearchFilter(search: string | undefined): Prisma.StudentWhereInput {
+    const words = (search ?? '').trim().split(/\s+/).filter(Boolean).slice(0, 6);
+    if (!words.length) return {};
+    return {
+      AND: words.map((word) => {
+        const contains = { contains: word, mode: 'insensitive' as const };
+        return {
+          OR: [
+            { firstName: contains },
+            { lastName: contains },
+            { admissionNo: contains },
+            { section: { is: { name: contains } } },
+            { section: { is: { class: { is: { name: contains } } } } },
+            { parents: { some: { parent: { OR: [{ firstName: contains }, { lastName: contains }, { phone: contains }] } } } },
+          ],
+        };
+      }),
+    };
   }
 
   // Returns null when the caller's scope resolves to "no students" (no
@@ -110,7 +189,12 @@ export class StudentsService {
     const student = await this.prisma.student.findFirst({
       where: { id: studentId, schoolId, deletedAt: null },
       include: {
-        section: { include: { class: true } },
+        section: {
+          include: {
+            class: true,
+            classTeacher: { include: { user: { select: { firstName: true, lastName: true } } } },
+          },
+        },
         parents: { include: { parent: true } },
       },
     });

@@ -1,42 +1,94 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { createInvitationSchema, type CreateInvitationInput } from '@schovexa/validation';
-import { Button, Card, TextField, Alert, PageHeader, Badge, ConfirmDialog, useToast, type BadgeTone } from '@schovexa/ui';
-import { UserPlus2, Users, Download } from 'lucide-react';
-import { useMemberships, MEMBERSHIPS_QUERY_KEY } from '../../../../hooks/useMemberships';
+import {
+  Alert,
+  Avatar,
+  Badge,
+  Button,
+  ConfirmDialog,
+  Dialog,
+  EmptyState,
+  PageHeader,
+  Pagination,
+  SearchInput,
+  SelectField,
+  Skeleton,
+  StatCard,
+  TextField,
+  useToast,
+  type BadgeTone,
+} from '@schovexa/ui';
+import { Download, Mail, MailCheck, SearchX, ShieldCheck, UserCheck, UserPlus2, UserX, Users } from 'lucide-react';
+import { useMemberships, MEMBERSHIPS_QUERY_KEY, type Membership } from '../../../../hooks/useMemberships';
 import { useRoles } from '../../../../hooks/useRoles';
+import { useCurrentUser } from '../../../../hooks/useCurrentUser';
 import { api, ApiError } from '../../../../lib/api-client';
 import { InviteLinkPanel } from '../../../../components/invite-link-panel';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
+const PAGE_SIZES = [12, 24, 48];
 
-const STATUS_LABELS: Record<string, string> = {
+// "Invite pending" is not a membership status: an invited person already
+// has an ACTIVE membership, and it is their *user* record that is still
+// INVITED until they set a password. So the status shown here combines
+// both — otherwise pending invites would read as fully "Active".
+type StaffStatus = 'ACTIVE' | 'INVITED' | 'SUSPENDED' | 'DISABLED';
+
+function staffStatus(m: Membership): StaffStatus {
+  if (m.status !== 'ACTIVE') return m.status;
+  return m.user.status === 'INVITED' ? 'INVITED' : 'ACTIVE';
+}
+
+const STATUS_LABELS: Record<StaffStatus, string> = {
   ACTIVE: 'Active',
-  INVITED: 'Invited — pending',
+  INVITED: 'Invite pending',
+  SUSPENDED: 'Suspended',
   DISABLED: 'Disabled',
 };
 
-const STATUS_TONES: Record<string, BadgeTone> = {
+const STATUS_TONES: Record<StaffStatus, BadgeTone> = {
   ACTIVE: 'success',
   INVITED: 'warning',
+  SUSPENDED: 'danger',
   DISABLED: 'neutral',
 };
 
+const STATUS_BAR: Record<StaffStatus, string> = {
+  ACTIVE: 'from-emerald-400 to-teal-500',
+  INVITED: 'from-amber-300 to-orange-400',
+  SUSPENDED: 'from-red-300 to-red-400',
+  DISABLED: 'from-slate-200 to-slate-300',
+};
+
+// Suspended people are grouped with Disabled in the filter: both mean
+// "can't sign in right now".
+type Filter = 'ALL' | 'ACTIVE' | 'INVITED' | 'DISABLED';
+
+function filterBucket(status: StaffStatus): Exclude<Filter, 'ALL'> {
+  return status === 'SUSPENDED' ? 'DISABLED' : status;
+}
+
 export default function StaffPage() {
-  const { data: memberships } = useMemberships();
+  const { data: memberships, isLoading, isError } = useMemberships();
   const { data: roles } = useRoles();
+  const { data: me } = useCurrentUser();
   const queryClient = useQueryClient();
   const toast = useToast();
 
   const [inviting, setInviting] = useState(false);
-  const [inviteResult, setInviteResult] = useState<string | null>(null);
+  const [inviteResult, setInviteResult] = useState<{ link: string; name: string } | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [busyMembershipId, setBusyMembershipId] = useState<string | null>(null);
   const [confirmingDisable, setConfirmingDisable] = useState<{ id: string; name: string } | null>(null);
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<Filter>('ALL');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZES[0]);
 
   const {
     register,
@@ -44,6 +96,12 @@ export default function StaffPage() {
     reset,
     formState: { errors, isSubmitting },
   } = useForm<CreateInvitationInput>({ resolver: zodResolver(createInvitationSchema) });
+
+  const closeForm = () => {
+    setInviting(false);
+    setServerError(null);
+    reset();
+  };
 
   const onInvite = async (data: CreateInvitationInput) => {
     setServerError(null);
@@ -55,14 +113,16 @@ export default function StaffPage() {
       // shown so the admin can share it directly as a fallback. This
       // token must never be logged (docs/logging.md §4); it only ever
       // appears in this one response, to this one caller.
-      setInviteResult(`${window.location.origin}/accept-invite?token=${result.inviteToken}`);
+      setInviteResult({
+        link: `${window.location.origin}/accept-invite?token=${result.inviteToken}`,
+        name: `${data.firstName} ${data.lastName}`,
+      });
       toast.show({
         tone: 'success',
         title: 'Invitation sent',
         description: `${data.firstName} ${data.lastName} will get an email to set up their account.`,
       });
-      reset();
-      setInviting(false);
+      closeForm();
     } catch (err) {
       setServerError(err instanceof ApiError ? err.message : 'Could not send invitation.');
     }
@@ -81,132 +141,251 @@ export default function StaffPage() {
     }
   };
 
-  const reactivate = async (membershipId: string) => {
+  const reactivate = async (membershipId: string, name: string) => {
     setBusyMembershipId(membershipId);
     try {
       await api.post(`/memberships/${membershipId}/reactivate`);
       await queryClient.invalidateQueries({ queryKey: MEMBERSHIPS_QUERY_KEY });
+      toast.show({ tone: 'success', title: `${name}'s access was restored` });
     } finally {
       setBusyMembershipId(null);
     }
   };
 
+  const counts = useMemo(() => {
+    const c = { ALL: 0, ACTIVE: 0, INVITED: 0, DISABLED: 0 };
+    (memberships ?? []).forEach((m) => {
+      c.ALL += 1;
+      c[filterBucket(staffStatus(m))] += 1;
+    });
+    return c;
+  }, [memberships]);
+
+  const filtered = useMemo(() => {
+    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    return (memberships ?? []).filter((m) => {
+      if (filter !== 'ALL' && filterBucket(staffStatus(m)) !== filter) return false;
+      if (!words.length) return true;
+      const haystack = `${m.user.firstName} ${m.user.lastName} ${m.user.email} ${m.role.name}`.toLowerCase();
+      return words.every((w) => haystack.includes(w));
+    });
+  }, [memberships, query, filter]);
+
+  useEffect(() => setPage(1), [query, filter, pageSize]);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const visible = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  const FILTERS: { id: Filter; label: string }[] = [
+    { id: 'ALL', label: `All (${counts.ALL})` },
+    { id: 'ACTIVE', label: `Active (${counts.ACTIVE})` },
+    { id: 'INVITED', label: `Pending (${counts.INVITED})` },
+    { id: 'DISABLED', label: `Disabled (${counts.DISABLED})` },
+  ];
+
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-5xl">
       <PageHeader
+        eyebrow="People"
         title="Staff"
-        description="Invite team members and manage their access."
+        description="Invite team members and manage who can access your school."
         action={
-          <div className="flex items-center gap-2">
+          <>
             <a
               href={`${API_URL}/memberships/export`}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100"
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-navy shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-blue/40 hover:bg-slate-50 hover:shadow-elevated"
             >
-              <Download size={15} strokeWidth={2} />
+              <Download size={16} />
               Export CSV
             </a>
-            {!inviting && (
-              <Button onClick={() => setInviting(true)}>
-                <UserPlus2 size={16} /> Invite staff
-              </Button>
-            )}
-          </div>
+            <Button onClick={() => setInviting(true)}>
+              <UserPlus2 size={16} /> Invite staff
+            </Button>
+          </>
         }
       />
 
-      {inviting && (
-        <Card className="mt-6 p-6">
-          <h2 className="text-base font-semibold text-navy">Invite a staff member</h2>
-          <form onSubmit={handleSubmit(onInvite)} className="mt-4 flex flex-col gap-4">
-            {serverError && <Alert variant="error">{serverError}</Alert>}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <TextField label="First name" error={errors.firstName?.message} {...register('firstName')} />
-              <TextField label="Last name" error={errors.lastName?.message} {...register('lastName')} />
-            </div>
-            <TextField label="Email" type="email" error={errors.email?.message} {...register('email')} />
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-navy" htmlFor="roleId">
-                Role
-              </label>
-              <select
-                id="roleId"
-                className="h-10 rounded-lg border border-slate-300 px-3 text-sm focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue"
-                {...register('roleId')}
+      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard label="Team members" tone="blue" icon={<Users size={18} />} value={memberships ? counts.ALL : <Skeleton className="h-8 w-12" />} />
+        <StatCard label="Active" tone="emerald" icon={<UserCheck size={18} />} value={memberships ? counts.ACTIVE : <Skeleton className="h-8 w-12" />} />
+        <StatCard label="Invite pending" tone="amber" icon={<MailCheck size={18} />} value={memberships ? counts.INVITED : <Skeleton className="h-8 w-12" />} hint="Haven’t set a password yet" />
+        <StatCard label="Disabled" tone="default" icon={<UserX size={18} />} value={memberships ? counts.DISABLED : <Skeleton className="h-8 w-12" />} />
+      </div>
+
+      {inviteResult && <InviteLinkPanel link={inviteResult.link} name={inviteResult.name} />}
+
+      <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-card lg:flex-row lg:items-center">
+        <SearchInput
+          className="flex-1"
+          value={query}
+          onChange={setQuery}
+          placeholder="Search staff by name, email or role…"
+          aria-label="Search staff"
+        />
+        <div className="flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1" role="group" aria-label="Filter staff by status">
+          {FILTERS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              aria-pressed={filter === f.id}
+              onClick={() => setFilter(f.id)}
+              className={[
+                'whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold transition-all',
+                filter === f.id ? 'bg-white text-navy shadow-card' : 'text-slate-500 hover:text-navy',
+              ].join(' ')}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-6">
+        {isError && <Alert variant="error">We couldn’t load your team. Please refresh and try again.</Alert>}
+        {isLoading && (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-36 rounded-2xl" />
+            ))}
+          </div>
+        )}
+
+        {!isLoading && !isError && memberships?.length === 0 && (
+          <EmptyState
+            icon={<Users size={22} />}
+            title="No staff invited yet"
+            description="Invite your teachers and administrators to give them access."
+            action={<Button onClick={() => setInviting(true)}>Invite your first staff member</Button>}
+          />
+        )}
+
+        {memberships && memberships.length > 0 && filtered.length === 0 && (
+          <EmptyState
+            icon={<SearchX size={22} />}
+            title="No staff match"
+            description="Try a different name, or change the filter."
+            action={
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setQuery('');
+                  setFilter('ALL');
+                }}
               >
-                <option value="">Select a role</option>
-                {roles?.map((role) => (
-                  <option key={role.id} value={role.id}>
-                    {role.name}
-                  </option>
-                ))}
-              </select>
-              {errors.roleId && <p className="text-sm text-red-600">{errors.roleId.message}</p>}
-            </div>
-            <div className="flex gap-2">
-              <Button type="submit" loading={isSubmitting}>
-                Send invite
+                Clear search
               </Button>
-              <Button type="button" variant="secondary" onClick={() => setInviting(false)}>
-                Cancel
-              </Button>
-            </div>
-          </form>
-        </Card>
-      )}
+            }
+          />
+        )}
 
-      {inviteResult && <InviteLinkPanel link={inviteResult} />}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {visible.map((m, i) => {
+            const name = `${m.user.firstName} ${m.user.lastName}`;
+            const status = staffStatus(m);
+            return (
+              <article
+                key={m.membershipId}
+                className="group animate-fade-in-up overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-card transition-all duration-300 hover:-translate-y-1 hover:border-brand-blue/30 hover:shadow-elevated"
+                style={{ animationDelay: `${Math.min(i, 10) * 40}ms` }}
+              >
+                <div className={['h-1.5 bg-gradient-to-r', STATUS_BAR[status]].join(' ')} />
+                <div className="p-5">
+                  <div className="flex items-start gap-3.5">
+                    <Avatar name={name} tone="auto" size={48} className="transition-transform duration-300 group-hover:scale-105" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-base font-bold text-navy">{name}</p>
+                      <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-slate-500">
+                        <Mail size={13} className="shrink-0" /> <span className="truncate">{m.user.email}</span>
+                      </p>
+                    </div>
+                  </div>
 
-      <div className="mt-6 flex flex-col gap-2">
-        {memberships?.map((m) => (
-          <Card key={m.membershipId} className="flex items-center justify-between p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-blue/10 text-sm font-semibold text-brand-blue">
-                {m.user.firstName[0]}
-                {m.user.lastName[0]}
-              </div>
-              <div>
-                <p className="font-medium text-navy">
-                  {m.user.firstName} {m.user.lastName}
-                </p>
-                <p className="text-sm text-slate-500">
-                  {m.user.email} · {m.role.name}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Badge tone={STATUS_TONES[m.status] ?? 'neutral'}>{STATUS_LABELS[m.status] ?? m.status}</Badge>
-              {m.status === 'ACTIVE' ? (
-                <Button
-                  size="sm"
-                  variant="soft-danger"
-                  loading={busyMembershipId === m.membershipId}
-                  onClick={() => setConfirmingDisable({ id: m.membershipId, name: `${m.user.firstName} ${m.user.lastName}` })}
-                >
-                  Disable
-                </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  loading={busyMembershipId === m.membershipId}
-                  onClick={() => reactivate(m.membershipId)}
-                >
-                  Reactivate
-                </Button>
-              )}
-            </div>
-          </Card>
-        ))}
-        {memberships?.length === 0 && !inviting && (
-          <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 px-6 py-12 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-slate-400 shadow-card">
-              <Users size={22} />
-            </div>
-            <p className="font-semibold text-navy">No staff invited yet</p>
-            <p className="max-w-sm text-sm text-slate-500">Invite your teachers and administrators to give them access.</p>
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone="brand">
+                        <ShieldCheck size={12} /> {m.role.name}
+                      </Badge>
+                      <Badge tone={STATUS_TONES[status]} dot pulse={status === 'INVITED'}>
+                        {STATUS_LABELS[status]}
+                      </Badge>
+                    </div>
+                    {m.user.id === me?.id ? (
+                      <span className="text-xs font-semibold text-slate-400">This is you</span>
+                    ) : m.status === 'ACTIVE' ? (
+                      <Button
+                        size="sm"
+                        variant="soft-danger"
+                        loading={busyMembershipId === m.membershipId}
+                        onClick={() => setConfirmingDisable({ id: m.membershipId, name })}
+                      >
+                        Disable
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="secondary" loading={busyMembershipId === m.membershipId} onClick={() => reactivate(m.membershipId, name)}>
+                        Reactivate
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+
+        {filtered.length > 0 && (
+          <div className="mt-6">
+            <Pagination
+              page={safePage}
+              totalPages={totalPages}
+              total={filtered.length}
+              pageSize={pageSize}
+              noun={filtered.length === 1 ? 'team member' : 'team members'}
+              pageSizeOptions={PAGE_SIZES}
+              onPageChange={(p) => {
+                setPage(p);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              onPageSizeChange={setPageSize}
+            />
           </div>
         )}
       </div>
+
+      <Dialog
+        open={inviting}
+        onClose={closeForm}
+        size="lg"
+        eyebrow={<span className="text-xs font-semibold uppercase tracking-wide text-brand-blue">Invite staff</span>}
+        title="Invite a staff member"
+        description="They’ll get an email with a link to set their own password."
+        footer={
+          <>
+            <Button type="button" variant="secondary" onClick={closeForm}>
+              Cancel
+            </Button>
+            <Button type="submit" form="invite-form" loading={isSubmitting}>
+              Send invitation
+            </Button>
+          </>
+        }
+      >
+        <form id="invite-form" onSubmit={handleSubmit(onInvite)} className="flex flex-col gap-4" noValidate>
+          {serverError && <Alert variant="error">{serverError}</Alert>}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <TextField label="First name" error={errors.firstName?.message} {...register('firstName')} />
+            <TextField label="Last name" error={errors.lastName?.message} {...register('lastName')} />
+          </div>
+          <TextField label="Email" type="email" leftIcon={<Mail size={16} />} placeholder="name@school.org" error={errors.email?.message} {...register('email')} />
+          <SelectField label="Role" leftIcon={<ShieldCheck size={16} />} error={errors.roleId?.message} {...register('roleId')}>
+            <option value="">Select a role</option>
+            {roles?.map((role) => (
+              <option key={role.id} value={role.id}>
+                {role.name}
+              </option>
+            ))}
+          </SelectField>
+        </form>
+      </Dialog>
 
       <ConfirmDialog
         open={!!confirmingDisable}

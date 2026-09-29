@@ -12,11 +12,45 @@ export class ParentsService {
     private readonly audit: AuditService,
   ) {}
 
+  // Linked children ride along so the list and the profile can show who
+  // each parent is responsible for without a request per parent.
+  // Soft-deleted students are filtered out of the link list.
+  private readonly childrenInclude = {
+    children: {
+      where: { student: { deletedAt: null } },
+      orderBy: { isPrimary: 'desc' as const },
+      include: {
+        student: {
+          select: {
+            id: true,
+            admissionNo: true,
+            firstName: true,
+            lastName: true,
+            status: true,
+            section: { select: { id: true, name: true, class: { select: { id: true, name: true } } } },
+          },
+        },
+      },
+    },
+  };
+
   async list(schoolId: string) {
     return this.prisma.parent.findMany({
       where: { schoolId, deletedAt: null },
       orderBy: { createdAt: 'asc' },
+      include: this.childrenInclude,
     });
+  }
+
+  async findOne(schoolId: string, parentId: string) {
+    const parent = await this.prisma.parent.findFirst({
+      where: { id: parentId, schoolId, deletedAt: null },
+      include: this.childrenInclude,
+    });
+    if (!parent) {
+      throw new NotFoundException({ code: 'NOT_FOUND', message: 'Resource not found.' });
+    }
+    return parent;
   }
 
   // A Parent profile is a standalone contact record (firstName/lastName/

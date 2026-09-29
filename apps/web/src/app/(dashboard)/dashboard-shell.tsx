@@ -22,6 +22,7 @@ import {
   X,
   ChevronDown,
   BarChart3,
+  Search,
 } from 'lucide-react';
 import { Avatar, LogoMark, Spinner } from '@schovexa/ui';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
@@ -29,7 +30,7 @@ import { useCurrentSchool } from '../../hooks/useCurrentSchool';
 import { useLogout } from '../../hooks/useLogout';
 import { useNotices } from '../../hooks/useNotices';
 import { ApiError } from '../../lib/api-client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface NavItem {
   href: string;
@@ -98,6 +99,53 @@ const ROLE_VISIBLE_ROUTES: Record<string, Set<string>> = {
   Parent: new Set(['/dashboard', '/dashboard/my-children', '/dashboard/notices']),
 };
 
+// Header search: type a student's name, admission number, class or a
+// parent's name/phone and land on the Students list already filtered.
+// Press "/" anywhere (outside a text field) to jump into it.
+function GlobalSearch() {
+  const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [value, setValue] = useState('');
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable);
+      if (e.key === '/' && !typing && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
+  return (
+    <form
+      role="search"
+      className="group relative hidden w-full max-w-md md:block"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const q = value.trim();
+        router.push(q ? `/dashboard/students?q=${encodeURIComponent(q)}` : '/dashboard/students');
+        setValue('');
+        inputRef.current?.blur();
+      }}
+    >
+      <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-brand-blue" />
+      <input
+        ref={inputRef}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        aria-label="Search students and parents"
+        placeholder="Search students, parents, classes…"
+        className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/80 pl-10 pr-10 text-sm text-slate-900 placeholder:text-slate-400 transition-all duration-200 hover:border-slate-300 focus:border-brand-blue focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-blue/15"
+      />
+      <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-400 group-focus-within:hidden">/</kbd>
+    </form>
+  );
+}
+
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -150,6 +198,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   })).filter((group) => group.items.length > 0);
 
   const fullName = `${me.firstName} ${me.lastName}`;
+  const canSearchStudents = groups.some((g) => g.items.some((i) => i.href === '/dashboard/students'));
 
   const sidebarContent = (
     <>
@@ -250,8 +299,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               <Menu size={22} />
             </button>
             <span className="text-sm font-semibold text-navy lg:hidden">{school?.name ?? 'Schovexa'}</span>
-            <span className="hidden text-sm text-slate-500 lg:inline">{new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+            <span className="hidden text-sm text-slate-500 xl:inline">{new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</span>
           </div>
+
+          {canSearchStudents && <GlobalSearch />}
 
           <div className="relative">
             <button

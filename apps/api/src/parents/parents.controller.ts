@@ -27,6 +27,13 @@ export class ParentsController {
     return this.parentsService.list(auth.schoolId);
   }
 
+  @Get(':id')
+  @RequirePermission('parent.view')
+  async findOne(@Param('id') id: string, @CurrentAuthContext() auth: AuthContext) {
+    await this.authorizationService.authorizeResource(auth, 'Parent', id);
+    return this.parentsService.findOne(auth.schoolId, id);
+  }
+
   @Post()
   @RequirePermission('parent.create')
   async create(
