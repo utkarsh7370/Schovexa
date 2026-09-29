@@ -46,9 +46,11 @@ describe('StorageService', () => {
       const missingStream = await service.getObjectStream(key);
       await expect(
         (async () => {
-          for await (const _chunk of missingStream) {
-            // draining is enough to trigger the underlying fs error
+          let bytesRead = 0;
+          for await (const chunk of missingStream) {
+            bytesRead += (chunk as Buffer).length;
           }
+          return bytesRead;
         })(),
       ).rejects.toThrow();
     });
