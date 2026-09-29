@@ -160,7 +160,7 @@ function ParentsPanel({
             </p>
             <Button
               size="sm"
-              variant="danger"
+              variant="soft-danger"
               loading={busyParentId === link.parent.id}
               onClick={() =>
                 setConfirmingUnlink({ id: link.parent.id, name: `${link.parent.firstName} ${link.parent.lastName}` })
@@ -299,7 +299,7 @@ function DocumentsPanel({ studentId }: { studentId: string }) {
             >
               {doc.fileName}
             </a>
-            <Button size="sm" variant="danger" loading={busyDocId === doc.id} onClick={() => removeDoc(doc.id)}>
+            <Button size="sm" variant="soft-danger" loading={busyDocId === doc.id} onClick={() => removeDoc(doc.id)}>
               Delete
             </Button>
           </div>
@@ -508,7 +508,7 @@ function FeesPanel({ studentId }: { studentId: string }) {
                   <Button size="sm" variant="secondary" onClick={() => setPayingId(payingId === fee.id ? null : fee.id)}>
                     Record payment
                   </Button>
-                  <Button size="sm" variant="danger" loading={busyId === fee.id} onClick={() => setConfirmingWaive(fee.id)}>
+                  <Button size="sm" variant="soft-danger" loading={busyId === fee.id} onClick={() => setConfirmingWaive(fee.id)}>
                     Waive
                   </Button>
                 </div>

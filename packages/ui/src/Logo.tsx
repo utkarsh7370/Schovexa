@@ -58,17 +58,20 @@ export interface LogoProps {
   size?: number;
   showTagline?: boolean;
   className?: string;
+  /** 'light' renders the wordmark in white, for dark/gradient backgrounds. */
+  tone?: 'default' | 'light';
 }
 
 /** Full lockup — symbol + wordmark (+ optional tagline) for auth/marketing pages. */
-export function Logo({ size = 40, showTagline = false, className }: LogoProps) {
+export function Logo({ size = 40, showTagline = false, className, tone = 'default' }: LogoProps) {
+  const light = tone === 'light';
   return (
     <div className={`flex items-center gap-3 ${className ?? ''}`}>
       <LogoMark size={size} />
       <div className="flex flex-col justify-center">
-        <span className="text-xl font-extrabold leading-tight text-navy">Schovexa</span>
+        <span className={`text-xl font-extrabold leading-tight ${light ? 'text-white' : 'text-navy'}`}>Schovexa</span>
         {showTagline && (
-          <span className="text-xs font-medium leading-tight text-slate-500">
+          <span className={`text-xs font-medium leading-tight ${light ? 'text-white/70' : 'text-slate-500'}`}>
             Smart Schools. Better Futures.
           </span>
         )}

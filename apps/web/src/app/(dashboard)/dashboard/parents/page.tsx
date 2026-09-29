@@ -5,14 +5,16 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { createParentSchema, type CreateParentInput } from '@schovexa/validation';
-import { Button, Card, TextField, Alert, PageHeader, Badge, EmptyState, SkeletonRows } from '@schovexa/ui';
+import { Button, Card, TextField, Alert, PageHeader, Badge, EmptyState, SkeletonRows, useToast } from '@schovexa/ui';
 import { UserRound } from 'lucide-react';
 import { useParents, PARENTS_QUERY_KEY } from '../../../../hooks/useParents';
 import { api, ApiError } from '../../../../lib/api-client';
+import { InviteLinkPanel } from '../../../../components/invite-link-panel';
 
 export default function ParentsPage() {
   const { data: parents, isLoading } = useParents();
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [creating, setCreating] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [invitingParentId, setInvitingParentId] = useState<string | null>(null);
@@ -56,6 +58,11 @@ export default function ParentsPage() {
       });
       await queryClient.invalidateQueries({ queryKey: PARENTS_QUERY_KEY });
       setInvitingParentId(null);
+      toast.show({
+        tone: 'success',
+        title: result.inviteToken ? 'Invitation sent' : 'Parent linked to portal',
+        description: result.inviteToken ? 'They will get an email to set up their portal login.' : 'They can log in with their existing password.',
+      });
       if (result.inviteToken) {
         setInviteResult({ parentId, link: `${window.location.origin}/accept-invite?token=${result.inviteToken}` });
       } else {
@@ -159,15 +166,7 @@ export default function ParentsPage() {
 
                 {inviteResult?.parentId === parent.id &&
                   (inviteResult.link ? (
-                    <Alert variant="success" className="mt-4">
-                      <p>
-                        Invitation created. They&apos;ll also receive it by email if SMTP is configured — here&apos;s
-                        the link too, for sharing directly:
-                      </p>
-                      <code className="mt-2 block break-all rounded bg-white/60 px-2 py-1 text-xs text-green-900">
-                        {inviteResult.link}
-                      </code>
-                    </Alert>
+                    <InviteLinkPanel link={inviteResult.link} name={`${parent.firstName} ${parent.lastName}`} />
                   ) : (
                     <Alert variant="success" className="mt-4">
                       This parent already has a portal login (linked via a sibling) — they can log in with their

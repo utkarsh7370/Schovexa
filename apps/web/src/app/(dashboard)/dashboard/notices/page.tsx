@@ -5,26 +5,22 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { createNoticeSchema, type CreateNoticeInput } from '@schovexa/validation';
-import { Button, Card, TextField, Alert, PageHeader, Badge, EmptyState, SkeletonRows } from '@schovexa/ui';
+import { Button, Card, TextField, Alert, PageHeader, EmptyState, SkeletonRows, useToast } from '@schovexa/ui';
 import { Bell } from 'lucide-react';
 import { useNotices, NOTICES_QUERY_KEY, type NoticeAudience } from '../../../../hooks/useNotices';
 import { useClasses } from '../../../../hooks/useClasses';
 import { useSections } from '../../../../hooks/useSections';
 import { useMemberships } from '../../../../hooks/useMemberships';
 import { api, ApiError } from '../../../../lib/api-client';
-
-const AUDIENCE_LABELS: Record<NoticeAudience, string> = {
-  ALL_SCHOOL: 'Whole school',
-  CLASS: 'A class',
-  SECTION: 'A section',
-  INDIVIDUAL: 'One person',
-};
+import { AUDIENCE_LABELS, NoticeCard, useNoticeViewer } from '../../../../components/notice-card';
 
 export default function NoticesPage() {
   const { data: notices, isLoading } = useNotices();
   const { data: classes } = useClasses();
   const { data: memberships } = useMemberships();
   const queryClient = useQueryClient();
+  const toast = useToast();
+  const viewer = useNoticeViewer();
   const [creating, setCreating] = useState(false);
   const [audienceType, setAudienceType] = useState<NoticeAudience>('ALL_SCHOOL');
   const [selectedClassId, setSelectedClassId] = useState('');
@@ -45,6 +41,7 @@ export default function NoticesPage() {
     try {
       await api.post('/notices', data);
       await queryClient.invalidateQueries({ queryKey: NOTICES_QUERY_KEY });
+      toast.show({ tone: 'success', title: 'Draft saved', description: 'Publish it when you are ready for people to see it.' });
       reset();
       setAudienceType('ALL_SCHOOL');
       setSelectedClassId('');
@@ -59,14 +56,10 @@ export default function NoticesPage() {
     try {
       await api.post(`/notices/${id}/publish`);
       await queryClient.invalidateQueries({ queryKey: NOTICES_QUERY_KEY });
+      toast.show({ tone: 'success', title: 'Notice published', description: 'The audience will see it on their dashboard now.' });
     } finally {
       setBusyId(null);
     }
-  };
-
-  const markRead = async (id: string) => {
-    await api.post(`/notices/${id}/read`);
-    await queryClient.invalidateQueries({ queryKey: NOTICES_QUERY_KEY });
   };
 
   return (
@@ -193,40 +186,25 @@ export default function NoticesPage() {
         )}
         {!isLoading && notices && notices.length > 0 && (
           <div className="flex flex-col gap-2">
-            {notices.map((notice) => (
-              <Card key={notice.id} className={['p-4', notice.isRead ? '' : 'border-brand-blue'].join(' ')}>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-medium text-navy">
-                      {notice.title}
-                      {!notice.isRead && <span className="ml-2 text-xs font-semibold text-brand-blue">NEW</span>}
-                      {!notice.publishedAt && (
-                        <Badge tone="neutral" className="ml-2">
-                          Draft
-                        </Badge>
-                      )}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-600">{notice.body}</p>
-                    <p className="mt-2 text-xs text-slate-400">{AUDIENCE_LABELS[notice.audienceType]}</p>
-                  </div>
-                  <div className="flex shrink-0 gap-2">
-                    {!notice.publishedAt && (
-                      <Button size="sm" loading={busyId === notice.id} onClick={() => publish(notice.id)}>
-                        Publish
-                      </Button>
-                    )}
-                    {notice.publishedAt && !notice.isRead && (
-                      <Button size="sm" variant="secondary" onClick={() => markRead(notice.id)}>
-                        Mark read
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </Card>
+            {notices.map((notice, i) => (
+              <NoticeCard
+                key={notice.id}
+                notice={notice}
+                onOpen={viewer.open}
+                index={i}
+                actions={
+                  !notice.publishedAt && (
+                    <Button size="sm" loading={busyId === notice.id} onClick={() => publish(notice.id)}>
+                      Publish
+                    </Button>
+                  )
+                }
+              />
             ))}
           </div>
         )}
       </div>
+      {viewer.dialog}
     </div>
   );
 }

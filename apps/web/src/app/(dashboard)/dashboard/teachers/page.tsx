@@ -188,7 +188,7 @@ function AssignmentsPanel({ teacherId }: { teacherId: string }) {
           </p>
           <Button
             size="sm"
-            variant="danger"
+            variant="soft-danger"
             loading={busyAssignmentId === a.id}
             onClick={() => removeAssignment(a.id)}
           >

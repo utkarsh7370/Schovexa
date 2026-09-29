@@ -303,3 +303,120 @@ export const createNoticeSchema = z
     path: ['audienceRefId'],
   });
 export type CreateNoticeInput = z.infer<typeof createNoticeSchema>;
+
+// --- UI form schemas ------------------------------------------------------
+// Deliberately STRICTER than the API schemas above. The forms give users
+// immediate, specific feedback (which rule failed and how to fix it),
+// while the API keeps its own baseline validation as the security
+// boundary — client-side rules are UX, never a substitute for it. Keeping
+// the two separate also means tightening a form rule never breaks
+// existing accounts, scripts, or integrations that talk to the API.
+
+const EMAIL_PATTERN =
+  /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\.[A-Za-z]{2,}$/;
+
+export const emailField = z
+  .string({ required_error: 'Email is required' })
+  .trim()
+  .min(1, 'Email is required')
+  .max(254, 'Email is too long (maximum 254 characters)')
+  .refine((v) => !/\s/.test(v), 'Email cannot contain spaces')
+  .refine((v) => !v.includes('..'), 'Email cannot contain two dots in a row')
+  .refine((v) => EMAIL_PATTERN.test(v), 'Enter a valid email address, like name@school.com')
+  .transform((v) => v.toLowerCase());
+
+const PERSON_NAME_PATTERN = /^\p{L}[\p{L}\p{M} .'’-]*$/u;
+
+function personNameField(label: string) {
+  return z
+    .string({ required_error: `${label} is required` })
+    .trim()
+    .min(1, `${label} is required`)
+    .min(2, `${label} must be at least 2 characters`)
+    .max(50, `${label} must be 50 characters or fewer`)
+    .refine(
+      (v) => PERSON_NAME_PATTERN.test(v),
+      `${label} can only contain letters, spaces, apostrophes, hyphens and full stops`,
+    );
+}
+
+const COMMON_PASSWORD_FRAGMENTS = ['password', 'passw0rd', 'qwerty', 'letmein', '123456', 'abc123', 'welcome', 'schovexa', 'admin123'];
+
+export const strongPasswordSchema = z
+  .string({ required_error: 'Password is required' })
+  .min(1, 'Password is required')
+  .min(10, 'Password must be at least 10 characters')
+  .max(128, 'Password must be 128 characters or fewer')
+  .refine((p) => !/\s/.test(p), 'Password cannot contain spaces')
+  .refine((p) => /[A-Z]/.test(p), 'Add at least one uppercase letter (A–Z)')
+  .refine((p) => /[a-z]/.test(p), 'Add at least one lowercase letter (a–z)')
+  .refine((p) => /\d/.test(p), 'Add at least one number (0–9)')
+  .refine((p) => /[^A-Za-z0-9\s]/.test(p), 'Add at least one symbol, like ! @ # $ %')
+  .refine((p) => !/(.)\1{3,}/.test(p), 'Avoid repeating the same character four or more times in a row')
+  .refine(
+    (p) => !COMMON_PASSWORD_FRAGMENTS.some((w) => p.toLowerCase().includes(w)),
+    'This password is too easy to guess — avoid common words and sequences like "password" or "123456"',
+  );
+
+const confirmPasswordField = z.string({ required_error: 'Please confirm your password' }).min(1, 'Please confirm your password');
+
+export const loginFormSchema = z.object({
+  email: emailField,
+  password: z.string({ required_error: 'Password is required' }).min(1, 'Password is required'),
+});
+export type LoginFormInput = z.input<typeof loginFormSchema>;
+export type LoginFormOutput = z.output<typeof loginFormSchema>;
+
+export const forgotPasswordFormSchema = z.object({ email: emailField });
+export type ForgotPasswordFormInput = z.input<typeof forgotPasswordFormSchema>;
+
+export const setPasswordFormSchema = z
+  .object({ password: strongPasswordSchema, confirmPassword: confirmPasswordField })
+  .superRefine((data, ctx) => {
+    if (data.confirmPassword && data.password !== data.confirmPassword) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['confirmPassword'], message: 'Passwords do not match' });
+    }
+  });
+export type SetPasswordFormInput = z.input<typeof setPasswordFormSchema>;
+
+export const registerSchoolFormSchema = z
+  .object({
+    schoolName: z
+      .string({ required_error: 'School name is required' })
+      .trim()
+      .min(1, 'School name is required')
+      .min(3, 'School name must be at least 3 characters')
+      .max(100, 'School name must be 100 characters or fewer')
+      .refine((v) => /\p{L}/u.test(v), 'School name must include letters')
+      .refine(
+        (v) => /^[\p{L}\p{N} .,&'’()/-]+$/u.test(v),
+        "School name can only contain letters, numbers, spaces and . , & ' ( ) - /",
+      ),
+    directorFirstName: personNameField('First name'),
+    directorLastName: personNameField('Last name'),
+    email: emailField,
+    password: strongPasswordSchema,
+    confirmPassword: confirmPasswordField,
+    acceptTerms: z
+      .boolean()
+      .refine((v) => v === true, 'Please accept the Terms of Service and Privacy Policy to continue'),
+  })
+  .superRefine((data, ctx) => {
+    if (data.confirmPassword && data.password !== data.confirmPassword) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['confirmPassword'], message: 'Passwords do not match' });
+    }
+    const emailName = data.email.split('@')[0]?.toLowerCase() ?? '';
+    const lowered = data.password.toLowerCase();
+    if (emailName.length >= 4 && lowered.includes(emailName)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['password'], message: 'Password must not contain the first part of your email' });
+    }
+    for (const name of [data.directorFirstName, data.directorLastName]) {
+      const n = name.trim().toLowerCase();
+      if (n.length >= 3 && lowered.includes(n)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['password'], message: 'Password must not contain your name' });
+        break;
+      }
+    }
+  });
+export type RegisterSchoolFormInput = z.input<typeof registerSchoolFormSchema>;
+export type RegisterSchoolFormOutput = z.output<typeof registerSchoolFormSchema>;

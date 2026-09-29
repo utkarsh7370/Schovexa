@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button, Card, Alert, Spinner } from '@schovexa/ui';
+import { Card, Alert, Spinner, Avatar } from '@schovexa/ui';
+import { ArrowRight, Building } from 'lucide-react';
 import { api, ApiError } from '../../../lib/api-client';
+import { AuthCardHeader } from '../../../components/auth-card-header';
 import type { CurrentUser } from '@schovexa/types';
 
 // Only reached when a user has more than one school membership — the
@@ -44,9 +46,8 @@ export default function SelectSchoolPage() {
   }
 
   return (
-    <Card className="p-8">
-      <h1 className="text-xl font-bold text-navy">Choose a school</h1>
-      <p className="mt-1 text-sm text-slate-500">You have access to more than one school.</p>
+    <Card className="p-8 shadow-elevated sm:p-10">
+      <AuthCardHeader icon={<Building size={24} />} title="Choose a school" description="You have access to more than one school. Pick where to go." />
 
       {error && (
         <Alert variant="error" className="mt-4">
@@ -54,19 +55,25 @@ export default function SelectSchoolPage() {
         </Alert>
       )}
 
-      <div className="mt-6 flex flex-col gap-3">
-        {me.memberships.map((membership) => (
+      <div className="mt-7 flex flex-col gap-3">
+        {me.memberships.map((membership, i) => (
           <button
             key={membership.membershipId}
             onClick={() => selectSchool(membership.membershipId)}
             disabled={selectingId !== null}
-            className="flex items-center justify-between rounded-lg border border-slate-200 px-4 py-3 text-left hover:border-brand-blue hover:bg-slate-50 disabled:opacity-60"
+            style={{ animationDelay: `${i * 80}ms` }}
+            className="group flex animate-fade-in-up items-center gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-blue/50 hover:shadow-elevated disabled:opacity-60"
           >
-            <span>
-              <span className="block font-medium text-navy">{membership.schoolName}</span>
+            <Avatar name={membership.schoolName} size={44} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-semibold text-navy">{membership.schoolName}</span>
               <span className="block text-sm text-slate-500">{membership.roleName}</span>
             </span>
-            {selectingId === membership.membershipId && <Spinner size={18} />}
+            {selectingId === membership.membershipId ? (
+              <Spinner size={18} />
+            ) : (
+              <ArrowRight size={18} className="text-slate-300 transition-all group-hover:translate-x-1 group-hover:text-brand-blue" />
+            )}
           </button>
         ))}
       </div>

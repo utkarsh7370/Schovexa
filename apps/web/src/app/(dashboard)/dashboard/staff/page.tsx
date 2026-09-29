@@ -10,6 +10,7 @@ import { UserPlus2, Users, Download } from 'lucide-react';
 import { useMemberships, MEMBERSHIPS_QUERY_KEY } from '../../../../hooks/useMemberships';
 import { useRoles } from '../../../../hooks/useRoles';
 import { api, ApiError } from '../../../../lib/api-client';
+import { InviteLinkPanel } from '../../../../components/invite-link-panel';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
 
@@ -50,11 +51,16 @@ export default function StaffPage() {
     try {
       const result = await api.post<{ userId: string; inviteToken: string }>('/memberships/invitations', data);
       await queryClient.invalidateQueries({ queryKey: MEMBERSHIPS_QUERY_KEY });
-      // No email delivery yet (docs/architecture.md §9, Phase 2) — the
-      // real invite link is shown here so the admin can share it
-      // directly. This token must never be logged (docs/logging.md §4);
-      // it only ever appears in this one response, to this one caller.
+      // The invite is emailed when SMTP is configured; the link is also
+      // shown so the admin can share it directly as a fallback. This
+      // token must never be logged (docs/logging.md §4); it only ever
+      // appears in this one response, to this one caller.
       setInviteResult(`${window.location.origin}/accept-invite?token=${result.inviteToken}`);
+      toast.show({
+        tone: 'success',
+        title: 'Invitation sent',
+        description: `${data.firstName} ${data.lastName} will get an email to set up their account.`,
+      });
       reset();
       setInviting(false);
     } catch (err) {
@@ -148,14 +154,7 @@ export default function StaffPage() {
         </Card>
       )}
 
-      {inviteResult && (
-        <Alert variant="success" className="mt-4">
-          <p>Invitation created. Share this link with them (no email delivery yet):</p>
-          <code className="mt-2 block break-all rounded bg-white/60 px-2 py-1 text-xs text-green-900">
-            {inviteResult}
-          </code>
-        </Alert>
-      )}
+      {inviteResult && <InviteLinkPanel link={inviteResult} />}
 
       <div className="mt-6 flex flex-col gap-2">
         {memberships?.map((m) => (
@@ -179,7 +178,7 @@ export default function StaffPage() {
               {m.status === 'ACTIVE' ? (
                 <Button
                   size="sm"
-                  variant="danger"
+                  variant="soft-danger"
                   loading={busyMembershipId === m.membershipId}
                   onClick={() => setConfirmingDisable({ id: m.membershipId, name: `${m.user.firstName} ${m.user.lastName}` })}
                 >

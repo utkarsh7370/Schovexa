@@ -1,3 +1,53 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: rgba(0, 128, 240, 0.2);
+  }
+  /* Consistent keyboard focus ring everywhere a component doesn't set its own. */
+  :focus-visible {
+    outline: 2px solid #0080f0;
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .text-gradient {
+    @apply bg-gradient-to-r from-brand-electric via-brand-blue to-brand-violet bg-clip-text text-transparent;
+  }
+  /* Faint dotted grid used behind hero/auth panels for depth. */
+  .bg-grid {
+    background-image: radial-gradient(rgba(0, 16, 64, 0.09) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+  .bg-grid-light {
+    background-image: radial-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+  .glass {
+    @apply border border-white/60 bg-white/70 backdrop-blur-xl;
+  }
+}
+
+/* Respect users who ask their OS for less motion: keep layout and state
+   changes, drop the movement. One rule here covers every animation and
+   transition in the app. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
