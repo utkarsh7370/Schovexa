@@ -3,6 +3,7 @@ import * as argon2 from 'argon2';
 import { AuthTokenPurpose, UserStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { EmailService } from '../email/email.service';
 import { generateOpaqueToken, hashToken } from './token.util';
 import {
   GENERIC_LOGIN_ERROR,
@@ -28,7 +29,13 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly email: EmailService,
   ) {}
+
+  private webUrl(path: string): string {
+    const origin = (process.env.WEB_ORIGIN ?? '').split(',')[0].trim() || 'http://localhost:3000';
+    return `${origin}${path}`;
+  }
 
   // --- Password hashing (docs/authentication.md §1) ---------------------
 
@@ -208,9 +215,18 @@ export class AuthService {
         expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
       },
     });
-    // Emailing the raw token is Phase 2's notification integration
-    // (docs/architecture.md §9); returned here so callers can log/deliver
-    // it in the interim.
+
+    const link = this.webUrl(`/reset-password?token=${rawToken}`);
+    void this.email.send({
+      to: user.email,
+      subject: 'Reset your Schovexa password',
+      text: `We received a request to reset your password. Reset it here: ${link}\n\nIf you didn't request this, you can ignore this email.`,
+      html: `<p>We received a request to reset your password.</p><p><a href="${link}">Reset your password</a></p><p>If you didn't request this, you can ignore this email.</p>`,
+    });
+
+    // The raw token is still returned so callers can log/display it as a
+    // fallback (docs/architecture.md §9's in-app-first design, and the
+    // EmailService above degrades to a no-op when SMTP isn't configured).
     return rawToken;
   }
 
@@ -291,6 +307,15 @@ export class AuthService {
         purpose: AuthTokenPurpose.INVITE,
         expiresAt: new Date(Date.now() + INVITE_TOKEN_TTL_MS),
       },
+    });
+
+    const school = await this.prisma.school.findUnique({ where: { id: input.schoolId }, select: { name: true } });
+    const link = this.webUrl(`/accept-invite?token=${rawToken}`);
+    void this.email.send({
+      to: input.email,
+      subject: `You're invited to ${school?.name ?? 'Schovexa'}`,
+      text: `${school?.name ?? 'A school'} has invited you to join their Schovexa portal. Set up your account here: ${link}\n\nThis link expires in 7 days.`,
+      html: `<p>${school?.name ?? 'A school'} has invited you to join their Schovexa portal.</p><p><a href="${link}">Set up your account</a></p><p>This link expires in 7 days.</p>`,
     });
 
     return { rawToken, userId: user.id };

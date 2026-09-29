@@ -19,6 +19,7 @@ import { TeachersModule } from './teachers/teachers.module';
 import { ParentsModule } from './parents/parents.module';
 import { DocumentsModule } from './documents/documents.module';
 import { StorageModule } from './storage/storage.module';
+import { EmailModule } from './email/email.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { FeeCategoriesModule } from './fee-categories/fee-categories.module';
 import { FeeStructuresModule } from './fee-structures/fee-structures.module';
@@ -40,6 +41,7 @@ import { OriginCheckMiddleware } from './common/origin-check.middleware';
     AuditModule,
     AuthorizationModule,
     StorageModule,
+    EmailModule,
     HealthModule,
     AuthModule,
     SchoolsModule,

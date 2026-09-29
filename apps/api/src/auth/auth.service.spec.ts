@@ -1,6 +1,7 @@
 import { UserStatus } from '@prisma/client';
 import { AuthService } from './auth.service';
 import { AuditService } from '../audit/audit.service';
+import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { resetTestData } from '../../test/db-helpers';
 import { hashToken } from './token.util';
@@ -19,7 +20,10 @@ describe('AuthService', () => {
   beforeAll(() => {
     prisma = new PrismaService();
     audit = new AuditService(prisma);
-    authService = new AuthService(prisma, audit);
+    // No SMTP_HOST in the test env (apps/api/.env.test) — EmailService
+    // falls back to its no-op logging path, exactly as it does in any
+    // environment without SMTP configured. Real enough to exercise here.
+    authService = new AuthService(prisma, audit, new EmailService());
   });
 
   afterAll(async () => {

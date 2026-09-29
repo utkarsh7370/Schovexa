@@ -67,7 +67,7 @@ export class DocumentsService {
     if (!document) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Resource not found.' });
     }
-    return { document, stream: this.storage.getObjectStream(document.fileKey) };
+    return { document, stream: await this.storage.getObjectStream(document.fileKey) };
   }
 
   // Soft-delete only, per the deletedAt convention used everywhere else
