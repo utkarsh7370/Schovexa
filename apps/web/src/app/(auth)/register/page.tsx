@@ -57,6 +57,18 @@ export default function RegisterSchoolPage() {
           {...register('password')}
         />
 
+        <p className="text-xs text-slate-500">
+          By creating a school, you agree to our{' '}
+          <Link href="/terms-of-service" className="text-brand-blue underline">
+            Terms of Service
+          </Link>{' '}
+          and{' '}
+          <Link href="/privacy-policy" className="text-brand-blue underline">
+            Privacy Policy
+          </Link>
+          .
+        </p>
+
         <Button type="submit" loading={isSubmitting} className="mt-2">
           Create school
         </Button>

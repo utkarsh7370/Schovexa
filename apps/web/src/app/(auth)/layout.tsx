@@ -8,6 +8,15 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <Logo showTagline size={44} />
       </Link>
       <div className="w-full max-w-md">{children}</div>
+      <p className="mt-8 text-xs text-slate-400">
+        <Link href="/privacy-policy" className="hover:text-slate-600 hover:underline">
+          Privacy Policy
+        </Link>
+        {' · '}
+        <Link href="/terms-of-service" className="hover:text-slate-600 hover:underline">
+          Terms of Service
+        </Link>
+      </p>
     </main>
   );
 }
