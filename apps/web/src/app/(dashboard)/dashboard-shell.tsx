@@ -21,6 +21,7 @@ import {
   Menu,
   X,
   ChevronDown,
+  BarChart3,
 } from 'lucide-react';
 import { Avatar, LogoMark, Spinner } from '@schovexa/ui';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
@@ -66,6 +67,7 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   { label: 'Money', items: [{ href: '/dashboard/fees', label: 'Fees', icon: Wallet }] },
+  { label: 'Insights', items: [{ href: '/dashboard/reports', label: 'Reports', icon: BarChart3 }] },
   { label: 'Communication', items: [{ href: '/dashboard/notices', label: 'Notices', icon: Bell }] },
   {
     label: 'Administration',
