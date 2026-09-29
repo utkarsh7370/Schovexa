@@ -232,6 +232,16 @@ describe('School Management (e2e)', () => {
       expect(res.body[0].role.name).toBe('Director');
     });
 
+    it('exports the staff list as CSV', async () => {
+      const { cookie } = await registerSchool('Export Members School', 'exportmembers1@example.test');
+      const res = await agent().get('/api/v1/memberships/export').set('Cookie', cookie);
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toContain('text/csv');
+      expect(res.headers['content-disposition']).toContain('staff.csv');
+      expect(res.text).toContain('First Name');
+      expect(res.text).toContain('Director');
+    });
+
     it('disabling a membership blocks further school-scoped access on that session', async () => {
       const { cookie: directorCookie } = await registerSchool('Disable School', 'disable1@example.test');
       const roles = await agent().get('/api/v1/roles').set('Cookie', directorCookie);

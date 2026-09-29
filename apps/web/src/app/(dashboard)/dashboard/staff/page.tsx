@@ -6,10 +6,12 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { createInvitationSchema, type CreateInvitationInput } from '@schovexa/validation';
 import { Button, Card, TextField, Alert, PageHeader, Badge, ConfirmDialog, useToast, type BadgeTone } from '@schovexa/ui';
-import { UserPlus2, Users } from 'lucide-react';
+import { UserPlus2, Users, Download } from 'lucide-react';
 import { useMemberships, MEMBERSHIPS_QUERY_KEY } from '../../../../hooks/useMemberships';
 import { useRoles } from '../../../../hooks/useRoles';
 import { api, ApiError } from '../../../../lib/api-client';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
 
 const STATUS_LABELS: Record<string, string> = {
   ACTIVE: 'Active',
@@ -89,11 +91,20 @@ export default function StaffPage() {
         title="Staff"
         description="Invite team members and manage their access."
         action={
-          !inviting && (
-            <Button onClick={() => setInviting(true)}>
-              <UserPlus2 size={16} /> Invite staff
-            </Button>
-          )
+          <div className="flex items-center gap-2">
+            <a
+              href={`${API_URL}/memberships/export`}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100"
+            >
+              <Download size={15} strokeWidth={2} />
+              Export CSV
+            </a>
+            {!inviting && (
+              <Button onClick={() => setInviting(true)}>
+                <UserPlus2 size={16} /> Invite staff
+              </Button>
+            )}
+          </div>
         }
       />
 

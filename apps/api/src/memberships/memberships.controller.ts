@@ -1,5 +1,5 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
-import type { Request } from 'express';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Req, Res, StreamableFile, UseGuards } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { createInvitationSchema, updateMembershipSchema } from '@schovexa/validation';
 import type { CreateInvitationInput, UpdateMembershipInput } from '@schovexa/validation';
 import { AuthGuard } from '../auth/guards/auth.guard';
@@ -10,6 +10,7 @@ import { CurrentAuthContext } from '../authorization/decorators/current-auth-con
 import { AuthorizationService } from '../authorization/authorization.service';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { requestMeta } from '../common/request-meta.util';
+import { sendCsv, toCsv } from '../common/csv.util';
 import { MembershipsService } from './memberships.service';
 import type { AuthContext } from '../authorization/authorization.types';
 
@@ -25,6 +26,21 @@ export class MembershipsController {
   @RequirePermission('user.view')
   async list(@CurrentAuthContext() auth: AuthContext) {
     return this.membershipsService.listMemberships(auth.schoolId);
+  }
+
+  @Get('export')
+  @RequirePermission('user.view')
+  async exportCsv(@CurrentAuthContext() auth: AuthContext, @Res({ passthrough: true }) res: Response): Promise<StreamableFile> {
+    const memberships = await this.membershipsService.listMemberships(auth.schoolId);
+    const csv = toCsv(memberships, [
+      { key: (m) => m.user.firstName, header: 'First Name' },
+      { key: (m) => m.user.lastName, header: 'Last Name' },
+      { key: (m) => m.user.email, header: 'Email' },
+      { key: (m) => m.role.name, header: 'Role' },
+      { key: 'status', header: 'Membership Status' },
+      { key: (m) => m.user.status, header: 'Account Status' },
+    ]);
+    return sendCsv(res, csv, 'staff.csv');
   }
 
   @Post('invitations')

@@ -34,11 +34,12 @@ export class MembershipsService {
   }
 
   /**
-   * Returns the raw invite token in the response — there is no email
-   * delivery yet (Phase 2, docs/architecture.md §9), so the inviting
-   * admin (who already holds `user.create`) is the interim delivery
-   * mechanism, sharing the link manually. This token must never be
-   * logged (docs/logging.md §4) — it only ever appears in this one HTTP
+   * Returns the raw invite token in the response too, even though
+   * AuthService.createInvitation() also emails it when SMTP is
+   * configured — the inviting admin (who already holds `user.create`)
+   * can then share the link directly as a fallback (SMTP unconfigured,
+   * delivery failure, etc.). This token must never be logged
+   * (docs/logging.md §4) — it only ever appears in this one HTTP
    * response body, to the one caller authorized to create it.
    */
   async createInvitation(schoolId: string, input: CreateInvitationInput, meta: RequestMeta) {
