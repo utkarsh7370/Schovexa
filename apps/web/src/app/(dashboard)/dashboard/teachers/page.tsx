@@ -5,8 +5,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { createTeacherAssignmentSchema, createTeacherSchema, type CreateTeacherInput } from '@schovexa/validation';
-import { Button, Card, TextField, Alert } from '@schovexa/ui';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { Button, Card, TextField, Alert, PageHeader, EmptyState, SkeletonRows } from '@schovexa/ui';
+import { ChevronDown, ChevronRight, GraduationCap } from 'lucide-react';
 import { useMemberships } from '../../../../hooks/useMemberships';
 import { useTeachers, TEACHERS_QUERY_KEY, useTeacherAssignments, teacherAssignmentsQueryKey } from '../../../../hooks/useTeachers';
 import { useClasses } from '../../../../hooks/useClasses';
@@ -16,7 +16,7 @@ import { api, ApiError } from '../../../../lib/api-client';
 
 export default function TeachersPage() {
   const { data: memberships } = useMemberships();
-  const { data: teachers } = useTeachers();
+  const { data: teachers, isLoading } = useTeachers();
   const queryClient = useQueryClient();
   const [creating, setCreating] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -46,13 +46,11 @@ export default function TeachersPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-navy">Teachers</h1>
-          <p className="mt-1 text-slate-600">Manage teacher profiles and their class/subject assignments.</p>
-        </div>
-        {!creating && <Button onClick={() => setCreating(true)}>New teacher profile</Button>}
-      </div>
+      <PageHeader
+        title="Teachers"
+        description="Manage teacher profiles and their class/subject assignments."
+        action={!creating && <Button onClick={() => setCreating(true)}>New teacher profile</Button>}
+      />
 
       {creating && (
         <Card className="mt-6 p-6">
@@ -103,31 +101,36 @@ export default function TeachersPage() {
         </Card>
       )}
 
-      <div className="mt-6 flex flex-col gap-2">
-        {teachers?.map((teacher) => (
-          <Card key={teacher.id} className="p-0">
-            <button
-              onClick={() => setExpandedTeacherId(expandedTeacherId === teacher.id ? null : teacher.id)}
-              className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-slate-50"
-            >
-              <div className="flex items-center gap-2">
-                {expandedTeacherId === teacher.id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                <span className="font-medium text-navy">
-                  {teacher.user.firstName} {teacher.user.lastName}
-                </span>
-                <span className="text-sm text-slate-400">{teacher.user.email}</span>
-              </div>
-              {teacher.employeeCode && <span className="text-sm text-slate-500">{teacher.employeeCode}</span>}
-            </button>
-            {expandedTeacherId === teacher.id && (
-              <div className="border-t border-slate-200 p-4">
-                <AssignmentsPanel teacherId={teacher.id} />
-              </div>
-            )}
-          </Card>
-        ))}
-        {teachers?.length === 0 && !creating && (
-          <p className="py-8 text-center text-sm text-slate-500">No teacher profiles yet.</p>
+      <div className="mt-6">
+        {isLoading && <SkeletonRows count={4} />}
+        {!isLoading && teachers?.length === 0 && !creating && (
+          <EmptyState icon={<GraduationCap size={22} />} title="No teacher profiles yet" />
+        )}
+        {!isLoading && teachers && teachers.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {teachers.map((teacher) => (
+              <Card key={teacher.id} className="p-0">
+                <button
+                  onClick={() => setExpandedTeacherId(expandedTeacherId === teacher.id ? null : teacher.id)}
+                  className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-slate-50"
+                >
+                  <div className="flex items-center gap-2">
+                    {expandedTeacherId === teacher.id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                    <span className="font-medium text-navy">
+                      {teacher.user.firstName} {teacher.user.lastName}
+                    </span>
+                    <span className="text-sm text-slate-400">{teacher.user.email}</span>
+                  </div>
+                  {teacher.employeeCode && <span className="text-sm text-slate-500">{teacher.employeeCode}</span>}
+                </button>
+                {expandedTeacherId === teacher.id && (
+                  <div className="border-t border-slate-200 p-4">
+                    <AssignmentsPanel teacherId={teacher.id} />
+                  </div>
+                )}
+              </Card>
+            ))}
+          </div>
         )}
       </div>
     </div>

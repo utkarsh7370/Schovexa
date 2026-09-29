@@ -1,6 +1,7 @@
 'use client';
 
-import { Card, Spinner } from '@schovexa/ui';
+import { Card, Spinner, PageHeader, EmptyState, SkeletonRows } from '@schovexa/ui';
+import { Heart } from 'lucide-react';
 import { useStudents, useStudent } from '../../../../hooks/useStudents';
 import { useAttendanceHistory, type AttendanceStatus } from '../../../../hooks/useAttendance';
 import { useStudentFees } from '../../../../hooks/useFees';
@@ -101,23 +102,25 @@ function ChildCard({ studentId }: { studentId: string }) {
 }
 
 export default function MyChildrenPage() {
-  const { data: students } = useStudents();
+  const { data: students, isLoading } = useStudents();
   const shown = students?.slice(0, MAX_CHILDREN_SHOWN);
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="text-2xl font-bold text-navy">My Children</h1>
-      <p className="mt-1 text-slate-600">Attendance and fee status for your linked children.</p>
+      <PageHeader title="My Children" description="Attendance and fee status for your linked children." />
 
       <div className="mt-6 flex flex-col gap-4">
+        {isLoading && <SkeletonRows count={2} />}
+        {!isLoading && students?.length === 0 && (
+          <EmptyState
+            icon={<Heart size={22} />}
+            title="No children linked to your account yet"
+            description="Contact the school office to get your children linked."
+          />
+        )}
         {shown?.map((student) => (
           <ChildCard key={student.id} studentId={student.id} />
         ))}
-        {students?.length === 0 && (
-          <p className="py-8 text-center text-sm text-slate-500">
-            No children are linked to your account yet. Contact the school office.
-          </p>
-        )}
         {students && students.length > MAX_CHILDREN_SHOWN && (
           <p className="text-center text-sm text-slate-500">
             Showing the first {MAX_CHILDREN_SHOWN} of {students.length}.

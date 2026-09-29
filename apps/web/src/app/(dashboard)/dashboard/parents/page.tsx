@@ -5,12 +5,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { createParentSchema, type CreateParentInput } from '@schovexa/validation';
-import { Button, Card, TextField, Alert } from '@schovexa/ui';
+import { Button, Card, TextField, Alert, PageHeader, Badge, EmptyState, SkeletonRows } from '@schovexa/ui';
+import { UserRound } from 'lucide-react';
 import { useParents, PARENTS_QUERY_KEY } from '../../../../hooks/useParents';
 import { api, ApiError } from '../../../../lib/api-client';
 
 export default function ParentsPage() {
-  const { data: parents } = useParents();
+  const { data: parents, isLoading } = useParents();
   const queryClient = useQueryClient();
   const [creating, setCreating] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -72,13 +73,11 @@ export default function ParentsPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-navy">Parents</h1>
-          <p className="mt-1 text-slate-600">Parent and guardian contact records.</p>
-        </div>
-        {!creating && <Button onClick={() => setCreating(true)}>New parent</Button>}
-      </div>
+      <PageHeader
+        title="Parents"
+        description="Parent and guardian contact records."
+        action={!creating && <Button onClick={() => setCreating(true)}>New parent</Button>}
+      />
 
       {creating && (
         <Card className="mt-6 p-6">
@@ -104,72 +103,80 @@ export default function ParentsPage() {
         </Card>
       )}
 
-      <div className="mt-6 flex flex-col gap-2">
-        {parents?.map((parent) => (
-          <Card key={parent.id} className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-navy">
-                  {parent.firstName} {parent.lastName}
-                </p>
-                <p className="text-sm text-slate-500">
-                  {[parent.phone, parent.email].filter(Boolean).join(' · ') || 'No contact info'}
-                </p>
-              </div>
-              {parent.userId ? (
-                <span className="text-sm font-medium text-green-600">Portal login active</span>
-              ) : invitingParentId !== parent.id ? (
-                <Button size="sm" variant="secondary" onClick={() => startInvite(parent.id)}>
-                  Invite to portal
-                </Button>
-              ) : null}
-            </div>
-
-            {invitingParentId === parent.id && (
-              <div className="mt-4 flex flex-col gap-2 border-t border-slate-200 pt-4">
-                {inviteError && <Alert variant="error">{inviteError}</Alert>}
-                {!parent.email && (
-                  <TextField
-                    label="Email"
-                    type="email"
-                    placeholder="parent@example.com"
-                    value={inviteEmailDraft}
-                    onChange={(e) => setInviteEmailDraft(e.target.value)}
-                  />
-                )}
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    loading={busyParentId === parent.id}
-                    onClick={() => sendInvite(parent.id, inviteEmailDraft)}
-                  >
-                    Send invite
-                  </Button>
-                  <Button size="sm" variant="secondary" onClick={() => setInvitingParentId(null)}>
-                    Cancel
-                  </Button>
+      <div className="mt-6">
+        {isLoading && <SkeletonRows count={4} />}
+        {!isLoading && parents?.length === 0 && !creating && (
+          <EmptyState icon={<UserRound size={22} />} title="No parent profiles yet" />
+        )}
+        {!isLoading && parents && parents.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {parents.map((parent) => (
+              <Card key={parent.id} className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-navy">
+                      {parent.firstName} {parent.lastName}
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      {[parent.phone, parent.email].filter(Boolean).join(' · ') || 'No contact info'}
+                    </p>
+                  </div>
+                  {parent.userId ? (
+                    <Badge tone="success">Portal login active</Badge>
+                  ) : invitingParentId !== parent.id ? (
+                    <Button size="sm" variant="secondary" onClick={() => startInvite(parent.id)}>
+                      Invite to portal
+                    </Button>
+                  ) : null}
                 </div>
-              </div>
-            )}
 
-            {inviteResult?.parentId === parent.id &&
-              (inviteResult.link ? (
-                <Alert variant="success" className="mt-4">
-                  <p>Invitation created. Share this link with them (no email delivery yet):</p>
-                  <code className="mt-2 block break-all rounded bg-white/60 px-2 py-1 text-xs text-green-900">
-                    {inviteResult.link}
-                  </code>
-                </Alert>
-              ) : (
-                <Alert variant="success" className="mt-4">
-                  This parent already has a portal login (linked via a sibling) — they can log in with their existing
-                  password.
-                </Alert>
-              ))}
-          </Card>
-        ))}
-        {parents?.length === 0 && !creating && (
-          <p className="py-8 text-center text-sm text-slate-500">No parent profiles yet.</p>
+                {invitingParentId === parent.id && (
+                  <div className="mt-4 flex flex-col gap-2 border-t border-slate-200 pt-4">
+                    {inviteError && <Alert variant="error">{inviteError}</Alert>}
+                    {!parent.email && (
+                      <TextField
+                        label="Email"
+                        type="email"
+                        placeholder="parent@example.com"
+                        value={inviteEmailDraft}
+                        onChange={(e) => setInviteEmailDraft(e.target.value)}
+                      />
+                    )}
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        loading={busyParentId === parent.id}
+                        onClick={() => sendInvite(parent.id, inviteEmailDraft)}
+                      >
+                        Send invite
+                      </Button>
+                      <Button size="sm" variant="secondary" onClick={() => setInvitingParentId(null)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {inviteResult?.parentId === parent.id &&
+                  (inviteResult.link ? (
+                    <Alert variant="success" className="mt-4">
+                      <p>
+                        Invitation created. They&apos;ll also receive it by email if SMTP is configured — here&apos;s
+                        the link too, for sharing directly:
+                      </p>
+                      <code className="mt-2 block break-all rounded bg-white/60 px-2 py-1 text-xs text-green-900">
+                        {inviteResult.link}
+                      </code>
+                    </Alert>
+                  ) : (
+                    <Alert variant="success" className="mt-4">
+                      This parent already has a portal login (linked via a sibling) — they can log in with their
+                      existing password.
+                    </Alert>
+                  ))}
+              </Card>
+            ))}
+          </div>
         )}
       </div>
     </div>

@@ -11,8 +11,8 @@ import {
   createSectionSchema,
   type CreateSectionInput,
 } from '@schovexa/validation';
-import { Button, Card, TextField, Alert } from '@schovexa/ui';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { Button, Card, TextField, Alert, PageHeader, EmptyState, SkeletonRows } from '@schovexa/ui';
+import { ChevronDown, ChevronRight, School } from 'lucide-react';
 import { useAcademicYears } from '../../../../hooks/useAcademicYears';
 import { useClasses, classesQueryKey } from '../../../../hooks/useClasses';
 import { useSections, sectionsQueryKey } from '../../../../hooks/useSections';
@@ -35,7 +35,7 @@ export default function ClassesPage() {
   const [expandedClassId, setExpandedClassId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
-  const { data: classes } = useClasses(currentYear?.id);
+  const { data: classes, isLoading } = useClasses(currentYear?.id);
 
   const {
     register,
@@ -60,7 +60,7 @@ export default function ClassesPage() {
   if (years && years.length === 0) {
     return (
       <div className="mx-auto max-w-2xl">
-        <h1 className="text-2xl font-bold text-navy">Classes</h1>
+        <PageHeader title="Classes" />
         <Alert variant="warning" className="mt-4">
           You need an academic year before adding classes.{' '}
           <Link href="/dashboard/academic-years" className="font-medium underline">
@@ -73,19 +73,18 @@ export default function ClassesPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-navy">Classes</h1>
-          <p className="mt-1 text-slate-600">
-            {currentYear ? `Classes and sections for ${currentYear.name}.` : 'Manage your school’s classes.'}
-          </p>
-        </div>
-        {!creating && currentYear && (
-          <Button onClick={() => setCreating(true)} disabled={!currentYear}>
-            New class
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        title="Classes"
+        description={currentYear ? `Classes and sections for ${currentYear.name}.` : "Manage your school's classes."}
+        action={
+          !creating &&
+          currentYear && (
+            <Button onClick={() => setCreating(true)} disabled={!currentYear}>
+              New class
+            </Button>
+          )
+        }
+      />
 
       {creating && (
         <Card className="mt-6 p-6">
@@ -113,19 +112,24 @@ export default function ClassesPage() {
         </Card>
       )}
 
-      <div className="mt-6 flex flex-col gap-2">
-        {classes?.map((klass) => (
-          <ClassRow
-            key={klass.id}
-            classId={klass.id}
-            name={klass.name}
-            order={klass.order}
-            expanded={expandedClassId === klass.id}
-            onToggle={() => setExpandedClassId(expandedClassId === klass.id ? null : klass.id)}
-          />
-        ))}
-        {classes?.length === 0 && !creating && (
-          <p className="py-8 text-center text-sm text-slate-500">No classes yet for this academic year.</p>
+      <div className="mt-6">
+        {isLoading && <SkeletonRows count={4} />}
+        {!isLoading && classes?.length === 0 && !creating && (
+          <EmptyState icon={<School size={22} />} title="No classes yet for this academic year" />
+        )}
+        {!isLoading && classes && classes.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {classes.map((klass) => (
+              <ClassRow
+                key={klass.id}
+                classId={klass.id}
+                name={klass.name}
+                order={klass.order}
+                expanded={expandedClassId === klass.id}
+                onToggle={() => setExpandedClassId(expandedClassId === klass.id ? null : klass.id)}
+              />
+            ))}
+          </div>
         )}
       </div>
     </div>

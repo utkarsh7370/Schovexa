@@ -35,7 +35,12 @@ export function StatCard({ label, value, icon, tone = 'default', hint }: StatCar
           </div>
         )}
       </div>
-      <p className={['mt-3 text-2xl font-bold tracking-tight', isBrand ? 'text-white' : 'text-navy'].join(' ')}>{value}</p>
+      {/* A <div>, not a <p> — callers pass a <Skeleton> (a <div>) as
+          `value` while loading, and a <div> inside a <p> is invalid HTML
+          that causes a client/server hydration mismatch. */}
+      <div className={['mt-3 text-2xl font-bold tracking-tight', isBrand ? 'text-white' : 'text-navy'].join(' ')}>
+        {value}
+      </div>
       {hint && <p className={['mt-1 text-xs', isBrand ? 'text-white/70' : 'text-slate-400'].join(' ')}>{hint}</p>}
     </div>
   );

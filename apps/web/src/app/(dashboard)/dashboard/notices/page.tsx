@@ -5,7 +5,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { createNoticeSchema, type CreateNoticeInput } from '@schovexa/validation';
-import { Button, Card, TextField, Alert } from '@schovexa/ui';
+import { Button, Card, TextField, Alert, PageHeader, Badge, EmptyState, SkeletonRows } from '@schovexa/ui';
+import { Bell } from 'lucide-react';
 import { useNotices, NOTICES_QUERY_KEY, type NoticeAudience } from '../../../../hooks/useNotices';
 import { useClasses } from '../../../../hooks/useClasses';
 import { useSections } from '../../../../hooks/useSections';
@@ -20,7 +21,7 @@ const AUDIENCE_LABELS: Record<NoticeAudience, string> = {
 };
 
 export default function NoticesPage() {
-  const { data: notices } = useNotices();
+  const { data: notices, isLoading } = useNotices();
   const { data: classes } = useClasses();
   const { data: memberships } = useMemberships();
   const queryClient = useQueryClient();
@@ -70,13 +71,11 @@ export default function NoticesPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-navy">Notices</h1>
-          <p className="mt-1 text-slate-600">School announcements.</p>
-        </div>
-        {!creating && <Button onClick={() => setCreating(true)}>New notice</Button>}
-      </div>
+      <PageHeader
+        title="Notices"
+        description="School announcements."
+        action={!creating && <Button onClick={() => setCreating(true)}>New notice</Button>}
+      />
 
       {creating && (
         <Card className="mt-6 p-6">
@@ -187,37 +186,46 @@ export default function NoticesPage() {
         </Card>
       )}
 
-      <div className="mt-6 flex flex-col gap-2">
-        {notices?.map((notice) => (
-          <Card key={notice.id} className={['p-4', notice.isRead ? '' : 'border-brand-blue'].join(' ')}>
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="font-medium text-navy">
-                  {notice.title}
-                  {!notice.isRead && <span className="ml-2 text-xs font-semibold text-brand-blue">NEW</span>}
-                  {!notice.publishedAt && (
-                    <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">Draft</span>
-                  )}
-                </p>
-                <p className="mt-1 text-sm text-slate-600">{notice.body}</p>
-                <p className="mt-2 text-xs text-slate-400">{AUDIENCE_LABELS[notice.audienceType]}</p>
-              </div>
-              <div className="flex shrink-0 gap-2">
-                {!notice.publishedAt && (
-                  <Button size="sm" loading={busyId === notice.id} onClick={() => publish(notice.id)}>
-                    Publish
-                  </Button>
-                )}
-                {notice.publishedAt && !notice.isRead && (
-                  <Button size="sm" variant="secondary" onClick={() => markRead(notice.id)}>
-                    Mark read
-                  </Button>
-                )}
-              </div>
-            </div>
-          </Card>
-        ))}
-        {notices?.length === 0 && !creating && <p className="py-8 text-center text-sm text-slate-500">No notices yet.</p>}
+      <div className="mt-6">
+        {isLoading && <SkeletonRows count={4} />}
+        {!isLoading && notices?.length === 0 && !creating && (
+          <EmptyState icon={<Bell size={22} />} title="No notices yet" />
+        )}
+        {!isLoading && notices && notices.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {notices.map((notice) => (
+              <Card key={notice.id} className={['p-4', notice.isRead ? '' : 'border-brand-blue'].join(' ')}>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="font-medium text-navy">
+                      {notice.title}
+                      {!notice.isRead && <span className="ml-2 text-xs font-semibold text-brand-blue">NEW</span>}
+                      {!notice.publishedAt && (
+                        <Badge tone="neutral" className="ml-2">
+                          Draft
+                        </Badge>
+                      )}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-600">{notice.body}</p>
+                    <p className="mt-2 text-xs text-slate-400">{AUDIENCE_LABELS[notice.audienceType]}</p>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    {!notice.publishedAt && (
+                      <Button size="sm" loading={busyId === notice.id} onClick={() => publish(notice.id)}>
+                        Publish
+                      </Button>
+                    )}
+                    {notice.publishedAt && !notice.isRead && (
+                      <Button size="sm" variant="secondary" onClick={() => markRead(notice.id)}>
+                        Mark read
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

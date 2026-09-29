@@ -7,8 +7,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { linkParentSchema, type LinkParentInput } from '@schovexa/validation';
-import { Button, Card, TextField, Alert, Spinner, ConfirmDialog, Badge, useToast } from '@schovexa/ui';
-import { ArrowLeft } from 'lucide-react';
+import { Button, Card, TextField, Alert, Spinner, ConfirmDialog, Badge, PageHeader, EmptyState, useToast } from '@schovexa/ui';
+import { ArrowLeft, UserRound, FileText, ClipboardCheck, Wallet } from 'lucide-react';
 import { useStudent, studentQueryKey, type StudentStatus } from '../../../../../hooks/useStudents';
 import { useParents } from '../../../../../hooks/useParents';
 import { useStudentDocuments, studentDocumentsQueryKey } from '../../../../../hooks/useDocuments';
@@ -50,28 +50,27 @@ export default function StudentDetailPage() {
         <ArrowLeft size={16} /> Back to students
       </Link>
 
-      <div className="mt-3 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-navy">
-            {student.firstName} {student.lastName}
-          </h1>
-          <p className="mt-1 text-slate-600">
-            Admission no. {student.admissionNo}
-            {student.section && ` · ${student.section.class.name} - ${student.section.name}`}
-          </p>
-        </div>
-        <select
-          className="h-10 rounded-lg border border-slate-300 px-3 text-sm focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue"
-          value={student.status}
-          disabled={busy}
-          onChange={(e) => setStatus(e.target.value as StudentStatus)}
-        >
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+      <div className="mt-3">
+        <PageHeader
+          title={`${student.firstName} ${student.lastName}`}
+          description={`Admission no. ${student.admissionNo}${
+            student.section ? ` · ${student.section.class.name} - ${student.section.name}` : ''
+          }`}
+          action={
+            <select
+              className="h-10 rounded-lg border border-slate-300 px-3 text-sm focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue"
+              value={student.status}
+              disabled={busy}
+              onChange={(e) => setStatus(e.target.value as StudentStatus)}
+            >
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          }
+        />
       </div>
 
       <div className="mt-6">
@@ -171,7 +170,7 @@ function ParentsPanel({
             </Button>
           </div>
         ))}
-        {linkedParents.length === 0 && !linking && <p className="text-sm text-slate-500">No parents linked yet.</p>}
+        {linkedParents.length === 0 && !linking && <EmptyState icon={<UserRound size={22} />} title="No parents linked yet" />}
       </div>
 
       <ConfirmDialog
@@ -305,7 +304,7 @@ function DocumentsPanel({ studentId }: { studentId: string }) {
             </Button>
           </div>
         ))}
-        {documents?.length === 0 && <p className="text-sm text-slate-500">No documents uploaded yet.</p>}
+        {documents?.length === 0 && <EmptyState icon={<FileText size={22} />} title="No documents uploaded yet" />}
       </div>
       <p className="mt-3 text-xs text-slate-400">PDF, JPEG, or PNG. Max 10MB.</p>
     </Card>
@@ -347,7 +346,7 @@ function AttendancePanel({ studentId }: { studentId: string }) {
             {record.remarks && <span className="text-slate-500">{record.remarks}</span>}
           </div>
         ))}
-        {history?.length === 0 && <p className="text-sm text-slate-500">No attendance recorded yet.</p>}
+        {history?.length === 0 && <EmptyState icon={<ClipboardCheck size={22} />} title="No attendance recorded yet" />}
       </div>
     </Card>
   );
@@ -543,7 +542,7 @@ function FeesPanel({ studentId }: { studentId: string }) {
             )}
           </div>
         ))}
-        {fees?.length === 0 && !assigning && <p className="text-sm text-slate-500">No fees assigned yet.</p>}
+        {fees?.length === 0 && !assigning && <EmptyState icon={<Wallet size={22} />} title="No fees assigned yet" />}
       </div>
 
       <ConfirmDialog

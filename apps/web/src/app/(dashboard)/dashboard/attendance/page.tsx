@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Card, TextField, Alert } from '@schovexa/ui';
+import { Button, Card, TextField, Alert, PageHeader, EmptyState, SkeletonRows } from '@schovexa/ui';
+import { ClipboardCheck } from 'lucide-react';
 import { useClasses } from '../../../../hooks/useClasses';
 import { useSections } from '../../../../hooks/useSections';
 import {
@@ -40,10 +41,7 @@ export default function AttendancePage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div>
-        <h1 className="text-2xl font-bold text-navy">Attendance</h1>
-        <p className="mt-1 text-slate-600">Mark daily attendance and review summaries.</p>
-      </div>
+      <PageHeader title="Attendance" description="Mark daily attendance and review summaries." />
 
       <Card className="mt-6 p-6">
         <div className="grid grid-cols-3 gap-3">
@@ -163,7 +161,7 @@ function MarkingPanel({ sectionId, date }: { sectionId: string; date: string }) 
     }
   };
 
-  if (isLoading) return null;
+  if (isLoading) return <SkeletonRows count={3} />;
 
   return (
     <Card className="p-6">
@@ -224,7 +222,7 @@ function MarkingPanel({ sectionId, date }: { sectionId: string; date: string }) 
             </div>
           );
         })}
-        {roster?.length === 0 && <p className="text-sm text-slate-500">No students in this section.</p>}
+        {roster?.length === 0 && <EmptyState icon={<ClipboardCheck size={22} />} title="No students in this section" />}
       </div>
     </Card>
   );

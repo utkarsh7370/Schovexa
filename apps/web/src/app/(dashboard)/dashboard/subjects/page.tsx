@@ -5,12 +5,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { createSubjectSchema, updateSubjectSchema, type CreateSubjectInput, type UpdateSubjectInput } from '@schovexa/validation';
-import { Button, Card, TextField, Alert } from '@schovexa/ui';
+import { Button, Card, TextField, Alert, PageHeader, EmptyState, SkeletonRows } from '@schovexa/ui';
+import { BookOpen } from 'lucide-react';
 import { useSubjects, SUBJECTS_QUERY_KEY, type Subject } from '../../../../hooks/useSubjects';
 import { api, ApiError } from '../../../../lib/api-client';
 
 export default function SubjectsPage() {
-  const { data: subjects } = useSubjects();
+  const { data: subjects, isLoading } = useSubjects();
   const queryClient = useQueryClient();
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -37,13 +38,11 @@ export default function SubjectsPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-navy">Subjects</h1>
-          <p className="mt-1 text-slate-600">Manage the subjects taught at your school.</p>
-        </div>
-        {!creating && <Button onClick={() => setCreating(true)}>New subject</Button>}
-      </div>
+      <PageHeader
+        title="Subjects"
+        description="Manage the subjects taught at your school."
+        action={!creating && <Button onClick={() => setCreating(true)}>New subject</Button>}
+      />
 
       {creating && (
         <Card className="mt-6 p-6">
@@ -63,24 +62,29 @@ export default function SubjectsPage() {
         </Card>
       )}
 
-      <div className="mt-6 flex flex-col gap-2">
-        {subjects?.map((subject) =>
-          editingId === subject.id ? (
-            <SubjectEditRow key={subject.id} subject={subject} onDone={() => setEditingId(null)} />
-          ) : (
-            <Card key={subject.id} className="flex items-center justify-between p-4">
-              <div>
-                <p className="font-medium text-navy">{subject.name}</p>
-                {subject.code && <p className="text-sm text-slate-500">{subject.code}</p>}
-              </div>
-              <Button size="sm" variant="secondary" onClick={() => setEditingId(subject.id)}>
-                Edit
-              </Button>
-            </Card>
-          ),
+      <div className="mt-6">
+        {isLoading && <SkeletonRows count={4} />}
+        {!isLoading && subjects?.length === 0 && !creating && (
+          <EmptyState icon={<BookOpen size={22} />} title="No subjects yet" />
         )}
-        {subjects?.length === 0 && !creating && (
-          <p className="py-8 text-center text-sm text-slate-500">No subjects yet.</p>
+        {!isLoading && subjects && subjects.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {subjects.map((subject) =>
+              editingId === subject.id ? (
+                <SubjectEditRow key={subject.id} subject={subject} onDone={() => setEditingId(null)} />
+              ) : (
+                <Card key={subject.id} className="flex items-center justify-between p-4">
+                  <div>
+                    <p className="font-medium text-navy">{subject.name}</p>
+                    {subject.code && <p className="text-sm text-slate-500">{subject.code}</p>}
+                  </div>
+                  <Button size="sm" variant="secondary" onClick={() => setEditingId(subject.id)}>
+                    Edit
+                  </Button>
+                </Card>
+              ),
+            )}
+          </div>
         )}
       </div>
     </div>

@@ -6,7 +6,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { createFeeCategorySchema, type CreateFeeCategoryInput } from '@schovexa/validation';
-import { Button, Card, TextField, Alert } from '@schovexa/ui';
+import { Button, Card, TextField, Alert, PageHeader, Badge, EmptyState, SkeletonRows, type BadgeTone } from '@schovexa/ui';
+import { Wallet } from 'lucide-react';
 import { useFeeCategories, useFeeStructures, FEE_CATEGORIES_QUERY_KEY, feeStructuresQueryKey, useOutstandingFees, OUTSTANDING_QUERY_KEY } from '../../../../hooks/useFees';
 import { useAcademicYears } from '../../../../hooks/useAcademicYears';
 import { useClasses } from '../../../../hooks/useClasses';
@@ -31,13 +32,17 @@ const FREQUENCY_LABELS: Record<string, string> = {
   ANNUAL: 'Annual',
 };
 
+const FEE_STATUS_TONES: Record<string, BadgeTone> = {
+  PENDING: 'warning',
+  PARTIALLY_PAID: 'info',
+  PAID: 'success',
+  WAIVED: 'neutral',
+};
+
 export default function FeesPage() {
   return (
     <div className="mx-auto max-w-3xl">
-      <div>
-        <h1 className="text-2xl font-bold text-navy">Fees</h1>
-        <p className="mt-1 text-slate-600">Fee categories, structures, and outstanding balances.</p>
-      </div>
+      <PageHeader title="Fees" description="Fee categories, structures, and outstanding balances." />
 
       <div className="mt-6">
         <CategoriesPanel />
@@ -53,7 +58,7 @@ export default function FeesPage() {
 }
 
 function CategoriesPanel() {
-  const { data: categories } = useFeeCategories();
+  const { data: categories, isLoading } = useFeeCategories();
   const queryClient = useQueryClient();
   const [creating, setCreating] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -103,13 +108,20 @@ function CategoriesPanel() {
         </form>
       )}
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        {categories?.map((c) => (
-          <span key={c.id} className="rounded-full bg-slate-100 px-3 py-1 text-sm text-navy">
-            {c.name}
-          </span>
-        ))}
-        {categories?.length === 0 && !creating && <p className="text-sm text-slate-500">No categories yet.</p>}
+      <div className="mt-4">
+        {isLoading && <SkeletonRows count={2} />}
+        {!isLoading && categories?.length === 0 && !creating && (
+          <p className="text-sm text-slate-500">No categories yet.</p>
+        )}
+        {!isLoading && categories && categories.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {categories.map((c) => (
+              <Badge key={c.id} tone="neutral">
+                {c.name}
+              </Badge>
+            ))}
+          </div>
+        )}
       </div>
     </Card>
   );
@@ -265,40 +277,49 @@ function StructuresPanel() {
 }
 
 function OutstandingPanel() {
-  const { data: outstanding } = useOutstandingFees();
+  const { data: outstanding, isLoading } = useOutstandingFees();
 
   return (
     <Card className="p-6">
       <h2 className="text-base font-semibold text-navy">Outstanding balances</h2>
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="text-xs uppercase text-slate-500">
-              <th className="py-2">Student</th>
-              <th className="py-2">Category</th>
-              <th className="py-2 text-right">Due</th>
-              <th className="py-2 text-right">Paid</th>
-              <th className="py-2 text-right">Balance</th>
-              <th className="py-2">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {outstanding?.map((row) => (
-              <tr key={row.id} className="border-t border-slate-100">
-                <td className="py-2 text-navy">
-                  {row.student.firstName} {row.student.lastName}
-                  <span className="ml-1 text-xs text-slate-400">{row.student.admissionNo}</span>
-                </td>
-                <td className="py-2 text-slate-600">{row.feeCategory.name}</td>
-                <td className="py-2 text-right">{formatMinor(row.amountDueMinor)}</td>
-                <td className="py-2 text-right">{formatMinor(row.paidMinor)}</td>
-                <td className="py-2 text-right font-medium text-red-600">{formatMinor(row.balanceMinor)}</td>
-                <td className="py-2 text-slate-600">{row.status}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {outstanding?.length === 0 && <p className="py-4 text-center text-sm text-slate-500">Nothing outstanding.</p>}
+      <div className="mt-4">
+        {isLoading && <SkeletonRows count={3} />}
+        {!isLoading && outstanding?.length === 0 && (
+          <EmptyState icon={<Wallet size={22} />} title="Nothing outstanding" />
+        )}
+        {!isLoading && outstanding && outstanding.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="text-xs uppercase text-slate-500">
+                  <th className="py-2">Student</th>
+                  <th className="py-2">Category</th>
+                  <th className="py-2 text-right">Due</th>
+                  <th className="py-2 text-right">Paid</th>
+                  <th className="py-2 text-right">Balance</th>
+                  <th className="py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {outstanding.map((row) => (
+                  <tr key={row.id} className="border-t border-slate-100">
+                    <td className="py-2 text-navy">
+                      {row.student.firstName} {row.student.lastName}
+                      <span className="ml-1 text-xs text-slate-400">{row.student.admissionNo}</span>
+                    </td>
+                    <td className="py-2 text-slate-600">{row.feeCategory.name}</td>
+                    <td className="py-2 text-right">{formatMinor(row.amountDueMinor)}</td>
+                    <td className="py-2 text-right">{formatMinor(row.paidMinor)}</td>
+                    <td className="py-2 text-right font-medium text-red-600">{formatMinor(row.balanceMinor)}</td>
+                    <td className="py-2">
+                      <Badge tone={FEE_STATUS_TONES[row.status] ?? 'neutral'}>{row.status.replace('_', ' ')}</Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </Card>
   );
