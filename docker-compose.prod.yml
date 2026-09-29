@@ -47,6 +47,7 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-Schovexa <no-reply@schovexa.app>}
+      SENTRY_DSN: ${SENTRY_DSN:-}
     ports:
       - '4000:4000'
 
@@ -56,12 +57,18 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
     restart: unless-stopped
     depends_on:
       - api
     environment:
       NODE_ENV: production
       PORT: 3000
+      # The client bundle already has NEXT_PUBLIC_API_URL/SENTRY_DSN
+      # baked in from the build args above, but sentry.server.config.ts
+      # and sentry.edge.config.ts run as live server code and read this
+      # from process.env at request time, not from the build.
+      NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
     ports:
       - '3000:3000'
 

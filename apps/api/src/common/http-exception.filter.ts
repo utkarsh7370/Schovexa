@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { Sentry } from '../monitoring/sentry';
 
 // Single place every thrown error passes through before reaching the
 // client — produces the error envelope from docs/api.md §3 and never
@@ -46,6 +47,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
       if (status >= 500) {
         this.logger.error({ requestId, status, message: shaped.message, stack: (exception as Error).stack });
+        Sentry.captureException(exception);
       }
 
       response.status(status).json({ error: shaped, requestId });
@@ -59,6 +61,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       message: (exception as Error)?.message,
       stack: (exception as Error)?.stack,
     });
+    Sentry.captureException(exception);
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       error: { code: 'INTERNAL_ERROR', message: 'Something went wrong. Please try again.' },
       requestId,

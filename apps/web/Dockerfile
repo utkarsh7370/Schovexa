@@ -14,6 +14,8 @@ RUN npm ci
 
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ARG NEXT_PUBLIC_SENTRY_DSN
+ENV NEXT_PUBLIC_SENTRY_DSN=${NEXT_PUBLIC_SENTRY_DSN}
 
 RUN npm run build -w @schovexa/types \
  && npm run build -w @schovexa/validation \
