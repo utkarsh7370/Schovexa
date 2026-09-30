@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Logo } from '@schovexa/ui';
 import { CalendarCheck, ShieldCheck, Wallet, Sparkles } from 'lucide-react';
+import { GuestGate } from '../../components/guest-gate';
 
 const HIGHLIGHTS = [
   { icon: CalendarCheck, title: 'Attendance in seconds', text: 'Mark a whole class in one tap and see trends instantly.' },
@@ -55,7 +56,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <Link href="/" className="relative mb-8 lg:hidden">
           <Logo size={40} />
         </Link>
-        <div className="relative w-full max-w-md animate-fade-in-up">{children}</div>
+        <div className="relative w-full max-w-md animate-fade-in-up">
+          <GuestGate>{children}</GuestGate>
+        </div>
         <p className="relative mt-8 text-xs text-slate-400">
           <Link href="/privacy-policy" className="hover:text-slate-600 hover:underline">
             Privacy Policy

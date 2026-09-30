@@ -19,6 +19,8 @@ import {
   Calculator,
 } from 'lucide-react';
 import { DashboardPreview } from '../components/dashboard-preview';
+import { Pricing } from '../components/pricing';
+import { CountryBadge } from '../components/country-badge';
 
 const FEATURES = [
   {
@@ -114,13 +116,17 @@ export default function HomePage() {
             <a href="#features" className="transition-colors hover:text-brand-blue">Features</a>
             <a href="#how-it-works" className="transition-colors hover:text-brand-blue">How it works</a>
             <a href="#who-its-for" className="transition-colors hover:text-brand-blue">Who it&apos;s for</a>
+            <a href="#pricing" className="transition-colors hover:text-brand-blue">Pricing</a>
           </nav>
           <div className="flex items-center gap-2">
-            <Link href="/login" className="rounded-lg px-3 py-2 text-sm font-semibold text-navy transition-colors hover:bg-slate-100">
+            <CountryBadge interactive />
+            <Link href="/login" className="hidden rounded-lg px-3 py-2 text-sm font-semibold text-navy transition-colors hover:bg-slate-100 sm:inline-block">
               Log in
             </Link>
             <Link href="/register">
-              <Button size="sm">Get started</Button>
+              <Button size="sm" className="whitespace-nowrap">
+                Get started
+              </Button>
             </Link>
           </div>
         </div>
@@ -290,8 +296,10 @@ export default function HomePage() {
         </div>
       </section>
 
+      <Pricing />
+
       {/* CTA */}
-      <section className="px-6 pb-24">
+      <section className="px-6 py-24">
         <Reveal>
           <div className="relative mx-auto max-w-6xl overflow-hidden rounded-3xl bg-brand-gradient bg-[length:200%_200%] px-8 py-16 text-center text-white shadow-glow animate-gradient-x sm:px-16">
             <div className="bg-grid-light pointer-events-none absolute inset-0" aria-hidden="true" />

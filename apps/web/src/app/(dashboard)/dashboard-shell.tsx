@@ -30,6 +30,9 @@ import { useCurrentSchool } from '../../hooks/useCurrentSchool';
 import { useLogout } from '../../hooks/useLogout';
 import { useNotices } from '../../hooks/useNotices';
 import { ApiError } from '../../lib/api-client';
+import { canAccessRoute } from '../../lib/access';
+import { ForbiddenState } from '../../components/error-state';
+import { CountryBadge } from '../../components/country-badge';
 import { useEffect, useRef, useState } from 'react';
 
 interface NavItem {
@@ -78,26 +81,6 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 ];
-
-// Which routes each default-seeded role actually has a reason to open,
-// so the sidebar shows a Teacher "their" school instead of every module
-// they'll only ever get a 403 from. This is a display convenience only —
-// an unrecognized role name (a school-customized role) falls through to
-// "show everything," and every route still enforces its own permission
-// server-side regardless of what this map says (docs/authorization.md).
-const ROLE_VISIBLE_ROUTES: Record<string, Set<string>> = {
-  Teacher: new Set([
-    '/dashboard',
-    '/dashboard/students',
-    '/dashboard/classes',
-    '/dashboard/subjects',
-    '/dashboard/attendance',
-    '/dashboard/notices',
-  ]),
-  Accountant: new Set(['/dashboard', '/dashboard/students', '/dashboard/fees', '/dashboard/notices']),
-  Receptionist: new Set(['/dashboard', '/dashboard/students', '/dashboard/parents', '/dashboard/notices']),
-  Parent: new Set(['/dashboard', '/dashboard/my-children', '/dashboard/notices']),
-};
 
 // Header search: type a student's name, admission number, class or a
 // parent's name/phone and land on the Students list already filtered.
@@ -149,7 +132,7 @@ function GlobalSearch() {
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { data: me, error: meError, isLoading: meLoading } = useCurrentUser();
+  const { data: me, error: meError, isLoading: meLoading, isFetching: meFetching } = useCurrentUser();
   const { data: school } = useCurrentSchool();
   const { data: notices } = useNotices();
   const logout = useLogout();
@@ -163,10 +146,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   }, [pathname]);
 
   useEffect(() => {
-    if (meError instanceof ApiError && meError.code === 'UNAUTHORIZED') {
-      router.push('/login');
+    // Not signed in (or the session expired) → login. Wait for any
+    // in-flight refetch first: right after a login the cache can still
+    // hold the earlier 401 for a moment, and reacting to that stale
+    // error would bounce a freshly signed-in user straight back out.
+    if (!meFetching && meError instanceof ApiError && meError.code === 'UNAUTHORIZED') {
+      router.replace('/login');
     }
-  }, [meError, router]);
+  }, [meError, meFetching, router]);
 
   useEffect(() => {
     // No active school selected on this session — send them to pick
@@ -191,11 +178,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const activeMembership = me.memberships.find((m) => m.schoolId === me.activeSchoolId);
   const roleName = activeMembership?.roleName;
-  const visibleRoutes = roleName ? ROLE_VISIBLE_ROUTES[roleName] : undefined;
   const groups = NAV_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter((item) => !visibleRoutes || visibleRoutes.has(item.href)),
+    items: group.items.filter((item) => canAccessRoute(roleName, item.href)),
   })).filter((group) => group.items.length > 0);
+  const forbidden = !canAccessRoute(roleName, pathname);
 
   const fullName = `${me.firstName} ${me.lastName}`;
   const canSearchStudents = groups.some((g) => g.items.some((i) => i.href === '/dashboard/students'));
@@ -304,7 +291,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
           {canSearchStudents && <GlobalSearch />}
 
-          <div className="relative">
+          <div className="flex items-center gap-3">
+            <CountryBadge />
+            <div className="relative">
             <button
               onClick={() => setMenuOpen((v) => !v)}
               className="flex items-center gap-2 rounded-full border border-slate-200 bg-white py-1 pl-1 pr-3 shadow-card transition-all hover:border-brand-blue/40 hover:shadow-elevated"
@@ -344,13 +333,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 </div>
               </>
             )}
+            </div>
           </div>
         </header>
 
         <main className="relative flex-1 bg-gradient-to-br from-slate-50 via-white to-sky-50/60 p-4 sm:p-6 lg:p-8">
           <div className="bg-grid pointer-events-none absolute inset-x-0 top-0 h-72 opacity-40 [mask-image:linear-gradient(to_bottom,black,transparent)]" aria-hidden="true" />
           <div key={pathname} className="relative animate-fade-in-up">
-            {children}
+            {forbidden ? <ForbiddenState /> : children}
           </div>
         </main>
       </div>

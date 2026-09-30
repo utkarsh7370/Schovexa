@@ -9,13 +9,14 @@ import { ArrowUpRight, GraduationCap, KeyRound, Mail, MailPlus, Phone, School, S
 import { useParent, parentQueryKey, PARENTS_QUERY_KEY } from '../../../../../hooks/useParents';
 import { api, ApiError } from '../../../../../lib/api-client';
 import { ProfileHero } from '../../../../../components/profile-hero';
+import { ForbiddenState, NotFoundState } from '../../../../../components/error-state';
 import { SectionCard } from '../../../../../components/section-card';
 import { InviteLinkPanel } from '../../../../../components/invite-link-panel';
 import { STUDENT_STATUS_LABELS, STUDENT_STATUS_TONES } from '../../../../../components/student-card';
 
 export default function ParentProfilePage() {
   const { id } = useParams<{ id: string }>();
-  const { data: parent, isLoading, isError } = useParent(id);
+  const { data: parent, isLoading, isError, error } = useParent(id);
   const queryClient = useQueryClient();
   const toast = useToast();
 
@@ -26,9 +27,11 @@ export default function ParentProfilePage() {
   const [inviteLink, setInviteLink] = useState<string | null>(null);
 
   if (isError) {
+    if (error instanceof ApiError && error.code === 'FORBIDDEN') return <ForbiddenState />;
+    if (error instanceof ApiError && error.code === 'NOT_FOUND') return <NotFoundState signedIn />;
     return (
       <div className="mx-auto max-w-3xl">
-        <Alert variant="error">We couldn’t find this parent, or you don’t have access to their profile.</Alert>
+        <Alert variant="error">We couldn’t load this parent. Please refresh and try again.</Alert>
         <Link href="/dashboard/parents" className="mt-4 inline-block text-sm font-semibold text-brand-blue hover:underline">
           ← Back to parents
         </Link>

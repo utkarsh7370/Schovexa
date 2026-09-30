@@ -49,6 +49,7 @@ import { useFeeStructures, useStudentFees, studentFeesQueryKey } from '../../../
 import { formatMinor, majorToMinor } from '../../../../../lib/currency';
 import { api, ApiError } from '../../../../../lib/api-client';
 import { ProfileHero } from '../../../../../components/profile-hero';
+import { ForbiddenState, NotFoundState } from '../../../../../components/error-state';
 import { SectionCard } from '../../../../../components/section-card';
 import { ageFromDob, STUDENT_STATUS_LABELS, STUDENT_STATUS_TONES } from '../../../../../components/student-card';
 
@@ -63,7 +64,7 @@ function toDateInput(date: Date): string {
 
 export default function StudentDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { data: student, isLoading, isError } = useStudent(id);
+  const { data: student, isLoading, isError, error } = useStudent(id);
   const queryClient = useQueryClient();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -103,9 +104,11 @@ export default function StudentDetailPage() {
   };
 
   if (isError) {
+    if (error instanceof ApiError && error.code === 'FORBIDDEN') return <ForbiddenState />;
+    if (error instanceof ApiError && error.code === 'NOT_FOUND') return <NotFoundState signedIn />;
     return (
       <div className="mx-auto max-w-3xl">
-        <Alert variant="error">We couldn’t find this student, or you don’t have access to their profile.</Alert>
+        <Alert variant="error">We couldn’t load this student. Please refresh and try again.</Alert>
         <Link href="/dashboard/students" className="mt-4 inline-block text-sm font-semibold text-brand-blue hover:underline">
           ← Back to students
         </Link>

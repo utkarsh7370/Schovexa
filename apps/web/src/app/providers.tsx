@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@schovexa/ui';
 import './sentry.client.config';
+import { MarketProvider } from '../components/market-provider';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -20,7 +21,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ToastProvider>{children}</ToastProvider>
+      <MarketProvider>
+        <ToastProvider>{children}</ToastProvider>
+      </MarketProvider>
     </QueryClientProvider>
   );
 }
