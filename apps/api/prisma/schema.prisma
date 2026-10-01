@@ -225,6 +225,8 @@ model School {
   contactPhone String?
   website      String?
   timezone     String       @default("Asia/Kolkata")
+  // ISO 3166-1 alpha-2 — where the school is. Shown in the dashboard header.
+  country      String       @default("IN")
   currency     String       @default("INR")
   dateFormat   String       @default("DD/MM/YYYY")
   status       SchoolStatus @default(ACTIVE)

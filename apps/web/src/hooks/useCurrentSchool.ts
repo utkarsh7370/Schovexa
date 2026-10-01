@@ -10,6 +10,7 @@ export interface School {
   contactPhone: string | null;
   website: string | null;
   timezone: string;
+  country: string;
   currency: string;
   dateFormat: string;
 }

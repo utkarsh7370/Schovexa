@@ -11,10 +11,13 @@ import { ArrowRight, Building2, Lock, Mail, School, ShieldCheck, User } from 'lu
 import { api } from '../../../lib/api-client';
 import { applyServerErrors } from '../../../lib/forms';
 import { AuthCardHeader } from '../../../components/auth-card-header';
+import { useMarket } from '../../../components/market-provider';
 
 export default function RegisterSchoolPage() {
   const router = useRouter();
   const toast = useToast();
+  // Where the visitor is becomes the school's country (editable later in settings).
+  const { country } = useMarket();
   const [serverError, setServerError] = useState<string | null>(null);
   const {
     register,
@@ -56,6 +59,7 @@ export default function RegisterSchoolPage() {
         directorLastName: data.directorLastName,
         email: data.email,
         password: data.password,
+        ...(country ? { country } : {}),
       });
       toast.show({
         tone: 'success',

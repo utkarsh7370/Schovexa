@@ -38,12 +38,26 @@ export type SelectSchoolInput = z.infer<typeof selectSchoolSchema>;
 
 // --- School Management (docs/modules.md Phase 5) --------------------------
 
+// A real ISO 3166-1 alpha-2 region ('IN' yes, 'ZZ' no) — Intl is the source of truth.
+export function isValidCountryCode(value: string): boolean {
+  if (!/^[A-Z]{2}$/.test(value)) return false;
+  try {
+    const name = new Intl.DisplayNames(['en'], { type: 'region' }).of(value);
+    return !!name && name !== value && name !== 'Unknown Region';
+  } catch {
+    return false;
+  }
+}
+const countryCodeSchema = z.string().refine(isValidCountryCode, 'Choose a valid country');
+
 export const registerSchoolSchema = z.object({
   schoolName: z.string().min(2, 'School name is required'),
   directorFirstName: z.string().min(1, 'First name is required'),
   directorLastName: z.string().min(1, 'Last name is required'),
   email: z.string().email(),
   password: passwordSchema,
+  // Where the school is — the web app sends the visitor's detected country.
+  country: countryCodeSchema.optional(),
 });
 export type RegisterSchoolInput = z.infer<typeof registerSchoolSchema>;
 
@@ -72,6 +86,7 @@ export const updateSchoolSchema = z.object({
   // Decides what "today" means for the school: when attendance locks, which
   // holiday is "next". An unknown zone would silently fall back, so reject it here.
   timezone: z.string().refine(isValidTimeZone, 'Choose a valid time zone').optional(),
+  country: countryCodeSchema.optional(),
   currency: z.string().regex(/^[A-Z]{3}$/, 'Use a 3-letter currency code, like INR').optional(),
   dateFormat: z.string().optional(),
 });

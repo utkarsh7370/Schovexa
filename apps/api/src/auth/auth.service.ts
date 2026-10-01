@@ -168,6 +168,7 @@ export class AuthService {
       status: user.status,
       activeSchoolId: activeMembership?.schoolId ?? null,
       permissions: activeMembership?.role.permissions.map((rp) => rp.permission.key).sort() ?? [],
+      schoolCountry: activeMembership?.school.country ?? null,
       memberships: user.memberships.map((m) => ({
         membershipId: m.id,
         schoolId: m.schoolId,

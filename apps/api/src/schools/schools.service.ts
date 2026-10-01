@@ -46,7 +46,7 @@ export class SchoolsService {
     const passwordHash = await this.authService.hashPassword(input.password);
 
     const { schoolId, userId, membershipId } = await this.prisma.$transaction(async (tx) => {
-      const school = await tx.school.create({ data: { name: input.schoolName, slug } });
+      const school = await tx.school.create({ data: { name: input.schoolName, slug, ...(input.country ? { country: input.country } : {}) } });
       await this.rolesService.seedDefaultRoles(school.id, tx);
       const directorRole = await tx.role.findFirstOrThrow({
         where: { schoolId: school.id, name: 'Director' },

@@ -53,5 +53,8 @@ export interface CurrentUser {
   // For showing or hiding controls only — every API route still enforces
   // its own permission, so this is a convenience, never a security check.
   permissions: string[];
+  // Where the active school is (ISO 3166-1 alpha-2) — readable by every
+  // role, since the header shows it to teachers and parents too.
+  schoolCountry: string | null;
   memberships: SchoolMembershipSummary[];
 }

@@ -11,10 +11,12 @@ const MARKETS: { code: MarketCode; name: string; currency: string }[] = [
   { code: 'US', name: 'United States', currency: '$ USD' },
 ];
 
-// The flag in the header. On the marketing site it is a small menu so a
-// visitor can switch price lists; inside the dashboard (where there is
-// nothing to switch) it just shows where we think you are.
-export function CountryBadge({ interactive = false }: { interactive?: boolean }) {
+// The country in the header. On the marketing site it shows where the
+// visitor is (detected, never asked for) and is a small menu so they can
+// switch price lists. Signed in, pass `schoolCountry`: the badge then shows
+// where *the school* is — not where this browser happens to be — and has
+// nothing to switch.
+export function CountryBadge({ interactive = false, schoolCountry }: { interactive?: boolean; schoolCountry?: string | null }) {
   const { country, market, chosen, source, setMarket } = useMarket();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -36,18 +38,19 @@ export function CountryBadge({ interactive = false }: { interactive?: boolean })
   // The flag reflects the market in effect (so choosing "United States"
   // changes it); otherwise the detected country, which may be one we
   // don't sell in yet and so shows a globe.
-  const shownCode = chosen ? market : country;
-  const label = shownCode ?? '—';
+  const shownCode = schoolCountry ?? (chosen ? market : country);
+  // A name, not a two-letter code: "India" says more than "IN".
+  const label = shownCode ? countryName(shownCode) : 'Location unknown';
   const detectedText = country ? `Detected location: ${countryName(country)}` : 'Location not detected';
 
   if (!interactive) {
     return (
       <span
         className="inline-flex h-9 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-xs font-bold text-navy shadow-card"
-        title={detectedText}
+        title={schoolCountry ? `School location: ${label}` : detectedText}
       >
         <CountryFlag code={shownCode} size={20} />
-        <span className="hidden sm:inline">{label}</span>
+        <span className="hidden max-w-[9rem] truncate sm:inline">{label}</span>
       </span>
     );
   }
@@ -64,7 +67,7 @@ export function CountryBadge({ interactive = false }: { interactive?: boolean })
         className="inline-flex h-9 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-xs font-bold text-navy shadow-card transition-all hover:border-brand-blue/40 hover:shadow-elevated"
       >
         <CountryFlag code={shownCode} size={20} />
-        <span className="hidden sm:inline">{label}</span>
+        <span className="hidden max-w-[9rem] truncate sm:inline">{label}</span>
         <ChevronDown size={14} className={['text-slate-400 transition-transform', open ? 'rotate-180' : ''].join(' ')} />
       </button>
 

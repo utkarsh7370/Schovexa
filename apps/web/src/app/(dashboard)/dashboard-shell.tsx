@@ -294,7 +294,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           {canSearchStudents && <GlobalSearch />}
 
           <div className="flex items-center gap-3">
-            <CountryBadge />
+            <CountryBadge schoolCountry={me?.schoolCountry} />
             <div className="relative">
             <button
               onClick={() => setMenuOpen((v) => !v)}

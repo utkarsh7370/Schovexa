@@ -113,6 +113,28 @@ describe('School Management (e2e)', () => {
       expect(school.body.timezone).toBe('America/New_York'); // unchanged by the rejected requests
     });
 
+    it('stores the school country, exposes it on /auth/me for every role, and rejects a fake country', async () => {
+      const reg = await agent()
+        .post('/api/v1/schools/register')
+        .set('Origin', WEB_ORIGIN)
+        .send({ schoolName: 'Country School', directorFirstName: 'D', directorLastName: 'R', email: 'country1@example.test', password: 'correct-horse-battery', country: 'US' });
+      expect(reg.status).toBe(201);
+      const cookie = reg.headers['set-cookie'] as unknown as string;
+      const me = () => agent().get('/api/v1/auth/me').set('Cookie', cookie);
+      expect((await me()).body.schoolCountry).toBe('US');
+
+      const patch = (body: object) => agent().patch('/api/v1/schools/me').set('Origin', WEB_ORIGIN).set('Cookie', cookie).send(body);
+      expect((await patch({ country: 'GB' })).body.country).toBe('GB');
+      expect((await me()).body.schoolCountry).toBe('GB');
+      expect((await patch({ country: 'ZZ' })).status).toBe(400);
+      expect((await patch({ country: 'india' })).status).toBe(400);
+    });
+
+    it('defaults the country to India when registration does not say', async () => {
+      const { cookie } = await registerSchool('Default Country School', 'country2@example.test');
+      expect((await agent().get('/api/v1/auth/me').set('Cookie', cookie)).body.schoolCountry).toBe('IN');
+    });
+
     it('allows the director to update settings', async () => {
       const { cookie } = await registerSchool('Settings School', 'settings1@example.test');
       const res = await agent()

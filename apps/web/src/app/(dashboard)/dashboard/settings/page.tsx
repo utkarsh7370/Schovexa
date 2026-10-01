@@ -9,7 +9,9 @@ import { Alert, Avatar, Badge, Button, PageHeader, SelectField, Skeleton, TextFi
 import { Building2, Clock, Coins, Globe, Lock, Mail, MapPin, Phone, Save, Undo2, CalendarDays } from 'lucide-react';
 import { useState } from 'react';
 import { useCurrentSchool, CURRENT_SCHOOL_QUERY_KEY, type School } from '../../../../hooks/useCurrentSchool';
+import { CURRENT_USER_QUERY_KEY } from '../../../../hooks/useCurrentUser';
 import { useCan } from '../../../../hooks/useCan';
+import { COUNTRY_OPTIONS, countryName } from '../../../../lib/market';
 import { api, ApiError } from '../../../../lib/api-client';
 
 const COMMON_ZONES = ['Asia/Kolkata', 'Asia/Dubai', 'Asia/Singapore', 'Europe/London', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'Australia/Sydney'];
@@ -86,6 +88,7 @@ function SettingsForm({ school }: { school: School }) {
       contactPhone: school.contactPhone ?? '',
       website: school.website ?? '',
       timezone: school.timezone,
+      country: school.country,
       currency: school.currency,
       dateFormat: school.dateFormat,
     }),
@@ -107,11 +110,17 @@ function SettingsForm({ school }: { school: School }) {
     return { common: COMMON_ZONES, rest };
   }, [school.timezone]);
 
+  const countryOptions = useMemo(() => {
+    const codes = COUNTRY_OPTIONS.includes(school.country) ? COUNTRY_OPTIONS : [school.country, ...COUNTRY_OPTIONS];
+    return codes.map((code) => [code, countryName(code)] as const).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [school.country]);
+
   const onSubmit = async (data: UpdateSchoolInput) => {
     setServerError(null);
     try {
       await api.patch('/schools/me', data);
       await queryClient.invalidateQueries({ queryKey: CURRENT_SCHOOL_QUERY_KEY });
+      await queryClient.invalidateQueries({ queryKey: CURRENT_USER_QUERY_KEY }); // header shows the school's country
       toast.show({ tone: 'success', title: 'Settings saved', description: 'Your school’s details are up to date.' });
     } catch (err) {
       setServerError(err instanceof ApiError ? err.message : 'Could not save changes.');
@@ -174,6 +183,17 @@ function SettingsForm({ school }: { school: School }) {
                 <option key={z} value={z}>{z.replace(/_/g, ' ')}</option>
               ))}
             </optgroup>
+          </SelectField>
+          <SelectField
+            label="Country"
+            leftIcon={<Globe size={16} />}
+            helperText="Shown in the header for everyone at your school."
+            error={errors.country?.message}
+            {...register('country')}
+          >
+            {countryOptions.map(([code, name]) => (
+              <option key={code} value={code}>{name}</option>
+            ))}
           </SelectField>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <SelectField label="Currency" leftIcon={<Coins size={16} />} error={errors.currency?.message} {...register('currency')}>
