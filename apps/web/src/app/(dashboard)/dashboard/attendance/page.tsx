@@ -6,6 +6,7 @@ import { Alert, Avatar, Badge, Button, EmptyState, PageHeader, SelectField, Skel
 import {
   CalendarCheck,
   CalendarDays,
+  CheckCheck,
   CircleAlert,
   CircleCheck,
   CircleHelp,
@@ -13,14 +14,17 @@ import {
   Clock,
   Lock,
   ListChecks,
+  MessageCircle,
   Save,
   School,
   Shapes,
   ShieldCheck,
+  TriangleAlert,
+  UserX,
 } from 'lucide-react';
 import { useClasses } from '../../../../hooks/useClasses';
 import { useSections } from '../../../../hooks/useSections';
-import { useAttendanceRoster, useAttendanceSummary, useAttendanceToday, rosterQueryKey, type AttendanceStatus } from '../../../../hooks/useAttendance';
+import { useAbsenceAlerts, absenceAlertsQueryKey, useAttendanceRoster, useAttendanceSummary, useAttendanceToday, rosterQueryKey, type AbsenceAlertSummary, type AttendanceStatus } from '../../../../hooks/useAttendance';
 import { api, ApiError } from '../../../../lib/api-client';
 import { SchoolDayBadge } from '../../../../components/school-day-badge';
 import { isHalfDay } from '../../../../lib/school-day';
@@ -153,6 +157,8 @@ export default function AttendancePage() {
 
 function MarkingPanel({ sectionId, date, title, locked }: { sectionId: string; date: string; title: string; locked: boolean }) {
   const { data: roster, isLoading } = useAttendanceRoster(sectionId, date);
+  const { data: alerts } = useAbsenceAlerts(sectionId, date);
+  const alertByStudent = useMemo(() => new Map((alerts ?? []).map((a) => [a.studentId, a])), [alerts]);
   const queryClient = useQueryClient();
   const toast = useToast();
   const [entries, setEntries] = useState<Record<string, { status: AttendanceStatus | null; remarks: string }>>({});
@@ -222,6 +228,7 @@ function MarkingPanel({ sectionId, date, title, locked }: { sectionId: string; d
     try {
       await api.post('/attendance', { sectionId, date, records });
       await queryClient.invalidateQueries({ queryKey: rosterQueryKey(sectionId, date) });
+      await queryClient.invalidateQueries({ queryKey: absenceAlertsQueryKey(sectionId, date) });
       // Broad prefix match (no exact from/to) — the Summary panel is a
       // sibling with its own date-range state this component doesn't
       // know, so every mounted summary query for any range needs to
@@ -229,7 +236,12 @@ function MarkingPanel({ sectionId, date, title, locked }: { sectionId: string; d
       await queryClient.invalidateQueries({ queryKey: ['attendance-summary'] });
       await queryClient.invalidateQueries({ queryKey: ['attendance-history'] });
       setSaved(true);
-      toast.show({ tone: 'success', title: 'Attendance saved', description: `${records.length} ${records.length === 1 ? 'student' : 'students'} recorded for ${new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' })}.` });
+      const absentCount = records.filter((r) => r.status === 'ABSENT').length;
+      toast.show({
+        tone: 'success',
+        title: 'Attendance saved',
+        description: `${records.length} ${records.length === 1 ? 'student' : 'students'} recorded for ${new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' })}.${absentCount ? ` Parents of ${absentCount === 1 ? 'the absent student have' : `the ${absentCount} absent students have`} been messaged.` : ''}`,
+      });
     } catch (err) {
       setServerError(err instanceof ApiError ? err.message : 'Could not save attendance.');
     } finally {
@@ -346,6 +358,11 @@ function MarkingPanel({ sectionId, date, title, locked }: { sectionId: string; d
                       <span className="font-mono text-[11px] font-semibold text-slate-400">{student.admissionNo}</span>
                       <SchoolDayBadge value={student.schoolDay} className="!px-2 !py-0.5 !text-[10px]" />
                     </p>
+                    {entry?.status === 'ABSENT' && (
+                      <div className="mt-1">
+                        <ParentAlertChip saved={student.status === 'ABSENT'} locked={locked} alert={alertByStudent.get(student.studentId)} />
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -541,5 +558,42 @@ function SummaryPanel({ sectionId, today }: { sectionId: string; today: string }
         {summary?.length === 0 && <p className="py-8 text-center text-sm text-slate-500">No students or records for this range.</p>}
       </div>
     </section>
+  );
+}
+
+
+// What happened to the parents of an absent student: told, couldn't be told,
+// or not yet (they're messaged when the register is saved).
+function ParentAlertChip({ saved, locked, alert }: { saved: boolean; locked: boolean; alert: AbsenceAlertSummary | undefined }) {
+  if (!saved) {
+    return locked ? null : (
+      <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500" title="Parents are messaged when you save the register">
+        <MessageCircle size={12} /> Parent will be messaged
+      </span>
+    );
+  }
+  if (!alert) return null;
+  const reached = alert.parentsReached;
+  if (alert.parentCount === 0) {
+    return (
+      <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-800" title="Link a parent to this student so they can be told about absences">
+        <UserX size={12} /> No parent linked
+      </span>
+    );
+  }
+  if (reached > 0) {
+    return (
+      <span
+        className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold text-emerald-800"
+        title={alert.attempts.filter((a) => a.status === 'SENT').map((a) => `${a.parent} — ${a.channel === 'EMAIL' ? 'email' : 'in the app'}`).join('\n')}
+      >
+        <CheckCheck size={12} /> {reached === 1 ? 'Parent notified' : `${reached} parents notified`}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-800" title={alert.attempts.map((a) => `${a.parent}: ${a.detail ?? a.status}`).join('\n')}>
+      <TriangleAlert size={12} /> Couldn’t reach parent
+    </span>
   );
 }

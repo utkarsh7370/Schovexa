@@ -95,6 +95,8 @@ export const updateSchoolSchema = z.object({
   staffPunchInTime: timeOfDay('punch-in time').optional(),
   staffPunchOutTime: timeOfDay('punch-out time').optional(),
   staffLateGraceMinutes: z.coerce.number().int().min(0, 'Use 0 or more minutes').max(120, 'Keep the grace period under 2 hours').optional(),
+  // Message a student's parents when the student is marked absent.
+  notifyParentsOnAbsence: z.boolean().optional(),
 }).refine((v) => !v.staffPunchInTime || !v.staffPunchOutTime || v.staffPunchOutTime > v.staffPunchInTime, {
   path: ['staffPunchOutTime'],
   message: 'Punch-out must be later than punch-in',

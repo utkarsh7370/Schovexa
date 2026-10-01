@@ -2,10 +2,14 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import type { MarkAttendanceInput, UpdateAttendanceInput } from '@schovexa/validation';
 import { dateOnlyToIso, todayInTimezone } from '../common/dates.util';
+import { AbsenceAlertsService } from './absence-alerts.service';
 
 @Injectable()
 export class AttendanceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly absenceAlerts: AbsenceAlertsService,
+  ) {}
 
   async markBulk(schoolId: string, markedById: string, input: MarkAttendanceInput) {
     const section = await this.prisma.section.findFirst({
@@ -37,6 +41,11 @@ export class AttendanceService {
       });
     }
 
+    // Who was already absent before this save — to tell "newly absent" and
+    // "absence corrected" apart from "saved again with no change".
+    const before = await this.prisma.attendance.findMany({ where: { schoolId, studentId: { in: studentIds }, date }, select: { studentId: true, status: true } });
+    const wasAbsent = new Set(before.filter((b) => b.status === 'ABSENT').map((b) => b.studentId));
+
     await this.prisma.$transaction(
       input.records.map((record) =>
         this.prisma.attendance.upsert({
@@ -60,7 +69,29 @@ export class AttendanceService {
       ),
     );
 
+    // Today only (assertEditableDate above guarantees it): message the parents
+    // of anyone just marked absent, and correct the record for anyone whose
+    // absence was a mistake. Never blocks the save.
+    await this.absenceAlerts.notifyAbsent(
+      schoolId,
+      input.records.filter((r) => r.status === 'ABSENT').map((r) => r.studentId),
+      input.date.slice(0, 10),
+    );
+    await this.absenceAlerts.notifyCorrection(
+      schoolId,
+      input.records.filter((r) => r.status !== 'ABSENT' && wasAbsent.has(r.studentId)).map((r) => r.studentId),
+      input.date.slice(0, 10),
+    );
+
     return this.getRosterForSectionDate(schoolId, input.sectionId, input.date);
+  }
+
+  async getAbsenceAlerts(schoolId: string, sectionId: string, dateInput: string) {
+    const section = await this.prisma.section.findFirst({ where: { id: sectionId, schoolId, deletedAt: null } });
+    if (!section) {
+      throw new NotFoundException({ code: 'NOT_FOUND', message: 'Resource not found.' });
+    }
+    return this.absenceAlerts.alertsForSection(schoolId, sectionId, dateInput.slice(0, 10));
   }
 
   async getRosterForSectionDate(schoolId: string, sectionId: string, dateInput: string) {
@@ -164,13 +195,19 @@ export class AttendanceService {
   async correct(schoolId: string, attendanceId: string, input: UpdateAttendanceInput) {
     const record = await this.findForAuth(schoolId, attendanceId);
     await this.assertEditableDate(schoolId, dateOnlyToIso(record.date));
-    return this.prisma.attendance.update({
+    const updated = await this.prisma.attendance.update({
       where: { id: attendanceId },
       data: {
         ...(input.status !== undefined ? { status: input.status } : {}),
         ...(input.remarks !== undefined ? { remarks: input.remarks || null } : {}),
       },
     });
+    if (input.status !== undefined && input.status !== record.status) {
+      const day = dateOnlyToIso(record.date);
+      if (input.status === 'ABSENT') await this.absenceAlerts.notifyAbsent(schoolId, [record.studentId], day);
+      else if (record.status === 'ABSENT') await this.absenceAlerts.notifyCorrection(schoolId, [record.studentId], day);
+    }
+    return updated;
   }
 
   /** The school's current calendar date — what the UI treats as "today" (the only editable day). */

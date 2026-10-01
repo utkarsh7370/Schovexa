@@ -92,3 +92,22 @@ export function useAttendanceToday() {
     staleTime: 60_000,
   });
 }
+
+export interface AbsenceAlertSummary {
+  studentId: string;
+  date: string;
+  parentCount: number;
+  parentsReached: number;
+  attempts: { parent: string; channel: 'IN_APP' | 'EMAIL' | 'SMS' | 'WHATSAPP'; status: 'SENT' | 'FAILED' | 'SKIPPED'; detail: string | null }[];
+}
+
+export const absenceAlertsQueryKey = (sectionId: string | undefined, date: string | undefined) => ['attendance-absence-alerts', sectionId, date];
+
+/** Who was messaged about each absence in a section on a day (the marking screen shows it per student). */
+export function useAbsenceAlerts(sectionId: string | undefined, date: string | undefined) {
+  return useQuery({
+    queryKey: absenceAlertsQueryKey(sectionId, date),
+    queryFn: () => api.get<AbsenceAlertSummary[]>(`/attendance/absence-alerts?sectionId=${sectionId}&date=${date}`),
+    enabled: !!sectionId && !!date,
+  });
+}

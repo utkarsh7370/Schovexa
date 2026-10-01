@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { updateSchoolSchema, type UpdateSchoolInput } from '@schovexa/validation';
 import { Alert, Avatar, Badge, Button, PageHeader, SelectField, Skeleton, TextField, useToast } from '@schovexa/ui';
-import { Building2, Clock, Coins, Globe, Hourglass, Lock, LogIn, LogOut, Mail, MapPin, Phone, Save, Timer, Undo2, CalendarDays } from 'lucide-react';
+import { BellRing, Building2, Clock, Coins, Globe, Hourglass, Lock, LogIn, LogOut, Mail, MapPin, Phone, Save, Timer, Undo2, CalendarDays } from 'lucide-react';
 import { useState } from 'react';
 import { useCurrentSchool, CURRENT_SCHOOL_QUERY_KEY, type School } from '../../../../hooks/useCurrentSchool';
 import { CURRENT_USER_QUERY_KEY } from '../../../../hooks/useCurrentUser';
@@ -94,6 +94,7 @@ function SettingsForm({ school }: { school: School }) {
       staffPunchInTime: school.staffPunchInTime,
       staffPunchOutTime: school.staffPunchOutTime,
       staffLateGraceMinutes: school.staffLateGraceMinutes,
+      notifyParentsOnAbsence: school.notifyParentsOnAbsence,
     }),
     [school],
   );
@@ -231,6 +232,22 @@ function SettingsForm({ school }: { school: School }) {
             <Clock size={14} className="mt-0.5 shrink-0 text-slate-400" />
             Times are in your school’s time zone ({school.timezone.replace(/_/g, ' ')}). Staff who punch in after the grace period are marked late.
           </p>
+        </SettingsSection>
+
+        <SettingsSection icon={<BellRing size={18} />} title="Parent alerts" description="Keep families informed without anyone making a phone call.">
+          <label className="flex cursor-pointer items-start gap-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4 transition-colors hover:border-brand-blue/30 hover:bg-white has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-brand-blue/15">
+            <span className="relative mt-0.5 inline-flex h-6 w-11 shrink-0">
+              <input type="checkbox" className="peer sr-only" {...register('notifyParentsOnAbsence')} />
+              <span className="absolute inset-0 rounded-full bg-slate-300 transition-colors peer-checked:bg-brand-blue peer-disabled:opacity-50" />
+              <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
+            </span>
+            <span>
+              <span className="block text-sm font-bold text-navy">Message parents when their child is marked absent</span>
+              <span className="mt-0.5 block text-sm text-slate-500">
+                Parents with a portal account get a notification in the app, and parents with an email address get an email (once your school’s email is set up). If a mistake is corrected, they’re told that too.
+              </span>
+            </span>
+          </label>
         </SettingsSection>
       </fieldset>
 

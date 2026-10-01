@@ -16,6 +16,7 @@ export interface School {
   staffPunchInTime: string;
   staffPunchOutTime: string;
   staffLateGraceMinutes: number;
+  notifyParentsOnAbsence: boolean;
 }
 
 export const CURRENT_SCHOOL_QUERY_KEY = ['schools', 'me'];

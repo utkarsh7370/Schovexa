@@ -3,6 +3,7 @@ import { createHash } from 'crypto';
 import type { ContactMessageOutput } from '@schovexa/validation';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
+import { escapeHtml } from '../common/html.util';
 
 const TOPIC_LABELS: Record<string, string> = {
   DEMO: 'Book a demo',
@@ -15,15 +16,6 @@ const TOPIC_LABELS: Record<string, string> = {
 // Where contact-form messages are delivered. Overridable per deployment
 // with CONTACT_INBOX_EMAIL; the default is the founder's inbox.
 const DEFAULT_INBOX = 'utkarshsingh737091@gmail.com';
-
-export function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 // Subjects are single-line headers — collapse any CR/LF a visitor typed so
 // nothing they write can add a header.

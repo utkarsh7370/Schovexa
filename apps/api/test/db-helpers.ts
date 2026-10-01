@@ -12,6 +12,7 @@ import { PrismaClient } from '@prisma/client';
 // entire class of bug.
 export async function resetTestData(prisma: PrismaClient): Promise<void> {
   await prisma.contactMessage.deleteMany();
+  await prisma.absenceAlert.deleteMany();
   await prisma.staffAttendance.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.document.deleteMany();

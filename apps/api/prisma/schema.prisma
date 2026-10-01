@@ -151,6 +151,17 @@ enum StudentSchoolDay {
   SECOND_HALF
 }
 
+enum AbsenceAlertKind {
+  ABSENT
+  CORRECTION
+}
+
+enum AbsenceAlertStatus {
+  SENT
+  FAILED
+  SKIPPED
+}
+
 enum HolidayType {
   NATIONAL
   FESTIVAL
@@ -288,6 +299,8 @@ model School {
   staffPunchInTime      String @default("09:00")
   staffPunchOutTime     String @default("16:00")
   staffLateGraceMinutes Int    @default(10)
+  // Tell a student's parents when the student is marked absent.
+  notifyParentsOnAbsence Boolean @default(true)
   status       SchoolStatus @default(ACTIVE)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
@@ -956,4 +969,23 @@ model StaffAttendance {
   @@unique([schoolId, userId, date])
   @@index([schoolId, date])
   @@index([schoolId, approval])
+}
+
+// One row per parent per channel per absent student per day: what we tried
+// to tell the parent and how it went. The unique key is also what stops the
+// same parent being told twice if attendance is saved again.
+model AbsenceAlert {
+  id        String             @id @default(cuid())
+  schoolId  String
+  studentId String
+  parentId  String
+  date      DateTime           @db.Date
+  kind      AbsenceAlertKind   @default(ABSENT)
+  channel   NotificationChannel
+  status    AbsenceAlertStatus
+  detail    String?
+  createdAt DateTime           @default(now())
+
+  @@unique([studentId, date, parentId, channel, kind])
+  @@index([schoolId, date])
 }

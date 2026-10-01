@@ -58,6 +58,22 @@ export class AttendanceController {
     return this.attendanceService.getRosterForSectionDate(auth.schoolId, requiredSectionId, requiredDate);
   }
 
+  // Per student: how many parents they have and who was messaged about an
+  // absence — so the marking screen can show "Parent notified" or warn that
+  // nobody could be reached.
+  @Get('absence-alerts')
+  @RequirePermission('attendance.view')
+  async getAbsenceAlerts(
+    @Query('sectionId') sectionId: string | undefined,
+    @Query('date') date: string | undefined,
+    @CurrentAuthContext() auth: AuthContext,
+  ) {
+    const requiredSectionId = requireQueryParam(sectionId, 'sectionId');
+    const requiredDate = requireQueryParam(date, 'date');
+    await this.authorizationService.authorizeResource(auth, 'Section', requiredSectionId);
+    return this.attendanceService.getAbsenceAlerts(auth.schoolId, requiredSectionId, requiredDate);
+  }
+
   @Get('history')
   @RequirePermission('attendance.view')
   async getHistory(
