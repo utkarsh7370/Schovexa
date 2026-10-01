@@ -466,3 +466,35 @@ export const updateHolidaySchema = holidayBase.partial().refine(endNotBeforeStar
   message: 'The end date can’t be before the start date',
 });
 export type UpdateHolidayInput = z.input<typeof updateHolidaySchema>;
+
+// --- Public "Contact us" form (marketing site) ---
+
+export const CONTACT_TOPICS = ['DEMO', 'PRICING', 'SUPPORT', 'PARTNERSHIP', 'OTHER'] as const;
+export type ContactTopic = (typeof CONTACT_TOPICS)[number];
+
+const optionalText = (max: number, message: string) =>
+  z.string().trim().max(max, message).optional().or(z.literal(''));
+
+export const contactMessageSchema = z.object({
+  name: z.string().trim().min(2, 'Please tell us your name').max(100, 'Keep your name under 100 characters'),
+  email: z.string().trim().email('Enter a valid email address').max(200),
+  phone: z
+    .string()
+    .trim()
+    .max(20, 'Keep the phone number under 20 characters')
+    .regex(/^[+()\-\s\d]*$/, 'Use digits, spaces, + ( ) or - only')
+    .optional()
+    .or(z.literal('')),
+  organization: optionalText(150, 'Keep the school name under 150 characters'),
+  topic: z.enum(CONTACT_TOPICS).default('OTHER'),
+  message: z
+    .string()
+    .trim()
+    .min(10, 'Tell us a little more (at least 10 characters)')
+    .max(2000, 'Keep the message under 2000 characters'),
+  // Honeypot: real people never see or fill this. A bot that does is
+  // answered with a normal-looking success and nothing is stored.
+  website: z.string().max(200).optional().or(z.literal('')),
+});
+export type ContactMessageInput = z.input<typeof contactMessageSchema>;
+export type ContactMessageOutput = z.output<typeof contactMessageSchema>;

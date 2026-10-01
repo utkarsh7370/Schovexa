@@ -21,6 +21,7 @@ import {
 import { DashboardPreview } from '../components/dashboard-preview';
 import { Pricing } from '../components/pricing';
 import { CountryBadge } from '../components/country-badge';
+import { ContactSection } from '../components/contact-section';
 
 const FEATURES = [
   {
@@ -117,6 +118,7 @@ export default function HomePage() {
             <a href="#how-it-works" className="transition-colors hover:text-brand-blue">How it works</a>
             <a href="#who-its-for" className="transition-colors hover:text-brand-blue">Who it&apos;s for</a>
             <a href="#pricing" className="transition-colors hover:text-brand-blue">Pricing</a>
+            <a href="#contact" className="transition-colors hover:text-brand-blue">Contact</a>
           </nav>
           <div className="flex items-center gap-2">
             <CountryBadge interactive />
@@ -298,6 +300,8 @@ export default function HomePage() {
 
       <Pricing />
 
+      <ContactSection />
+
       {/* CTA */}
       <section className="px-6 py-24">
         <Reveal>
@@ -333,6 +337,7 @@ export default function HomePage() {
             <p>&copy; {new Date().getFullYear()} Schovexa. All rights reserved.</p>
           </div>
           <div className="flex gap-6">
+            <a href="#contact" className="hover:text-navy hover:underline">Contact us</a>
             <Link href="/privacy-policy" className="hover:text-navy hover:underline">Privacy Policy</Link>
             <Link href="/terms-of-service" className="hover:text-navy hover:underline">Terms of Service</Link>
             <Link href="/login" className="hover:text-navy hover:underline">Log in</Link>

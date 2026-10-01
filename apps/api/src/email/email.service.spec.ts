@@ -22,7 +22,7 @@ describe('EmailService', () => {
     const service = new EmailService();
 
     expect(service.isConfigured).toBe(false);
-    await service.send({ to: 'a@example.test', subject: 'Hi', text: 'hi', html: '<p>hi</p>' });
+    await expect(service.send({ to: 'a@example.test', subject: 'Hi', text: 'hi', html: '<p>hi</p>' })).resolves.toBe(false);
 
     expect(sendMail).not.toHaveBeenCalled();
   });
@@ -33,13 +33,16 @@ describe('EmailService', () => {
     const service = new EmailService();
 
     expect(service.isConfigured).toBe(true);
-    await service.send({ to: 'a@example.test', subject: 'Welcome', text: 'hi', html: '<p>hi</p>' });
+    await expect(
+      service.send({ to: 'a@example.test', subject: 'Welcome', text: 'hi', html: '<p>hi</p>', replyTo: 'b@example.test' }),
+    ).resolves.toBe(true);
 
     expect(sendMail).toHaveBeenCalledWith(
       expect.objectContaining({
         from: 'Schovexa <no-reply@schovexa.app>',
         to: 'a@example.test',
         subject: 'Welcome',
+        replyTo: 'b@example.test',
       }),
     );
   });
@@ -51,6 +54,6 @@ describe('EmailService', () => {
 
     await expect(
       service.send({ to: 'a@example.test', subject: 'Hi', text: 'hi', html: '<p>hi</p>' }),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe(false);
   });
 });

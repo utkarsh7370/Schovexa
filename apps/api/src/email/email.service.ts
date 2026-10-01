@@ -7,6 +7,8 @@ export interface SendEmailInput {
   subject: string;
   text: string;
   html: string;
+  /** Where a plain "Reply" should go — e.g. the person who filled in a contact form. */
+  replyTo?: string;
 }
 
 // One real delivery channel — SMTP, which every provider worth using
@@ -40,10 +42,12 @@ export class EmailService {
     return this.transporter !== null;
   }
 
-  async send(input: SendEmailInput): Promise<void> {
+  // Resolves true only when the provider accepted the message; false when
+  // SMTP is unconfigured or the send failed. Never throws.
+  async send(input: SendEmailInput): Promise<boolean> {
     if (!this.transporter) {
       this.logger.log(`SMTP not configured — not sending "${input.subject}" to ${input.to}`);
-      return;
+      return false;
     }
 
     try {
@@ -53,12 +57,15 @@ export class EmailService {
         subject: input.subject,
         text: input.text,
         html: input.html,
+        ...(input.replyTo ? { replyTo: input.replyTo } : {}),
       });
+      return true;
     } catch (err) {
       // Never let a provider outage break an invite/reset flow — the
       // link is still available through the API response / on-screen
       // fallback either way, this is a best-effort delivery channel.
       this.logger.error(`Failed to send "${input.subject}" to ${input.to}`, err instanceof Error ? err.stack : err);
+      return false;
     }
   }
 }

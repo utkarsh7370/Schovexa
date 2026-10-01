@@ -24,7 +24,8 @@ the full list and what each one does):
 | `WEB_ORIGIN` | yes | your web app's real origin, e.g. `https://app.yourschool.com` — used for CORS and the origin-check CSRF mitigation, and as the base for invite/reset links |
 | `NEXT_PUBLIC_API_URL` | yes | your API's real URL, e.g. `https://api.yourschool.com/api/v1` — baked into the web build at build time |
 | `STORAGE_ENDPOINT`, `STORAGE_BUCKET`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY`, `STORAGE_REGION` | recommended | leave blank and documents fall back to local disk, which does **not** survive a redeploy and isn't backed up — fine for a demo, not for real users |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | recommended | leave `SMTP_HOST` blank and invite/reset emails are only logged, not sent |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | recommended | leave `SMTP_HOST` blank and invite/reset emails (and the contact-form notification) are only logged, not sent |
+| `CONTACT_INBOX_EMAIL` | optional | where the website's Contact form is emailed (defaults to the founder's inbox). Messages are always saved in the `ContactMessage` table too |
 | `SENTRY_DSN` (API), `NEXT_PUBLIC_SENTRY_DSN` (web) | recommended | leave blank and errors are only logged locally, never reported anywhere — see "Error monitoring" below |
 
 You'll need to sign up for these yourself — this is the one part of

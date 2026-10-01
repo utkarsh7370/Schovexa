@@ -84,6 +84,12 @@ const config: Config = {
           '0%, 100%': { backgroundPosition: '0% 50%' },
           '50%': { backgroundPosition: '100% 50%' },
         },
+        'draw-check': { '0%': { strokeDashoffset: '48' }, '100%': { strokeDashoffset: '0' } },
+        pop: {
+          '0%': { opacity: '0', transform: 'scale(0.5)' },
+          '70%': { opacity: '1', transform: 'scale(1.08)' },
+          '100%': { transform: 'scale(1)' },
+        },
         shrink: { '0%': { width: '100%' }, '100%': { width: '0%' } },
         wiggle: {
           '0%, 50%, 100%': { transform: 'rotate(0deg)' },
@@ -113,6 +119,8 @@ const config: Config = {
         'glow-pulse': 'glow-pulse 2.2s ease-in-out infinite',
         'gradient-x': 'gradient-x 8s ease infinite',
         wiggle: 'wiggle 2.8s ease-in-out infinite',
+        'draw-check': 'draw-check 0.6s ease-out 0.25s backwards',
+        pop: 'pop 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards',
       },
     },
   },

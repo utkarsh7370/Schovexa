@@ -98,6 +98,14 @@ enum PaymentMethod {
   ONLINE
 }
 
+enum ContactTopic {
+  DEMO
+  PRICING
+  SUPPORT
+  PARTNERSHIP
+  OTHER
+}
+
 enum HolidayType {
   NATIONAL
   FESTIVAL
@@ -809,4 +817,23 @@ model Holiday {
   school School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
 
   @@index([schoolId, startDate])
+}
+
+// A message sent through the public "Contact us" form on the marketing
+// site. Always stored first, then emailed to the inbox owner — so a
+// message is never lost if SMTP is down or not configured yet.
+model ContactMessage {
+  id           String       @id @default(cuid())
+  name         String
+  email        String
+  phone        String?
+  organization String?
+  topic        ContactTopic @default(OTHER)
+  message      String
+  ipHash       String?
+  userAgent    String?
+  emailedAt    DateTime?
+  createdAt    DateTime     @default(now())
+
+  @@index([createdAt])
 }
