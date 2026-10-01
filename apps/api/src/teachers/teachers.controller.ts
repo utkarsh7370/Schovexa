@@ -17,6 +17,7 @@ import { CurrentAuthContext } from '../authorization/decorators/current-auth-con
 import { AuthorizationService } from '../authorization/authorization.service';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { TeachersService } from './teachers.service';
+import { ProfileService } from '../profile/profile.service';
 import type { AuthContext } from '../authorization/authorization.types';
 
 @Controller('teachers')
@@ -25,12 +26,23 @@ export class TeachersController {
   constructor(
     private readonly teachersService: TeachersService,
     private readonly authorizationService: AuthorizationService,
+    private readonly profileService: ProfileService,
   ) {}
 
   @Get()
   @RequirePermission('teacher.view')
   async list(@CurrentAuthContext() auth: AuthContext) {
     return this.teachersService.list(auth.schoolId);
+  }
+
+  // The teacher's full profile — contact details, class-teacher sections,
+  // subject assignments. Declared before ':id/assignments' only for
+  // readability; Nest matches the two distinct paths either way.
+  @Get(':id')
+  @RequirePermission('teacher.view')
+  async detail(@Param('id') id: string, @CurrentAuthContext() auth: AuthContext) {
+    await this.authorizationService.authorizeResource(auth, 'Teacher', id);
+    return this.profileService.getByTeacherId(auth.schoolId, id);
   }
 
   @Post()

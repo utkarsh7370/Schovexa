@@ -131,8 +131,13 @@ export class AuthorizationService {
         return !!row;
       }
       case 'Document': {
+        // A person's own documents (ID proof, certificates — ownerType
+        // 'User') are personal data. They are reachable only through the
+        // profile endpoints (me/documents, staff/:id/documents), which
+        // check ownership or the staff permissions themselves — never
+        // through the generic document.view route a Receptionist holds.
         const row = await this.prisma.document.findFirst({
-          where: { id: resourceId, schoolId: auth.schoolId, deletedAt: null },
+          where: { id: resourceId, schoolId: auth.schoolId, ownerType: { not: 'User' }, deletedAt: null },
         });
         return !!row;
       }

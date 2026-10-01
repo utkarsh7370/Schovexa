@@ -3,7 +3,7 @@
 // the API derives tenant context entirely from the session cookie
 // (docs/multi-tenancy.md §2), so this client doesn't need to either.
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
 
 export class ApiError extends Error {
   constructor(

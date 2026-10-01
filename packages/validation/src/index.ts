@@ -513,3 +513,47 @@ export const contactMessageSchema = z.object({
 });
 export type ContactMessageInput = z.input<typeof contactMessageSchema>;
 export type ContactMessageOutput = z.output<typeof contactMessageSchema>;
+
+// --- "My profile": what a signed-in person can edit about themselves ---
+
+export const PROFILE_GENDERS = ['MALE', 'FEMALE', 'OTHER'] as const;
+
+const phoneField = (label: string) =>
+  z
+    .string()
+    .trim()
+    .max(20, `Keep the ${label} under 20 characters`)
+    .regex(/^[+()\-\s\d]*$/, 'Use digits, spaces, + ( ) or - only')
+    .optional()
+    .or(z.literal(''));
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
+export const updateProfileSchema = z.object({
+  firstName: z.string().trim().min(1, 'First name is required').max(60, 'Keep it under 60 characters'),
+  lastName: z.string().trim().min(1, 'Last name is required').max(60, 'Keep it under 60 characters'),
+  phone: phoneField('phone number'),
+  dateOfBirth: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a valid date')
+    .refine((v) => v <= todayIso(), 'Date of birth can’t be in the future')
+    .optional()
+    .or(z.literal('')),
+  gender: z.enum(PROFILE_GENDERS).optional().or(z.literal('')),
+  address: z.string().trim().max(300, 'Keep the address under 300 characters').optional().or(z.literal('')),
+  emergencyContactName: z.string().trim().max(100, 'Keep the name under 100 characters').optional().or(z.literal('')),
+  emergencyContactPhone: phoneField('phone number'),
+  bio: z.string().trim().max(500, 'Keep it under 500 characters').optional().or(z.literal('')),
+});
+export type UpdateProfileInput = z.input<typeof updateProfileSchema>;
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Enter your current password'),
+    newPassword: passwordSchema,
+  })
+  .refine((v) => v.currentPassword !== v.newPassword, {
+    path: ['newPassword'],
+    message: 'Choose a password you haven’t used just now',
+  });
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;

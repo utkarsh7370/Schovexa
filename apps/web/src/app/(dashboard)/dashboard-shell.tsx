@@ -9,6 +9,7 @@ import {
   Users,
   CalendarDays,
   LogOut,
+  UserCircle,
   School,
   BookOpen,
   GraduationCap,
@@ -324,6 +325,15 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                     )}
                   </div>
                   <div className="my-1 h-px bg-slate-100" />
+                  <Link
+                    role="menuitem"
+                    href="/dashboard/profile"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-600 hover:bg-slate-100"
+                  >
+                    <UserCircle size={16} />
+                    My profile
+                  </Link>
                   <button
                     role="menuitem"
                     onClick={logout}

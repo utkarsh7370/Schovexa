@@ -253,6 +253,34 @@ export class AuthService {
     });
   }
 
+  /**
+   * Signed-in password change: the current password must be re-entered
+   * (a stolen session alone must not be enough to lock the owner out), and
+   * every OTHER session is revoked so a device that was already signed in
+   * as someone else is kicked out. The session making the change survives.
+   */
+  async changePassword(userId: string, currentSessionId: string, currentPassword: string, newPassword: string): Promise<void> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (!(await this.verifyPassword(user.passwordHash, currentPassword))) {
+      throw new BadRequestException({
+        code: 'VALIDATION_FAILED',
+        message: 'Your current password is incorrect.',
+        details: [{ field: 'currentPassword', message: 'Your current password is incorrect.' }],
+      });
+    }
+
+    await this.prisma.user.update({ where: { id: userId }, data: { passwordHash: await this.hashPassword(newPassword) } });
+    await this.prisma.session.deleteMany({ where: { userId, NOT: { id: currentSessionId } } });
+
+    await this.audit.record({
+      userId,
+      action: 'auth.password_changed',
+      module: 'auth',
+      resourceType: 'User',
+      resourceId: userId,
+    });
+  }
+
   // --- Invitations (docs/authentication.md §5) ----------------------------
   // Creating an invitation is a permission-gated admin action (`user.create`)
   // that belongs behind the authorization guard built in the next phase

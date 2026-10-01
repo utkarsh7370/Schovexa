@@ -1,8 +1,9 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, Res, UseGuards } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import {
   acceptInviteSchema,
+  changePasswordSchema,
   forgotPasswordSchema,
   loginSchema,
   resetPasswordSchema,
@@ -72,6 +73,21 @@ export class AuthController {
     @CurrentSession() session: SessionContext,
   ) {
     await this.authService.selectSchool(session.userId, session.sessionId, body.membershipId);
+    return { status: 'ok' };
+  }
+
+  // Needs a session but no selected school — changing your password has
+  // nothing to do with which school you're looking at. Rate limited because
+  // it verifies the current password (guessing it from a stolen session).
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthGuard, ThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
+  async changePassword(
+    @Body(new ZodValidationPipe(changePasswordSchema)) body: { currentPassword: string; newPassword: string },
+    @CurrentSession() session: SessionContext,
+  ) {
+    await this.authService.changePassword(session.userId, session.sessionId, body.currentPassword, body.newPassword);
     return { status: 'ok' };
   }
 

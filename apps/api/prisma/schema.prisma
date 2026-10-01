@@ -152,6 +152,13 @@ model User {
   firstName       String
   lastName        String
   phone           String?
+  // Profile details a person fills in themselves ("My profile").
+  dateOfBirth           DateTime? @db.Date
+  gender                String?
+  address               String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  bio                   String?
   status          UserStatus @default(INVITED)
   emailVerifiedAt DateTime?
   lastLoginAt     DateTime?
