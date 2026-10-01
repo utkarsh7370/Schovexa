@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -293,7 +294,9 @@ export default function StaffPage() {
                   <div className="flex items-start gap-3.5">
                     <Avatar name={name} tone="auto" size={48} className="transition-transform duration-300 group-hover:scale-105" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-base font-bold text-navy">{name}</p>
+                      <Link href={`/dashboard/staff/${m.membershipId}`} className="block truncate text-base font-bold text-navy transition-colors hover:text-brand-blue focus-visible:outline-none focus-visible:underline">
+                        {name}
+                      </Link>
                       <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-slate-500">
                         <Mail size={13} className="shrink-0" /> <span className="truncate">{m.user.email}</span>
                       </p>

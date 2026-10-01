@@ -21,7 +21,8 @@ import {
   TextField,
   useToast,
 } from '@schovexa/ui';
-import { BookOpen, CalendarDays, ChevronDown, GraduationCap, Hash, Mail, Plus, SearchX, UserPlus2, Users, X } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowUpRight, BookOpen, CalendarDays, ChevronDown, GraduationCap, Hash, Mail, Plus, SearchX, UserPlus2, Users, X } from 'lucide-react';
 import { useMemberships } from '../../../../hooks/useMemberships';
 import { useTeachers, TEACHERS_QUERY_KEY, useTeacherAssignments, teacherAssignmentsQueryKey } from '../../../../hooks/useTeachers';
 import { useClasses } from '../../../../hooks/useClasses';
@@ -200,6 +201,11 @@ export default function TeachersPage() {
                   <div className="overflow-hidden">
                     {opened.has(teacher.id) && (
                       <div className="border-t border-slate-100 bg-slate-50/60 p-4 sm:p-5">
+                        <div className="mb-4 flex justify-end">
+                          <Link href={`/dashboard/teachers/${teacher.id}`} className="group/link inline-flex items-center gap-1.5 text-sm font-semibold text-brand-blue hover:underline">
+                            Open full profile <ArrowUpRight size={15} className="transition-transform group-hover/link:-translate-y-0.5 group-hover/link:translate-x-0.5" />
+                          </Link>
+                        </div>
                         <AssignmentsPanel teacherId={teacher.id} />
                       </div>
                     )}
