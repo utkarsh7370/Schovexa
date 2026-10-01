@@ -8,6 +8,7 @@ export interface StudentReportFilters {
   classId?: string;
   sectionId?: string;
   status?: string;
+  schoolDay?: string;
   search?: string;
 }
 
@@ -26,6 +27,7 @@ export interface FeeReportFilters {
   search?: string;
 }
 
+const SCHOOL_DAYS = ['FULL_DAY', 'FIRST_HALF', 'SECOND_HALF'];
 const FEE_STATUSES = ['PENDING', 'PARTIALLY_PAID', 'PAID', 'WAIVED'];
 
 // Every whitespace-separated word must match at least one of the given
@@ -58,7 +60,7 @@ export class ReportsService {
 
   private buildStudentWhere(
     schoolId: string,
-    filters: { classId?: string; sectionId?: string; status?: string; search?: string },
+    filters: { classId?: string; sectionId?: string; status?: string; schoolDay?: string; search?: string },
   ): Prisma.StudentWhereInput {
     const words = wordsOf(filters.search);
     return {
@@ -73,6 +75,7 @@ export class ReportsService {
           }
         : {}),
       ...(filters.status ? { status: filters.status as never } : {}),
+      ...(filters.schoolDay && SCHOOL_DAYS.includes(filters.schoolDay) ? { schoolDay: filters.schoolDay as never } : {}),
       ...(filters.sectionId
         ? { sectionId: filters.sectionId }
         : filters.classId
@@ -88,6 +91,7 @@ export class ReportsService {
       firstName: student.firstName,
       lastName: student.lastName,
       status: student.status,
+      schoolDay: student.schoolDay,
       gender: student.gender,
       className: student.section?.class.name ?? null,
       sectionName: student.section?.name ?? null,
@@ -153,6 +157,7 @@ export class ReportsService {
         lastName: student.lastName,
         className: student.section?.class.name ?? null,
         sectionName: student.section?.name ?? null,
+        schoolDay: student.schoolDay,
         ...counts,
         totalMarked,
         attendancePercent: totalMarked > 0 ? Math.round((counts.present / totalMarked) * 1000) / 10 : null,

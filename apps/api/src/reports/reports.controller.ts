@@ -34,13 +34,14 @@ export class ReportsController {
     @Query('classId') classId: string | undefined,
     @Query('sectionId') sectionId: string | undefined,
     @Query('status') status: string | undefined,
+    @Query('schoolDay') schoolDay: string | undefined,
     @Query('search') search: string | undefined,
     @Query('page') page: string | undefined,
     @Query('pageSize') pageSize: string | undefined,
     @CurrentAuthContext() auth: AuthContext,
   ) {
     const { page: p, pageSize: ps } = parsePagination(page, pageSize);
-    return this.reportsService.studentsReport(auth, { classId, sectionId, status, search }, p, ps);
+    return this.reportsService.studentsReport(auth, { classId, sectionId, status, schoolDay, search }, p, ps);
   }
 
   @Get('students/export')
@@ -49,17 +50,19 @@ export class ReportsController {
     @Query('classId') classId: string | undefined,
     @Query('sectionId') sectionId: string | undefined,
     @Query('status') status: string | undefined,
+    @Query('schoolDay') schoolDay: string | undefined,
     @Query('search') search: string | undefined,
     @CurrentAuthContext() auth: AuthContext,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
-    const rows = await this.reportsService.studentsReportRows(auth, { classId, sectionId, status, search });
+    const rows = await this.reportsService.studentsReportRows(auth, { classId, sectionId, status, schoolDay, search });
     const csv = toCsv(rows, [
       { key: 'admissionNo', header: 'Admission No' },
       { key: 'firstName', header: 'First Name' },
       { key: 'lastName', header: 'Last Name' },
       { key: 'status', header: 'Status' },
       { key: 'gender', header: 'Gender' },
+      { key: 'schoolDay', header: 'School Day' },
       { key: 'className', header: 'Class' },
       { key: 'sectionName', header: 'Section' },
     ]);

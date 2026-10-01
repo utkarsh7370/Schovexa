@@ -16,7 +16,7 @@ import {
   TextField,
   type BadgeTone,
 } from '@schovexa/ui';
-import { BadgeIndianRupee, BarChart3, CalendarCheck, Download, FileSpreadsheet, HandCoins, IdCard, Layers, Percent, School, Shapes, Tag, Users, Wallet } from 'lucide-react';
+import { BadgeIndianRupee, BarChart3, CalendarCheck, Download, FileSpreadsheet, HandCoins, IdCard, Layers, Percent, School, Shapes, Sunrise, Tag, Users, Wallet } from 'lucide-react';
 import { useClasses } from '../../../../hooks/useClasses';
 import { useSections } from '../../../../hooks/useSections';
 import { useFeeCategories } from '../../../../hooks/useFees';
@@ -25,6 +25,8 @@ import { useStudentReport, useAttendanceReport, useFeeReport } from '../../../..
 import { formatMinor } from '../../../../lib/currency';
 import { downloadLinkClass, TABLE } from '../../../../lib/table-styles';
 import { STUDENT_STATUS_LABELS, STUDENT_STATUS_TONES } from '../../../../components/student-card';
+import { SchoolDayBadge } from '../../../../components/school-day-badge';
+import { SCHOOL_DAY_OPTIONS, isHalfDay } from '../../../../lib/school-day';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
 const PAGE_SIZES = [10, 20, 50];
@@ -113,11 +115,12 @@ function StudentsReportPanel() {
   const [classId, setClassId] = useState('');
   const [sectionId, setSectionId] = useState('');
   const [status, setStatus] = useState('');
+  const [schoolDay, setSchoolDay] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZES[1]);
   const debouncedSearch = useDebouncedValue(search.trim());
   const { data: sections } = useSections(classId || undefined);
-  const filters = { classId: classId || undefined, sectionId: sectionId || undefined, status: status || undefined, search: debouncedSearch || undefined };
+  const filters = { classId: classId || undefined, sectionId: sectionId || undefined, status: status || undefined, schoolDay: schoolDay || undefined, search: debouncedSearch || undefined };
   const { data, isLoading, isFetching, isError } = useStudentReport(filters, page, pageSize);
 
   useEffect(() => setPage(1), [debouncedSearch]);
@@ -128,7 +131,7 @@ function StudentsReportPanel() {
       filters={
         <>
           <SearchInput value={search} onChange={setSearch} busy={isFetching && !isLoading} placeholder="Search by student name or admission number…" aria-label="Search students" />
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <SelectField fieldSize="sm" aria-label="Filter by class" leftIcon={<School size={16} />} value={classId} onChange={(e) => { setClassId(e.target.value); setSectionId(''); setPage(1); }}>
               <option value="">All classes</option>
               {classes?.map((c) => (
@@ -145,6 +148,12 @@ function StudentsReportPanel() {
               <option value="">Any status</option>
               {Object.entries(STUDENT_STATUS_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>{label}</option>
+              ))}
+            </SelectField>
+            <SelectField fieldSize="sm" aria-label="Filter by school day" leftIcon={<Sunrise size={16} />} value={schoolDay} onChange={(e) => { setSchoolDay(e.target.value); setPage(1); }}>
+              <option value="">Any school day</option>
+              {SCHOOL_DAY_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </SelectField>
           </div>
@@ -164,6 +173,7 @@ function StudentsReportPanel() {
                   <th className={TABLE.th}>Admission no.</th>
                   <th className={TABLE.th}>Class</th>
                   <th className={TABLE.th}>Section</th>
+                  <th className={TABLE.th}>School day</th>
                   <th className={TABLE.th}>Status</th>
                 </tr>
               </thead>
@@ -179,6 +189,7 @@ function StudentsReportPanel() {
                     <td className={TABLE.td}><span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-slate-600">{row.admissionNo}</span></td>
                     <td className={`${TABLE.td} text-slate-600`}>{row.className ?? '—'}</td>
                     <td className={`${TABLE.td} text-slate-600`}>{row.sectionName ?? '—'}</td>
+                    <td className={TABLE.td}>{isHalfDay(row.schoolDay) ? <SchoolDayBadge value={row.schoolDay} /> : <span className="text-slate-400">Full day</span>}</td>
                     <td className={TABLE.td}>
                       <Badge tone={STUDENT_STATUS_TONES[row.status] ?? 'neutral'} dot>{STUDENT_STATUS_LABELS[row.status] ?? row.status}</Badge>
                     </td>

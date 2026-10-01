@@ -142,6 +142,15 @@ enum StaffAttendanceSource {
   BIOMETRIC
 }
 
+// Which part of the school day a student attends. Most students are
+// FULL_DAY; some attend only the morning (FIRST_HALF) or afternoon
+// (SECOND_HALF). Shown as a highlight wherever students appear.
+enum StudentSchoolDay {
+  FULL_DAY
+  FIRST_HALF
+  SECOND_HALF
+}
+
 enum HolidayType {
   NATIONAL
   FESTIVAL
@@ -548,6 +557,7 @@ model Student {
   gender      String?
   sectionId   String?
   status      StudentStatus @default(ENROLLED)
+  schoolDay   StudentSchoolDay @default(FULL_DAY)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   deletedAt   DateTime?

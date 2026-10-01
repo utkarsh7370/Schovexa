@@ -1,5 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api-client';
+import type { SchoolDay } from '../lib/school-day';
 
 export interface PaginationMeta {
   page: number;
@@ -14,6 +15,7 @@ export interface StudentReportRow {
   firstName: string;
   lastName: string;
   status: string;
+  schoolDay: SchoolDay;
   gender: string | null;
   className: string | null;
   sectionName: string | null;
@@ -26,6 +28,7 @@ export interface AttendanceReportRow {
   lastName: string;
   className: string | null;
   sectionName: string | null;
+  schoolDay: SchoolDay;
   present: number;
   absent: number;
   late: number;
@@ -68,7 +71,7 @@ function buildQuery(params: Record<string, string | number | undefined>): string
 }
 
 export function useStudentReport(
-  filters: { classId?: string; sectionId?: string; status?: string; search?: string },
+  filters: { classId?: string; sectionId?: string; status?: string; schoolDay?: string; search?: string },
   page: number,
   pageSize = 20,
 ) {

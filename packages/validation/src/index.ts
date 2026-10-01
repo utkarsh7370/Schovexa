@@ -243,6 +243,11 @@ export type CreateTeacherAssignmentInput = z.infer<typeof createTeacherAssignmen
 
 const studentStatusSchema = z.enum(['ENROLLED', 'TRANSFERRED', 'GRADUATED', 'WITHDRAWN']);
 
+// Which part of the school day a student attends (see StudentSchoolDay in the DB).
+export const STUDENT_SCHOOL_DAYS = ['FULL_DAY', 'FIRST_HALF', 'SECOND_HALF'] as const;
+export type StudentSchoolDay = (typeof STUDENT_SCHOOL_DAYS)[number];
+const studentSchoolDaySchema = z.enum(STUDENT_SCHOOL_DAYS);
+
 export const createStudentSchema = z.object({
   admissionNo: z.string().min(1, 'Admission number is required'),
   firstName: z.string().min(1, 'First name is required'),
@@ -250,6 +255,7 @@ export const createStudentSchema = z.object({
   dateOfBirth: z.union([z.literal(''), z.string()]).optional(),
   gender: z.string().optional(),
   sectionId: z.union([z.literal(''), z.string()]).optional(),
+  schoolDay: studentSchoolDaySchema.optional(),
 });
 export type CreateStudentInput = z.infer<typeof createStudentSchema>;
 
@@ -260,6 +266,7 @@ export const updateStudentSchema = z.object({
   gender: z.string().optional(),
   sectionId: z.union([z.literal(''), z.string()]).optional(),
   status: studentStatusSchema.optional(),
+  schoolDay: studentSchoolDaySchema.optional(),
 });
 export type UpdateStudentInput = z.infer<typeof updateStudentSchema>;
 

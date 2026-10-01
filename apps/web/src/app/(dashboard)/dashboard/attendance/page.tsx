@@ -22,6 +22,8 @@ import { useClasses } from '../../../../hooks/useClasses';
 import { useSections } from '../../../../hooks/useSections';
 import { useAttendanceRoster, useAttendanceSummary, useAttendanceToday, rosterQueryKey, type AttendanceStatus } from '../../../../hooks/useAttendance';
 import { api, ApiError } from '../../../../lib/api-client';
+import { SchoolDayBadge } from '../../../../components/school-day-badge';
+import { isHalfDay } from '../../../../lib/school-day';
 
 const STATUSES: { value: AttendanceStatus; label: string; short: string; icon: typeof CircleCheck; active: string; text: string; dot: string }[] = [
   { value: 'PRESENT', label: 'Present', short: 'P', icon: CircleCheck, active: 'border-emerald-500 bg-emerald-500 text-white shadow-[0_6px_16px_-6px_rgba(16,185,129,0.7)]', text: 'text-emerald-600', dot: 'bg-emerald-500' },
@@ -307,6 +309,17 @@ function MarkingPanel({ sectionId, date, title, locked }: { sectionId: string; d
           </div>
         </div>
 
+        {roster && roster.some((r) => isHalfDay(r.schoolDay)) && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-5 py-2.5 text-xs text-slate-600 sm:px-6">
+            <span className="font-semibold text-navy">Half-day students in this section:</span>
+            {(['FIRST_HALF', 'SECOND_HALF'] as const).map((day) => {
+              const n = roster.filter((r) => r.schoolDay === day).length;
+              return n > 0 ? <SchoolDayBadge key={day} value={day} className="!text-[11px]" /> : null;
+            })}
+            <span className="text-slate-400">— look for the coloured rows.</span>
+          </div>
+        )}
+
         {serverError && (
           <div className="px-5 pt-4 sm:px-6">
             <Alert variant="error">{serverError}</Alert>
@@ -318,12 +331,21 @@ function MarkingPanel({ sectionId, date, title, locked }: { sectionId: string; d
             const entry = entries[student.studentId];
             const name = `${student.firstName} ${student.lastName}`;
             return (
-              <li key={student.studentId} className="flex flex-col gap-3 px-5 py-3.5 transition-colors hover:bg-slate-50/70 sm:flex-row sm:items-center sm:px-6">
+              <li
+                key={student.studentId}
+                className={[
+                  'flex flex-col gap-3 border-l-4 px-5 py-3.5 transition-colors hover:bg-slate-50/70 sm:flex-row sm:items-center sm:px-6',
+                  isHalfDay(student.schoolDay) ? (student.schoolDay === 'FIRST_HALF' ? 'border-amber-300 bg-amber-50/40' : 'border-indigo-300 bg-indigo-50/40') : 'border-transparent',
+                ].join(' ')}
+              >
                 <div className="flex min-w-0 items-center gap-3 sm:w-64 sm:shrink-0">
                   <Avatar name={name} tone="auto" size={40} />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-bold text-navy">{name}</p>
-                    <p className="font-mono text-[11px] font-semibold text-slate-400">{student.admissionNo}</p>
+                    <p className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-mono text-[11px] font-semibold text-slate-400">{student.admissionNo}</span>
+                      <SchoolDayBadge value={student.schoolDay} className="!px-2 !py-0.5 !text-[10px]" />
+                    </p>
                   </div>
                 </div>
 
@@ -481,7 +503,10 @@ function SummaryPanel({ sectionId, today }: { sectionId: string; today: string }
                       <Avatar name={name} tone="auto" size={30} />
                       <div className="min-w-0">
                         <p className="truncate font-semibold text-navy">{name}</p>
-                        <p className="font-mono text-[11px] text-slate-400">{row.admissionNo}</p>
+                        <p className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-mono text-[11px] text-slate-400">{row.admissionNo}</span>
+                          <SchoolDayBadge value={row.schoolDay} className="!px-2 !py-0.5 !text-[10px]" />
+                        </p>
                       </div>
                     </div>
                   </td>

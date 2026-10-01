@@ -41,7 +41,7 @@ import {
   Users,
   Wallet,
 } from 'lucide-react';
-import { useStudent, studentQueryKey, type StudentDetail, type StudentStatus } from '../../../../../hooks/useStudents';
+import { useStudent, studentQueryKey, STUDENTS_QUERY_KEY, type StudentDetail, type StudentStatus } from '../../../../../hooks/useStudents';
 import { useParents } from '../../../../../hooks/useParents';
 import { useStudentDocuments, studentDocumentsQueryKey } from '../../../../../hooks/useDocuments';
 import { useAttendanceHistory, type AttendanceStatus } from '../../../../../hooks/useAttendance';
@@ -52,6 +52,9 @@ import { ProfileHero } from '../../../../../components/profile-hero';
 import { ForbiddenState, NotFoundState } from '../../../../../components/error-state';
 import { SectionCard } from '../../../../../components/section-card';
 import { ageFromDob, STUDENT_STATUS_LABELS, STUDENT_STATUS_TONES } from '../../../../../components/student-card';
+import { SchoolDayBadge } from '../../../../../components/school-day-badge';
+import { useCan } from '../../../../../hooks/useCan';
+import { SCHOOL_DAY_OPTIONS, schoolDayMeta, type SchoolDay } from '../../../../../lib/school-day';
 
 const STATUS_OPTIONS: StudentStatus[] = ['ENROLLED', 'TRANSFERRED', 'GRADUATED', 'WITHDRAWN'];
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
@@ -89,6 +92,21 @@ export default function StudentDetailPage() {
     return { counts, total, rate };
   }, [history]);
   const balanceMinor = (fees ?? []).reduce((sum, f) => sum + f.balanceMinor, 0);
+
+  const { can } = useCan();
+  const setSchoolDay = async (schoolDay: SchoolDay) => {
+    setBusy(true);
+    try {
+      await api.patch(`/students/${id}`, { schoolDay });
+      await queryClient.invalidateQueries({ queryKey: studentQueryKey(id) });
+      await queryClient.invalidateQueries({ queryKey: STUDENTS_QUERY_KEY });
+      toast.show({ tone: 'success', title: `Now attends: ${schoolDayMeta(schoolDay).label.toLowerCase()}` });
+    } catch (err) {
+      toast.show({ tone: 'error', title: 'Could not update the school day', description: err instanceof ApiError ? err.message : undefined });
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const setStatus = async (status: StudentStatus) => {
     setBusy(true);
@@ -152,12 +170,33 @@ export default function StudentDetailPage() {
           </span>
         }
         badges={
-          <Badge tone={STUDENT_STATUS_TONES[student.status] ?? 'neutral'} dot className="bg-white/95">
-            {STUDENT_STATUS_LABELS[student.status] ?? student.status}
-          </Badge>
+          <>
+            <Badge tone={STUDENT_STATUS_TONES[student.status] ?? 'neutral'} dot className="bg-white/95">
+              {STUDENT_STATUS_LABELS[student.status] ?? student.status}
+            </Badge>
+            <SchoolDayBadge value={student.schoolDay} className="!px-3 !py-1 shadow-card" />
+          </>
         }
         chips={chips}
         actions={
+          <div className="flex flex-wrap gap-2">
+          {can('student.update') && (
+            <div className="w-44">
+              <SelectField
+                fieldSize="sm"
+                aria-label="Change school day"
+                value={student.schoolDay}
+                disabled={busy}
+                onChange={(e) => setSchoolDay(e.target.value as SchoolDay)}
+              >
+                {SCHOOL_DAY_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </SelectField>
+            </div>
+          )}
           <div className="w-44">
             <SelectField
               fieldSize="sm"
@@ -172,6 +211,7 @@ export default function StudentDetailPage() {
                 </option>
               ))}
             </SelectField>
+          </div>
           </div>
         }
       />

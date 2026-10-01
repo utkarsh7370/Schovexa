@@ -12,6 +12,7 @@ import { MAX_PAGE_SIZE, StudentsService, type StudentListFilters } from './stude
 import type { AuthContext } from '../authorization/authorization.types';
 
 const STUDENT_STATUSES = ['ENROLLED', 'TRANSFERRED', 'GRADUATED', 'WITHDRAWN'];
+const SCHOOL_DAYS = ['FULL_DAY', 'FIRST_HALF', 'SECOND_HALF'];
 
 // Query strings arrive as untrusted text: clamp numbers, cap the search
 // length, and whitelist the status so nothing odd reaches Prisma.
@@ -29,6 +30,10 @@ function parseListQuery(query: Record<string, string | undefined>): StudentListF
   if (status && !STUDENT_STATUSES.includes(status)) {
     throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Unknown status.' });
   }
+  const schoolDay = text(query.schoolDay);
+  if (schoolDay && !SCHOOL_DAYS.includes(schoolDay)) {
+    throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Unknown school day.' });
+  }
   const pageSize = positiveInt(query.pageSize);
   const page = positiveInt(query.page) ?? (pageSize !== undefined ? 1 : undefined);
   return {
@@ -36,6 +41,7 @@ function parseListQuery(query: Record<string, string | undefined>): StudentListF
     classId: text(query.classId),
     classTeacherId: text(query.classTeacherId),
     status,
+    schoolDay,
     search: text(query.search)?.slice(0, 80),
     page,
     pageSize: pageSize === undefined ? undefined : Math.min(pageSize, MAX_PAGE_SIZE),

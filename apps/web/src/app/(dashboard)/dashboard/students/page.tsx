@@ -19,13 +19,14 @@ import {
   TextField,
   useToast,
 } from '@schovexa/ui';
-import { FilterX, GraduationCap, School, SearchX, Shapes, UserPlus2, Users, X } from 'lucide-react';
+import { FilterX, GraduationCap, School, SearchX, Shapes, Sunrise, UserPlus2, Users, X } from 'lucide-react';
 import { useStudentsPage, STUDENTS_QUERY_KEY } from '../../../../hooks/useStudents';
 import { useClasses } from '../../../../hooks/useClasses';
 import { useSections } from '../../../../hooks/useSections';
 import { useTeachers } from '../../../../hooks/useTeachers';
 import { api, ApiError } from '../../../../lib/api-client';
 import { StudentCard, StudentCardSkeleton, STUDENT_STATUS_LABELS } from '../../../../components/student-card';
+import { SCHOOL_DAY_OPTIONS, schoolDayMeta, type SchoolDay } from '../../../../lib/school-day';
 
 // sectionId is chosen via a class -> section cascade in this form, but
 // the API only takes a flat sectionId — this local schema mirrors the
@@ -52,6 +53,7 @@ function StudentsView() {
   const sectionId = searchParams.get('sectionId') ?? '';
   const classTeacherId = searchParams.get('classTeacherId') ?? '';
   const status = searchParams.get('status') ?? '';
+  const schoolDay = searchParams.get('schoolDay') ?? '';
   const pageSize = PAGE_SIZES.includes(Number(searchParams.get('size'))) ? Number(searchParams.get('size')) : PAGE_SIZES[0];
   const page = Math.max(1, Number(searchParams.get('page')) || 1);
 
@@ -92,6 +94,7 @@ function StudentsView() {
     sectionId: sectionId || undefined,
     classTeacherId: classTeacherId || undefined,
     status: status || undefined,
+    schoolDay: schoolDay || undefined,
   });
   const { data: classes } = useClasses();
   const { data: sections } = useSections(classId || undefined);
@@ -117,6 +120,7 @@ function StudentsView() {
       clear: () => update({ classTeacherId: undefined }),
     },
     status && { key: 'status', label: STUDENT_STATUS_LABELS[status] ?? status, clear: () => update({ status: undefined }) },
+    schoolDay && { key: 'schoolDay', label: schoolDayMeta(schoolDay as SchoolDay).label, clear: () => update({ schoolDay: undefined }) },
   ].filter(Boolean) as { key: string; label: string; clear: () => void }[];
 
   const clearAll = () => {
@@ -136,13 +140,13 @@ function StudentsView() {
     reset,
     setValue,
     formState: { errors, isSubmitting },
-  } = useForm<StudentFormInput>({ resolver: zodResolver(studentFormSchema) });
+  } = useForm<StudentFormInput>({ resolver: zodResolver(studentFormSchema), defaultValues: { schoolDay: 'FULL_DAY' } });
 
   const closeForm = () => {
     setCreating(false);
     setFormClassId('');
     setServerError(null);
-    reset();
+    reset({ schoolDay: 'FULL_DAY' });
   };
 
   const onCreate = async (values: StudentFormInput) => {
@@ -251,6 +255,20 @@ function StudentsView() {
             {Object.entries(STUDENT_STATUS_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
+              </option>
+            ))}
+          </SelectField>
+          <SelectField
+            fieldSize="sm"
+            aria-label="Filter by school day"
+            leftIcon={<Sunrise size={16} />}
+            value={schoolDay}
+            onChange={(e) => update({ schoolDay: e.target.value || undefined })}
+          >
+            <option value="">Any school day</option>
+            {SCHOOL_DAY_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
               </option>
             ))}
           </SelectField>
@@ -378,6 +396,19 @@ function StudentsView() {
             <TextField label="Last name" error={errors.lastName?.message} {...register('lastName')} />
           </div>
           <TextField label="Date of birth" type="date" helperText="Optional." error={errors.dateOfBirth?.message} {...register('dateOfBirth')} />
+          <SelectField
+            label="School day"
+            leftIcon={<Sunrise size={16} />}
+            helperText="Choose a half day if this student attends only the morning or only the afternoon."
+            error={errors.schoolDay?.message}
+            {...register('schoolDay')}
+          >
+            {SCHOOL_DAY_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </SelectField>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <SelectField
               label="Class"

@@ -12,6 +12,7 @@ export interface StudentListFilters {
   classId?: string;
   classTeacherId?: string;
   status?: string;
+  schoolDay?: string;
   search?: string;
   // Pagination is opt-in: without `page` the list stays the plain array
   // other screens (dashboard count, my-children, attendance) rely on.
@@ -41,6 +42,7 @@ export class StudentsService {
       deletedAt: null,
       ...scopeFilter,
       ...(filters.status ? { status: filters.status as never } : {}),
+      ...(filters.schoolDay ? { schoolDay: filters.schoolDay as never } : {}),
       ...(filters.sectionId ? { sectionId: filters.sectionId } : {}),
       ...this.buildSectionFilters(filters),
       ...this.buildSearchFilter(filters.search),
@@ -181,6 +183,7 @@ export class StudentsService {
         dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : null,
         gender: input.gender || null,
         sectionId,
+        ...(input.schoolDay ? { schoolDay: input.schoolDay } : {}),
       },
     });
   }
@@ -217,6 +220,7 @@ export class StudentsService {
     if (input.gender !== undefined) data.gender = input.gender || null;
     if (input.sectionId !== undefined) data.sectionId = await this.resolveSectionId(schoolId, input.sectionId);
     if (input.status !== undefined) data.status = input.status;
+    if (input.schoolDay !== undefined) data.schoolDay = input.schoolDay;
 
     return this.prisma.student.update({ where: { id: studentId }, data });
   }

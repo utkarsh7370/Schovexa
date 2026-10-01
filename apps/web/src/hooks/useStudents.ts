@@ -1,5 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api-client';
+import type { SchoolDay } from '../lib/school-day';
 
 export type StudentStatus = 'ENROLLED' | 'TRANSFERRED' | 'GRADUATED' | 'WITHDRAWN';
 
@@ -12,6 +13,7 @@ export interface Student {
   gender: string | null;
   sectionId: string | null;
   status: StudentStatus;
+  schoolDay: SchoolDay;
 }
 
 // Row shape of the paginated list: the base student plus their section,
@@ -33,6 +35,7 @@ export interface StudentListParams {
   sectionId?: string;
   classTeacherId?: string;
   status?: string;
+  schoolDay?: string;
 }
 
 export interface StudentPage {

@@ -86,6 +86,7 @@ export class AttendanceService {
         admissionNo: student.admissionNo,
         firstName: student.firstName,
         lastName: student.lastName,
+        schoolDay: student.schoolDay,
         attendanceId: record?.id ?? null,
         status: record?.status ?? null,
         remarks: record?.remarks ?? null,
@@ -142,6 +143,7 @@ export class AttendanceService {
         admissionNo: student.admissionNo,
         firstName: student.firstName,
         lastName: student.lastName,
+        schoolDay: student.schoolDay,
         ...counts,
         total: studentRecords.length,
       };

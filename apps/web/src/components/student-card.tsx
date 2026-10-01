@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { Avatar, Badge, Skeleton, type BadgeTone } from '@schovexa/ui';
 import { ArrowUpRight, Cake, GraduationCap, School } from 'lucide-react';
 import type { StudentListItem } from '../hooks/useStudents';
+import { SCHOOL_DAY_STYLE, isHalfDay } from '../lib/school-day';
+import { SchoolDayBadge } from './school-day-badge';
 
 export const STUDENT_STATUS_LABELS: Record<string, string> = {
   ENROLLED: 'Enrolled',
@@ -52,7 +54,7 @@ export function StudentCard({ student, index = 0 }: { student: StudentListItem; 
       style={{ animationDelay: `${Math.min(index, 12) * 45}ms` }}
     >
       <article className="relative h-full overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-card transition-all duration-300 group-hover:-translate-y-1 group-hover:border-brand-blue/30 group-hover:shadow-elevated">
-        <div className={['h-1.5 bg-gradient-to-r', STATUS_BAR[student.status] ?? STATUS_BAR.WITHDRAWN].join(' ')} />
+        <div className={['h-1.5 bg-gradient-to-r', isHalfDay(student.schoolDay) ? SCHOOL_DAY_STYLE[student.schoolDay].bar : STATUS_BAR[student.status] ?? STATUS_BAR.WITHDRAWN].join(' ')} />
         <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-brand-gradient-soft opacity-0 blur-2xl transition-opacity duration-500 group-hover:opacity-100" />
 
         <div className="relative p-5">
@@ -94,6 +96,7 @@ export function StudentCard({ student, index = 0 }: { student: StudentListItem; 
 
           <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-3.5">
             <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+              <SchoolDayBadge value={student.schoolDay} />
               {student.gender && <span className="rounded-full bg-slate-100 px-2 py-0.5 capitalize">{student.gender.toLowerCase()}</span>}
               {age !== null && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5">
