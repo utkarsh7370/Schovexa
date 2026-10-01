@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "School" ADD COLUMN "staffPunchInTime" TEXT NOT NULL DEFAULT '09:00',
+ADD COLUMN "staffPunchOutTime" TEXT NOT NULL DEFAULT '16:00',
+ADD COLUMN "staffLateGraceMinutes" INTEGER NOT NULL DEFAULT 10;

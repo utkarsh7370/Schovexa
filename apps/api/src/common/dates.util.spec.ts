@@ -1,4 +1,4 @@
-import { dateOnlyToIso, todayInTimezone } from './dates.util';
+import { dateOnlyToIso, hmToMinutes, minutesOfDayInTimezone, todayInTimezone } from './dates.util';
 
 describe('todayInTimezone', () => {
   // 2026-10-01 20:00 UTC — still the 1st in London/UTC, already the 2nd in Kolkata (01:30 IST) and Auckland.
@@ -26,5 +26,31 @@ describe('todayInTimezone', () => {
 describe('dateOnlyToIso', () => {
   it('formats a UTC-midnight DATE value', () => {
     expect(dateOnlyToIso(new Date('2026-04-01T00:00:00.000Z'))).toBe('2026-04-01');
+  });
+});
+
+describe('minutesOfDayInTimezone', () => {
+  const instant = new Date('2026-10-01T20:00:00Z');
+
+  it('reads the clock in the given zone', () => {
+    expect(minutesOfDayInTimezone('UTC', instant)).toBe(20 * 60);
+    expect(minutesOfDayInTimezone('Asia/Kolkata', instant)).toBe(1 * 60 + 30); // 01:30 the next day
+    expect(minutesOfDayInTimezone('America/New_York', instant)).toBe(16 * 60); // EDT, 16:00
+  });
+
+  it('treats midnight as 0, not 24', () => {
+    expect(minutesOfDayInTimezone('UTC', new Date('2026-10-01T00:05:00Z'))).toBe(5);
+  });
+
+  it('falls back instead of throwing for an unknown zone', () => {
+    expect(minutesOfDayInTimezone('Mars/Olympus', instant)).toBe(1 * 60 + 30);
+  });
+});
+
+describe('hmToMinutes', () => {
+  it('converts HH:mm', () => {
+    expect(hmToMinutes('09:30')).toBe(570);
+    expect(hmToMinutes('00:00')).toBe(0);
+    expect(hmToMinutes('23:59')).toBe(1439);
   });
 });

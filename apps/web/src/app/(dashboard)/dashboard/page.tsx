@@ -31,6 +31,8 @@ import { CountUp } from '../../../components/count-up';
 import { NoticeCard, useNoticeViewer } from '../../../components/notice-card';
 import { NextHolidayCard } from '../../../components/next-holiday';
 import { AcademicYearAttention } from '../../../components/academic-year-attention';
+import { StaffAttendanceAttention } from '../../../components/staff-attendance-attention';
+import { PunchCard } from '../../../components/punch-card';
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -77,7 +79,8 @@ export default function DashboardHomePage() {
   const recentNotices = publishedNotices.slice(0, 3);
 
   const firstName = me?.firstName ?? '';
-  const today = new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+  // The school's own calendar day, not this browser's — they differ across time zones.
+  const today = new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', timeZone: school?.timezone });
 
   const hero = (
     <div className="relative overflow-hidden rounded-3xl bg-brand-gradient-dark p-7 text-white shadow-elevated sm:p-9">
@@ -274,7 +277,9 @@ export default function DashboardHomePage() {
   return (
     <div className="mx-auto max-w-6xl">
       {hero}
+      <PunchCard compact className="mt-6" />
       <AcademicYearAttention />
+      <StaffAttendanceAttention />
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s, i) => (

@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { updateSchoolSchema, type UpdateSchoolInput } from '@schovexa/validation';
 import { Alert, Avatar, Badge, Button, PageHeader, SelectField, Skeleton, TextField, useToast } from '@schovexa/ui';
-import { Building2, Clock, Coins, Globe, Lock, Mail, MapPin, Phone, Save, Undo2, CalendarDays } from 'lucide-react';
+import { Building2, Clock, Coins, Globe, Hourglass, Lock, LogIn, LogOut, Mail, MapPin, Phone, Save, Timer, Undo2, CalendarDays } from 'lucide-react';
 import { useState } from 'react';
 import { useCurrentSchool, CURRENT_SCHOOL_QUERY_KEY, type School } from '../../../../hooks/useCurrentSchool';
 import { CURRENT_USER_QUERY_KEY } from '../../../../hooks/useCurrentUser';
@@ -91,6 +91,9 @@ function SettingsForm({ school }: { school: School }) {
       country: school.country,
       currency: school.currency,
       dateFormat: school.dateFormat,
+      staffPunchInTime: school.staffPunchInTime,
+      staffPunchOutTime: school.staffPunchOutTime,
+      staffLateGraceMinutes: school.staffLateGraceMinutes,
     }),
     [school],
   );
@@ -207,6 +210,27 @@ function SettingsForm({ school }: { school: School }) {
               ))}
             </SelectField>
           </div>
+        </SettingsSection>
+
+        <SettingsSection icon={<Timer size={18} />} title="Staff working hours" description="When teachers and staff are expected to punch in and out. Used to flag late arrivals and early departures.">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <TextField label="Punch-in time" type="time" leftIcon={<LogIn size={16} />} error={errors.staffPunchInTime?.message} {...register('staffPunchInTime')} />
+            <TextField label="Punch-out time" type="time" leftIcon={<LogOut size={16} />} error={errors.staffPunchOutTime?.message} {...register('staffPunchOutTime')} />
+            <TextField
+              label="Grace period (minutes)"
+              type="number"
+              min={0}
+              max={120}
+              leftIcon={<Hourglass size={16} />}
+              helperText="Punching in this long after the start time is still on time."
+              error={errors.staffLateGraceMinutes?.message}
+              {...register('staffLateGraceMinutes')}
+            />
+          </div>
+          <p className="flex items-start gap-2 rounded-xl bg-slate-50 p-3 text-xs text-slate-500">
+            <Clock size={14} className="mt-0.5 shrink-0 text-slate-400" />
+            Times are in your school’s time zone ({school.timezone.replace(/_/g, ' ')}). Staff who punch in after the grace period are marked late.
+          </p>
         </SettingsSection>
       </fieldset>
 

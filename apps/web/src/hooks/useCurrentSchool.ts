@@ -13,6 +13,9 @@ export interface School {
   country: string;
   currency: string;
   dateFormat: string;
+  staffPunchInTime: string;
+  staffPunchOutTime: string;
+  staffLateGraceMinutes: number;
 }
 
 export const CURRENT_SCHOOL_QUERY_KEY = ['schools', 'me'];

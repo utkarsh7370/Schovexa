@@ -127,6 +127,21 @@ enum AcademicYearReviewAction {
   EXPIRED
 }
 
+// Staff (teacher) attendance: a person punches in/out for themselves and a
+// Principal or Director approves the day. BIOMETRIC is reserved for the
+// device integration planned next — a record from a device is trusted, so
+// it won't need approval.
+enum StaffAttendanceApproval {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum StaffAttendanceSource {
+  SELF
+  BIOMETRIC
+}
+
 enum HolidayType {
   NATIONAL
   FESTIVAL
@@ -196,6 +211,7 @@ model User {
   notifications Notification[]
   noticeReads NoticeRead[]
   documentsUploaded Document[]
+  staffAttendance   StaffAttendance[]
   sessions    Session[]
   authTokens  AuthToken[]
 
@@ -257,6 +273,12 @@ model School {
   country      String       @default("IN")
   currency     String       @default("INR")
   dateFormat   String       @default("DD/MM/YYYY")
+  // When staff are expected to punch in and out (24-hour HH:mm, in the
+  // school's own time zone). Punching in later than the in-time plus the
+  // grace period counts as late.
+  staffPunchInTime      String @default("09:00")
+  staffPunchOutTime     String @default("16:00")
+  staffLateGraceMinutes Int    @default(10)
   status       SchoolStatus @default(ACTIVE)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
@@ -283,6 +305,7 @@ model School {
   notifications     Notification[]
   noticeReads       NoticeRead[]
   holidays          Holiday[]
+  staffAttendance   StaffAttendance[]
   documents         Document[]
   auditLogs         AuditLog[]
   subscription      Subscription?
@@ -894,4 +917,33 @@ model ContactMessage {
   createdAt    DateTime     @default(now())
 
   @@index([createdAt])
+}
+
+// One row per person per school day. `punchInAt` is the instant they marked
+// themselves present; `lateMinutes` is how far past the school's punch-in
+// time that was (0 when within the grace period), `earlyLeaveMinutes` the
+// same for leaving before the punch-out time.
+model StaffAttendance {
+  id                String                  @id @default(cuid())
+  schoolId          String
+  userId            String
+  date              DateTime                @db.Date
+  punchInAt         DateTime
+  punchOutAt        DateTime?
+  lateMinutes       Int                     @default(0)
+  earlyLeaveMinutes Int                     @default(0)
+  source            StaffAttendanceSource   @default(SELF)
+  approval          StaffAttendanceApproval @default(PENDING)
+  decidedById       String?
+  decidedAt         DateTime?
+  decisionNote      String?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([schoolId, userId, date])
+  @@index([schoolId, date])
+  @@index([schoolId, approval])
 }

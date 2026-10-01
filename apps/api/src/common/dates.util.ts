@@ -25,3 +25,22 @@ export const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 export function dateOnlyToIso(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
+
+/** Minutes since local midnight in the given zone (e.g. 09:30 → 570). */
+export function minutesOfDayInTimezone(timeZone: string | null | undefined, now: Date = new Date()): number {
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = new Intl.DateTimeFormat('en-GB', { timeZone: timeZone || FALLBACK_TIMEZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(now);
+  } catch {
+    parts = new Intl.DateTimeFormat('en-GB', { timeZone: FALLBACK_TIMEZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(now);
+  }
+  const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? 0);
+  const minute = Number(parts.find((p) => p.type === 'minute')?.value ?? 0);
+  return hour * 60 + minute;
+}
+
+/** "09:30" → 570. Expects the validated HH:mm shape. */
+export function hmToMinutes(hm: string): number {
+  const [h, m] = hm.split(':').map(Number);
+  return h * 60 + m;
+}

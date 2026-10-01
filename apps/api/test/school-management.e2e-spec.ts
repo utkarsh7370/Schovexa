@@ -114,6 +114,34 @@ describe('School Management (e2e)', () => {
       expect(school.body.timezone).toBe('America/New_York'); // unchanged by the rejected requests
     });
 
+    it('saves staff working hours and rejects nonsense times', async () => {
+      const { cookie } = await registerSchool('Hours School', 'hours1@example.test');
+      const patch = (body: object) => agent().patch('/api/v1/schools/me').set('Origin', WEB_ORIGIN).set('Cookie', cookie).send(body);
+
+      const before = await agent().get('/api/v1/schools/me').set('Cookie', cookie);
+      expect(before.body).toMatchObject({ staffPunchInTime: '09:00', staffPunchOutTime: '16:00', staffLateGraceMinutes: 10 });
+
+      const ok = await patch({ staffPunchInTime: '08:30', staffPunchOutTime: '15:45', staffLateGraceMinutes: 5 });
+      expect(ok.status).toBe(200);
+      expect(ok.body).toMatchObject({ staffPunchInTime: '08:30', staffPunchOutTime: '15:45', staffLateGraceMinutes: 5 });
+
+      for (const bad of [
+        { staffPunchInTime: '25:00' },
+        { staffPunchInTime: '9am' },
+        { staffPunchOutTime: '16:60' },
+        { staffPunchInTime: '17:00', staffPunchOutTime: '09:00' }, // out before in
+        { staffPunchInTime: '10:00', staffPunchOutTime: '10:00' },
+        { staffPunchInTime: '17:00' }, // later than the saved punch-out (15:45)
+        { staffPunchOutTime: '08:00' }, // earlier than the saved punch-in (08:30)
+        { staffLateGraceMinutes: -1 },
+        { staffLateGraceMinutes: 500 },
+      ]) {
+        expect((await patch(bad)).status).toBe(400);
+      }
+      const after = await agent().get('/api/v1/schools/me').set('Cookie', cookie);
+      expect(after.body.staffPunchInTime).toBe('08:30'); // untouched by the rejected requests
+    });
+
     it('stores the school country, exposes it on /auth/me for every role, and rejects a fake country', async () => {
       const reg = await agent()
         .post('/api/v1/schools/register')

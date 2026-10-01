@@ -8,7 +8,9 @@ import {
   ShieldCheck,
   Users,
   CalendarDays,
+  Fingerprint,
   LogOut,
+  UserCheck,
   UserCircle,
   School,
   BookOpen,
@@ -42,6 +44,8 @@ interface NavItem {
   href: string;
   label: string;
   icon: typeof LayoutDashboard;
+  /** Also requires this permission — for items that depend on what a role was granted, not just its name. */
+  permission?: string;
 }
 
 interface NavGroup {
@@ -71,6 +75,8 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/dashboard/classes', label: 'Classes', icon: School },
       { href: '/dashboard/subjects', label: 'Subjects', icon: BookOpen },
       { href: '/dashboard/attendance', label: 'Attendance', icon: ClipboardCheck },
+      { href: '/dashboard/my-attendance', label: 'My Attendance', icon: Fingerprint, permission: 'staffAttendance.mark' },
+      { href: '/dashboard/staff-attendance', label: 'Staff Attendance', icon: UserCheck, permission: 'staffAttendance.view' },
     ],
   },
   { label: 'Calendar', items: [{ href: '/dashboard/holidays', label: 'Holidays', icon: PartyPopper }] },
@@ -184,7 +190,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const roleName = activeMembership?.roleName;
   const groups = NAV_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter((item) => canAccessRoute(roleName, item.href)),
+    items: group.items.filter((item) => canAccessRoute(roleName, item.href) && (!item.permission || me.permissions.includes(item.permission))),
   })).filter((group) => group.items.length > 0);
   const forbidden = !canAccessRoute(roleName, pathname);
 
@@ -290,7 +296,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               <Menu size={22} />
             </button>
             <span className="text-sm font-semibold text-navy lg:hidden">{school?.name ?? 'Schovexa'}</span>
-            <span className="hidden text-sm text-slate-500 xl:inline">{new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+            <span className="hidden text-sm text-slate-500 xl:inline">{new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', timeZone: school?.timezone })}</span>
           </div>
 
           {canSearchStudents && <GlobalSearch />}

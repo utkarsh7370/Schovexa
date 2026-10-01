@@ -72,6 +72,8 @@ export function isValidTimeZone(value: string): boolean {
   }
 }
 
+const timeOfDay = (label: string) => z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, `Enter the ${label} as a time, like 09:00`);
+
 export const updateSchoolSchema = z.object({
   name: z.string().min(2).optional(),
   address: z.string().optional(),
@@ -89,8 +91,15 @@ export const updateSchoolSchema = z.object({
   country: countryCodeSchema.optional(),
   currency: z.string().regex(/^[A-Z]{3}$/, 'Use a 3-letter currency code, like INR').optional(),
   dateFormat: z.string().optional(),
+  // Staff working hours — see School.staffPunchInTime.
+  staffPunchInTime: timeOfDay('punch-in time').optional(),
+  staffPunchOutTime: timeOfDay('punch-out time').optional(),
+  staffLateGraceMinutes: z.coerce.number().int().min(0, 'Use 0 or more minutes').max(120, 'Keep the grace period under 2 hours').optional(),
+}).refine((v) => !v.staffPunchInTime || !v.staffPunchOutTime || v.staffPunchOutTime > v.staffPunchInTime, {
+  path: ['staffPunchOutTime'],
+  message: 'Punch-out must be later than punch-in',
 });
-export type UpdateSchoolInput = z.infer<typeof updateSchoolSchema>;
+export type UpdateSchoolInput = z.input<typeof updateSchoolSchema>;
 
 const permissionScopeSchema = z.enum([
   'ALL_SCHOOL',
@@ -587,3 +596,20 @@ export const changePasswordSchema = z
     message: 'Choose a password you haven’t used just now',
   });
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
+// --- Staff attendance (teachers punch in/out; a Principal or Director approves) ---
+
+const attendanceDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a valid date');
+
+export const approveStaffAttendanceSchema = z.object({
+  note: z.string().trim().max(300, 'Keep the note under 300 characters').optional().or(z.literal('')),
+});
+export type ApproveStaffAttendanceInput = z.infer<typeof approveStaffAttendanceSchema>;
+
+export const rejectStaffAttendanceSchema = z.object({
+  note: z.string().trim().min(3, 'Say why (at least 3 characters)').max(300, 'Keep the note under 300 characters'),
+});
+export type RejectStaffAttendanceInput = z.infer<typeof rejectStaffAttendanceSchema>;
+
+export const approveAllStaffAttendanceSchema = z.object({ date: attendanceDate });
+export type ApproveAllStaffAttendanceInput = z.infer<typeof approveAllStaffAttendanceSchema>;

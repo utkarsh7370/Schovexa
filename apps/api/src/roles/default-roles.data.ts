@@ -54,6 +54,7 @@ export function getDefaultRoleDefinitions(catalog: Permission[]): DefaultRoleDef
       byKey('class.view') && { permissionKey: 'class.view', scope: 'OWN_CLASS' as PermissionScope },
       byKey('subject.view') && { permissionKey: 'subject.view', scope: 'OWN_SUBJECT' as PermissionScope },
       byKey('notice.view') && { permissionKey: 'notice.view', scope: 'ALL_SCHOOL' as PermissionScope },
+      byKey('staffAttendance.mark') && { permissionKey: 'staffAttendance.mark', scope: 'SELF' as PermissionScope },
       byKey('holiday.view') && { permissionKey: 'holiday.view', scope: 'ALL_SCHOOL' as PermissionScope },
     ].filter((grant): grant is DefaultRoleGrant => !!grant),
   };
@@ -71,6 +72,7 @@ export function getDefaultRoleDefinitions(catalog: Permission[]): DefaultRoleDef
         readOnly: true,
       },
       byKey('notice.view') && { permissionKey: 'notice.view', scope: 'ALL_SCHOOL' as PermissionScope },
+      byKey('staffAttendance.mark') && { permissionKey: 'staffAttendance.mark', scope: 'SELF' as PermissionScope },
       byKey('holiday.view') && { permissionKey: 'holiday.view', scope: 'ALL_SCHOOL' as PermissionScope },
     ].filter((grant): grant is DefaultRoleGrant => !!grant),
   };
@@ -89,6 +91,7 @@ export function getDefaultRoleDefinitions(catalog: Permission[]): DefaultRoleDef
       byKey('parent.create') && { permissionKey: 'parent.create', scope: 'ALL_SCHOOL' as PermissionScope },
       byKey('parent.update') && { permissionKey: 'parent.update', scope: 'ALL_SCHOOL' as PermissionScope },
       byKey('notice.view') && { permissionKey: 'notice.view', scope: 'ALL_SCHOOL' as PermissionScope },
+      byKey('staffAttendance.mark') && { permissionKey: 'staffAttendance.mark', scope: 'SELF' as PermissionScope },
       byKey('holiday.view') && { permissionKey: 'holiday.view', scope: 'ALL_SCHOOL' as PermissionScope },
     ].filter((grant): grant is DefaultRoleGrant => !!grant),
   };

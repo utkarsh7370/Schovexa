@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { AuthService, RequestMeta } from '../auth/auth.service';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -102,6 +102,17 @@ export class SchoolsService {
     const school = await this.prisma.school.findFirst({ where: { id: schoolId, deletedAt: null } });
     if (!school) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Resource not found.' });
+    }
+    // The schema only sees the fields in this request, so a lone punch-in of
+    // 17:00 slips past it — check the result against what is already saved.
+    const punchIn = input.staffPunchInTime ?? school.staffPunchInTime;
+    const punchOut = input.staffPunchOutTime ?? school.staffPunchOutTime;
+    if (punchOut <= punchIn) {
+      throw new BadRequestException({
+        code: 'VALIDATION_FAILED',
+        message: `Punch-out (${punchOut}) must be later than punch-in (${punchIn}).`,
+        details: [{ field: input.staffPunchInTime ? 'staffPunchInTime' : 'staffPunchOutTime', message: 'Punch-out must be later than punch-in' }],
+      });
     }
     return this.prisma.school.update({ where: { id: schoolId }, data: input });
   }

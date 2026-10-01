@@ -30,6 +30,7 @@ import { ReportsModule } from './reports/reports.module';
 import { ContactModule } from './contact/contact.module';
 import { ProfileModule } from './profile/profile.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { StaffAttendanceModule } from './staff-attendance/staff-attendance.module';
 import { HttpExceptionFilter } from './common/http-exception.filter';
 import { RequestIdMiddleware } from './common/request-id.middleware';
 import { OriginCheckMiddleware } from './common/origin-check.middleware';
@@ -70,6 +71,7 @@ import { OriginCheckMiddleware } from './common/origin-check.middleware';
     ReportsModule,
     ContactModule,
     ProfileModule,
+    StaffAttendanceModule,
     // Further domain modules are added here one at a time as each is
     // implemented, per docs/modules.md's phase order.
   ],
