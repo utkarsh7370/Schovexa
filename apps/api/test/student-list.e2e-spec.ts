@@ -6,6 +6,7 @@ import { PrismaClient } from '@prisma/client';
 import { AppModule } from '../src/app.module';
 import { resetTestData } from './db-helpers';
 import { permissionCatalog } from '../prisma/seed-data/permissions';
+import { currentYearDates } from './year-helpers';
 
 // GET /students — opt-in pagination, global search, and class / section /
 // class-teacher filters — plus GET /parents/:id. Real HTTP stack, real
@@ -58,7 +59,7 @@ describe('Student list: pagination, search, filters (e2e)', () => {
   // unassigned, and one parent (with a phone) linked to Riya.
   async function seedSchool(email: string) {
     const { cookie } = await registerSchool('List School', email);
-    const year = await post(cookie, '/academic-years', { name: '2025-26', startDate: '2025-04-01', endDate: '2026-03-31' });
+    const year = await post(cookie, '/academic-years', { name: '2025-26', ...currentYearDates() });
     const grade5 = await post(cookie, '/classes', { academicYearId: year.body.id, name: 'Grade 5', order: 5 });
     const grade6 = await post(cookie, '/classes', { academicYearId: year.body.id, name: 'Grade 6', order: 6 });
     const g5a = await post(cookie, `/classes/${grade5.body.id}/sections`, { name: 'A' });

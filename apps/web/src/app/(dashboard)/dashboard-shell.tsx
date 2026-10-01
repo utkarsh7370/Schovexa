@@ -34,6 +34,7 @@ import { useNotices } from '../../hooks/useNotices';
 import { ApiError } from '../../lib/api-client';
 import { canAccessRoute } from '../../lib/access';
 import { ForbiddenState } from '../../components/error-state';
+import { NotificationBell } from '../../components/notification-bell';
 import { CountryBadge } from '../../components/country-badge';
 import { useEffect, useRef, useState } from 'react';
 
@@ -295,6 +296,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           {canSearchStudents && <GlobalSearch />}
 
           <div className="flex items-center gap-3">
+            <NotificationBell />
             <CountryBadge schoolCountry={me?.schoolCountry} />
             <div className="relative">
             <button

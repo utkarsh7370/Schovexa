@@ -73,6 +73,15 @@ export default function ClassesPage() {
     }
   };
 
+  // A year can take new classes only while it is approved and has not ended.
+  const yearIsOpen = viewedYear?.status === 'APPROVED';
+  const yearClosedReason =
+    viewedYear && !yearIsOpen
+      ? viewedYear.status === 'EXPIRED'
+        ? `${viewedYear.name} has ended, so it is read-only. Switch to the current year to add classes.`
+        : `${viewedYear.name} is waiting for the Director’s approval, so classes can’t be added yet.`
+      : undefined;
+
   if (years && years.length === 0) {
     return (
       <div className="mx-auto max-w-3xl">
@@ -101,7 +110,7 @@ export default function ClassesPage() {
         description={viewedYear ? `Classes and their sections for ${viewedYear.name}.` : 'Classes and their sections.'}
         action={
           viewedYear && (
-            <Button onClick={() => setCreating(true)}>
+            <Button onClick={() => setCreating(true)} disabled={!yearIsOpen} title={yearIsOpen ? undefined : yearClosedReason}>
               <Plus size={16} /> New class
             </Button>
           )
@@ -120,12 +129,12 @@ export default function ClassesPage() {
               setPickedYearId(e.target.value);
               setExpandedId(null);
             }}
-            helperText={viewedYear?.isCurrent ? 'This is your current academic year.' : 'You are viewing a year that is not the current one.'}
+            helperText={yearClosedReason ?? (viewedYear?.isCurrent ? 'This is your current academic year.' : 'You are viewing a year that is not the current one.')}
           >
             {years?.map((y) => (
               <option key={y.id} value={y.id}>
                 {y.name}
-                {y.isCurrent ? ' (current)' : ''}
+                {y.isCurrent ? ' (current)' : y.status === 'EXPIRED' ? ' (expired)' : y.status !== 'APPROVED' ? ' (not approved)' : ''}
               </option>
             ))}
           </SelectField>

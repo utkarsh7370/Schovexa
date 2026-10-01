@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { assertYearOpenForChanges } from '../academic-years/academic-year-rules';
 import { PrismaService } from '../prisma/prisma.service';
 import type { CreateFeeStructureInput } from '@schovexa/validation';
 
@@ -22,6 +23,7 @@ export class FeeStructuresService {
     if (!category || !academicYear) {
       throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Unknown fee category or academic year.' });
     }
+    await assertYearOpenForChanges(this.prisma, schoolId, academicYear);
 
     let classId: string | null = null;
     if (input.classId) {

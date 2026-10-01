@@ -7,6 +7,7 @@ import * as argon2 from 'argon2';
 import { AppModule } from '../src/app.module';
 import { resetTestData } from './db-helpers';
 import { permissionCatalog } from '../prisma/seed-data/permissions';
+import { currentYearDates } from './year-helpers';
 
 // End-to-end tests for Phase 8 (Attendance): bulk marking, the section
 // roster view, corrections, student history, and section summaries — all
@@ -91,7 +92,7 @@ describe('Attendance (e2e)', () => {
       .post('/api/v1/academic-years')
       .set('Origin', WEB_ORIGIN)
       .set('Cookie', cookie)
-      .send({ name: '2025-26', startDate: '2025-04-01', endDate: '2026-03-31' });
+      .send({ name: '2025-26', ...currentYearDates() });
     const klass = await agent()
       .post('/api/v1/classes')
       .set('Origin', WEB_ORIGIN)

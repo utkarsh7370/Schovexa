@@ -140,13 +140,6 @@ export class NoticesService {
     return { id: noticeId };
   }
 
-  async myNotifications(schoolId: string, userId: string) {
-    return this.prisma.notification.findMany({
-      where: { schoolId, userId },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
-
   private async findOwn(schoolId: string, noticeId: string) {
     const notice = await this.prisma.notice.findFirst({ where: { id: noticeId, schoolId, deletedAt: null } });
     if (!notice) {

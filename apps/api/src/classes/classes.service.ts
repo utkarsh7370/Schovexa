@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { assertYearOpenForChanges } from '../academic-years/academic-year-rules';
 import { PrismaService } from '../prisma/prisma.service';
 import type { CreateClassInput, UpdateClassInput } from '@schovexa/validation';
 
@@ -20,6 +21,7 @@ export class ClassesService {
     if (!academicYear) {
       throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Unknown academic year.' });
     }
+    await assertYearOpenForChanges(this.prisma, schoolId, academicYear);
 
     const existing = await this.prisma.class.findFirst({
       where: { academicYearId: input.academicYearId, name: input.name, deletedAt: null },

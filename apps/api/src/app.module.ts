@@ -29,6 +29,7 @@ import { HolidaysModule } from './holidays/holidays.module';
 import { ReportsModule } from './reports/reports.module';
 import { ContactModule } from './contact/contact.module';
 import { ProfileModule } from './profile/profile.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { HttpExceptionFilter } from './common/http-exception.filter';
 import { RequestIdMiddleware } from './common/request-id.middleware';
 import { OriginCheckMiddleware } from './common/origin-check.middleware';
@@ -46,6 +47,7 @@ import { OriginCheckMiddleware } from './common/origin-check.middleware';
     AuthorizationModule,
     StorageModule,
     EmailModule,
+    NotificationsModule,
     HealthModule,
     AuthModule,
     SchoolsModule,

@@ -133,12 +133,42 @@ export const updateMembershipSchema = z.object({
 });
 export type UpdateMembershipInput = z.infer<typeof updateMembershipSchema>;
 
-export const createAcademicYearSchema = z.object({
-  name: z.string().min(2, 'Academic year name is required'),
-  startDate: z.string().min(1, 'Start date is required'),
-  endDate: z.string().min(1, 'End date is required'),
+const academicYearDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a valid date');
+const endAfterStart = (v: { startDate?: string; endDate?: string }) => !v.startDate || !v.endDate || v.endDate > v.startDate;
+
+const academicYearFields = {
+  name: z.string().trim().min(2, 'Academic year name is required').max(30, 'Keep the name under 30 characters'),
+  startDate: academicYearDate,
+  endDate: academicYearDate,
+};
+
+export const createAcademicYearSchema = z.object(academicYearFields).refine(endAfterStart, {
+  path: ['endDate'],
+  message: 'The end date must be after the start date',
 });
 export type CreateAcademicYearInput = z.infer<typeof createAcademicYearSchema>;
+
+// Editing a proposed year (before it is approved) — any subset of the fields.
+export const updateAcademicYearSchema = z.object(academicYearFields).partial().refine(endAfterStart, {
+  path: ['endDate'],
+  message: 'The end date must be after the start date',
+});
+export type UpdateAcademicYearInput = z.infer<typeof updateAcademicYearSchema>;
+
+// The Director's decision on a proposed year. An approval may carry an
+// optional comment; rejecting or asking for changes must say why.
+export const approveAcademicYearSchema = z.object({
+  note: z.string().trim().max(500, 'Keep the note under 500 characters').optional().or(z.literal('')),
+});
+export type ApproveAcademicYearInput = z.infer<typeof approveAcademicYearSchema>;
+
+export const reviewAcademicYearSchema = z.object({
+  note: z.string().trim().min(3, 'Tell the Principal why (at least 3 characters)').max(500, 'Keep the note under 500 characters'),
+});
+export type ReviewAcademicYearInput = z.infer<typeof reviewAcademicYearSchema>;
+
+export const resubmitAcademicYearSchema = approveAcademicYearSchema;
+export type ResubmitAcademicYearInput = ApproveAcademicYearInput;
 
 // --- Academic Management (docs/modules.md Phase 6) -------------------------
 

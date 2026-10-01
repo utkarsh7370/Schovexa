@@ -6,6 +6,7 @@ import { PrismaClient } from '@prisma/client';
 import { AppModule } from '../src/app.module';
 import { resetTestData } from './db-helpers';
 import { permissionCatalog } from '../prisma/seed-data/permissions';
+import { currentYearDates } from './year-helpers';
 
 // End-to-end tests for Phase 11 (Parent Portal Login): wiring a Parent
 // contact record up to an actual portal login (POST /parents/:id/invite),
@@ -61,7 +62,7 @@ describe('Parent Portal (e2e)', () => {
       .post('/api/v1/academic-years')
       .set('Origin', WEB_ORIGIN)
       .set('Cookie', cookie)
-      .send({ name: '2025-26', startDate: '2025-04-01', endDate: '2026-03-31' });
+      .send({ name: '2025-26', ...currentYearDates() });
     const klass = await agent()
       .post('/api/v1/classes')
       .set('Origin', WEB_ORIGIN)

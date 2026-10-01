@@ -19,6 +19,8 @@ export interface Notification {
   noticeId: string | null;
   title: string;
   body: string;
+  /** App path this notification opens (system notifications); null for notice-based ones. */
+  link: string | null;
   readAt: string | null;
   createdAt: string;
 }
@@ -31,5 +33,10 @@ export function useNotices() {
 }
 
 export function useNotifications() {
-  return useQuery({ queryKey: NOTIFICATIONS_QUERY_KEY, queryFn: () => api.get<Notification[]>('/notifications') });
+  return useQuery({
+    queryKey: NOTIFICATIONS_QUERY_KEY,
+    queryFn: () => api.get<Notification[]>('/notifications'),
+    // The bell stays reasonably fresh without anyone reloading the page.
+    refetchInterval: 60_000,
+  });
 }

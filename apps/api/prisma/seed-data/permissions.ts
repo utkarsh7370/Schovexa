@@ -72,6 +72,7 @@ export const permissionCatalog: PermissionSeed[] = [
     view: 'View academic years',
     create: 'Create an academic year',
     update: 'Update an academic year (e.g. mark it current)',
+    approve: 'Approve, reject or send back a proposed academic year',
   }),
   ...perms('role', {
     view: 'View roles',

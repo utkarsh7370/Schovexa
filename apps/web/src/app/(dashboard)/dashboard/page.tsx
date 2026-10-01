@@ -30,6 +30,7 @@ import { formatMinor } from '../../../lib/currency';
 import { CountUp } from '../../../components/count-up';
 import { NoticeCard, useNoticeViewer } from '../../../components/notice-card';
 import { NextHolidayCard } from '../../../components/next-holiday';
+import { AcademicYearAttention } from '../../../components/academic-year-attention';
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -273,6 +274,7 @@ export default function DashboardHomePage() {
   return (
     <div className="mx-auto max-w-6xl">
       {hero}
+      <AcademicYearAttention />
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s, i) => (

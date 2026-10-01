@@ -7,6 +7,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { resetTestData } from './db-helpers';
 import { permissionCatalog } from '../prisma/seed-data/permissions';
+import { currentYearDates, nextYearDates } from './year-helpers';
 
 // End-to-end tests for Phase 5 (School Management): registration,
 // settings, roles, memberships/invitations, and academic years — all
@@ -384,7 +385,7 @@ describe('School Management (e2e)', () => {
         .post('/api/v1/academic-years')
         .set('Origin', WEB_ORIGIN)
         .set('Cookie', cookie)
-        .send({ name: '2025-26', startDate: '2025-04-01', endDate: '2026-03-31' });
+        .send({ name: '2025-26', ...currentYearDates() });
       expect(res.status).toBe(201);
       expect(res.body.isCurrent).toBe(true);
     });
@@ -395,12 +396,12 @@ describe('School Management (e2e)', () => {
         .post('/api/v1/academic-years')
         .set('Origin', WEB_ORIGIN)
         .set('Cookie', cookie)
-        .send({ name: '2025-26', startDate: '2025-04-01', endDate: '2026-03-31' });
+        .send({ name: '2025-26', ...currentYearDates() });
       const second = await agent()
         .post('/api/v1/academic-years')
         .set('Origin', WEB_ORIGIN)
         .set('Cookie', cookie)
-        .send({ name: '2026-27', startDate: '2026-04-01', endDate: '2027-03-31' });
+        .send({ name: '2026-27', ...nextYearDates() });
       expect(second.body.isCurrent).toBe(false); // first one already claimed "current"
 
       await agent()
@@ -431,7 +432,7 @@ describe('School Management (e2e)', () => {
         .post('/api/v1/academic-years')
         .set('Origin', WEB_ORIGIN)
         .set('Cookie', schoolA.cookie)
-        .send({ name: '2025-26', startDate: '2025-04-01', endDate: '2026-03-31' });
+        .send({ name: '2025-26', ...currentYearDates() });
 
       const res = await agent()
         .post(`/api/v1/academic-years/${yearA.body.id}/set-current`)

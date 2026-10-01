@@ -127,11 +127,17 @@ async function main() {
   const roleIdByName = Object.fromEntries(roles.map((r) => [r.name, r.id]));
 
   // 2. Academic year ----------------------------------------------------------
-  console.log('[2/12] Academic year 2025-26...');
+  // The Indian school year (1 April – 31 March) that contains today. A year
+  // that has already ended would be expired on arrival and read-only.
+  const todayIso = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const [yy, mm] = todayIso.split('-').map(Number);
+  const startYear = mm >= 4 ? yy : yy - 1;
+  const yearName = `${startYear}-${String(startYear + 1).slice(2)}`;
+  console.log(`[2/12] Academic year ${yearName}...`);
   const ay = await director.call('POST', '/academic-years', {
-    name: '2025-26',
-    startDate: '2025-04-01',
-    endDate: '2026-03-31',
+    name: yearName,
+    startDate: `${startYear}-04-01`,
+    endDate: `${startYear + 1}-03-31`,
   });
 
   // 3. Classes + sections -------------------------------------------------------

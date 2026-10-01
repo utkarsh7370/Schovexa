@@ -43,10 +43,4 @@ export class NoticesController {
   async markRead(@Param('id') id: string, @CurrentAuthContext() auth: AuthContext) {
     return this.noticesService.markRead(auth.schoolId, auth.userId, id);
   }
-
-  @Get('notifications')
-  @RequirePermission('notice.view')
-  async myNotifications(@CurrentAuthContext() auth: AuthContext) {
-    return this.noticesService.myNotifications(auth.schoolId, auth.userId);
-  }
 }

@@ -562,7 +562,7 @@ function StructureDialog({ open, onClose }: { open: boolean; onClose: () => void
           </SelectField>
           <SelectField label="Academic year" leftIcon={<CalendarDays size={16} />} error={errors.academicYearId?.message} {...register('academicYearId')}>
             <option value="">Select a year</option>
-            {years?.map((y) => (
+            {years?.filter((y) => y.status === 'APPROVED').map((y) => (
               <option key={y.id} value={y.id}>{y.name}{y.isCurrent ? ' (current)' : ''}</option>
             ))}
           </SelectField>

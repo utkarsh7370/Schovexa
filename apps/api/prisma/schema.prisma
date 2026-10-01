@@ -106,6 +106,27 @@ enum ContactTopic {
   OTHER
 }
 
+// Lifecycle of an academic year. A Principal proposes a year (PENDING_APPROVAL);
+// the Director approves it, rejects it, or sends it back with suggestions
+// (CHANGES_REQUESTED). Once its end date passes it EXPIRES on its own and
+// becomes read-only.
+enum AcademicYearStatus {
+  PENDING_APPROVAL
+  CHANGES_REQUESTED
+  REJECTED
+  APPROVED
+  EXPIRED
+}
+
+enum AcademicYearReviewAction {
+  SUBMITTED
+  RESUBMITTED
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+  EXPIRED
+}
+
 enum HolidayType {
   NATIONAL
   FESTIVAL
@@ -344,21 +365,46 @@ model RolePermission {
 // ---------------------------------------------------------------------
 
 model AcademicYear {
-  id        String    @id @default(cuid())
-  schoolId  String
-  name      String
-  startDate DateTime
-  endDate   DateTime
-  isCurrent Boolean   @default(false)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  id           String             @id @default(cuid())
+  schoolId     String
+  name         String
+  startDate    DateTime
+  endDate      DateTime
+  isCurrent    Boolean            @default(false)
+  status       AcademicYearStatus @default(APPROVED)
+  createdById  String?
+  decidedById  String?
+  decidedAt    DateTime?
+  decisionNote String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  deletedAt    DateTime?
 
   school  School  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   classes Class[]
   feeStructures FeeStructure[]
+  reviews AcademicYearReview[]
 
   @@index([schoolId, name]) // F1: uniqueness enforced by partial index
+  @@index([schoolId])
+  @@index([schoolId, status])
+}
+
+// The approval trail for an academic year: who proposed it, what the
+// Director decided and why. `actorId` is null for the system's own
+// "expired" entry.
+model AcademicYearReview {
+  id             String                   @id @default(cuid())
+  schoolId       String
+  academicYearId String
+  action         AcademicYearReviewAction
+  note           String?
+  actorId        String?
+  createdAt      DateTime                 @default(now())
+
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
+
+  @@index([academicYearId, createdAt])
   @@index([schoolId])
 }
 
@@ -687,6 +733,9 @@ model Notification {
   channel   NotificationChannel
   title     String
   body      String
+  // Where clicking the notification should take the user (an app path
+  // like /dashboard/academic-years), for system notifications that have no Notice.
+  link      String?
   readAt    DateTime?
   createdAt DateTime            @default(now())
 
