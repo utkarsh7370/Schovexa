@@ -75,3 +75,17 @@ export function useAttendanceHistory(studentId: string | undefined, from: string
     enabled: !!studentId,
   });
 }
+
+// The school's own calendar date — the one day attendance can be marked
+// or changed. Asked of the server because the browser's clock/zone can
+// differ from the school's (a parent travelling, a teacher on a laptop
+// set to another zone).
+export const ATTENDANCE_TODAY_QUERY_KEY = ['attendance-today'];
+
+export function useAttendanceToday() {
+  return useQuery({
+    queryKey: ATTENDANCE_TODAY_QUERY_KEY,
+    queryFn: () => api.get<{ today: string }>('/attendance/today'),
+    staleTime: 60_000,
+  });
+}

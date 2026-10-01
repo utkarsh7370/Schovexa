@@ -19,6 +19,19 @@ import { permissionCatalog } from '../prisma/seed-data/permissions';
 
 const WEB_ORIGIN = 'http://localhost:3000';
 
+// Attendance can only be marked/changed on the day itself, in the school's
+// own time zone (the default school zone is Asia/Kolkata). Past days are
+// locked even for a Director, so any test that needs *history* has to put
+// past rows in directly — the API correctly refuses to create them.
+const SCHOOL_TZ = 'Asia/Kolkata';
+const isoInZone = (offsetDays = 0) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: SCHOOL_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(
+    new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000),
+  );
+const TODAY = () => isoInZone(0);
+const YESTERDAY = () => isoInZone(-1);
+const TOMORROW = () => isoInZone(1);
+
 describe('Attendance (e2e)', () => {
   let app: INestApplication;
   const seedClient = new PrismaClient();
@@ -49,6 +62,21 @@ describe('Attendance (e2e)', () => {
   });
 
   const agent = () => request(app.getHttpServer());
+
+  // Puts attendance rows straight into the DB (the API refuses past dates).
+  async function insertAttendance(
+    schoolName: string,
+    sectionId: string,
+    rows: { studentId: string; date: string; status: 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED' }[],
+  ) {
+    const school = await seedClient.school.findFirstOrThrow({ where: { name: schoolName } });
+    const membership = await seedClient.schoolMembership.findFirstOrThrow({ where: { schoolId: school.id } });
+    for (const row of rows) {
+      await seedClient.attendance.create({
+        data: { schoolId: school.id, sectionId, studentId: row.studentId, date: new Date(row.date), status: row.status, markedById: membership.userId },
+      });
+    }
+  }
 
   async function registerSchool(schoolName: string, email: string, password = 'correct-horse-battery') {
     const res = await agent()
@@ -128,7 +156,7 @@ describe('Attendance (e2e)', () => {
         .set('Cookie', cookie)
         .send({
           sectionId,
-          date: '2025-06-01',
+          date: TODAY(),
           records: [
             { studentId: studentA, status: 'PRESENT' },
             { studentId: studentB, status: 'ABSENT', remarks: 'Sick' },
@@ -163,12 +191,12 @@ describe('Attendance (e2e)', () => {
         .post('/api/v1/attendance')
         .set('Origin', WEB_ORIGIN)
         .set('Cookie', cookie)
-        .send({ sectionId, date: '2025-06-03', records: [{ studentId: studentA, status: 'ABSENT' }] });
+        .send({ sectionId, date: TODAY(), records: [{ studentId: studentA, status: 'ABSENT' }] });
       const second = await agent()
         .post('/api/v1/attendance')
         .set('Origin', WEB_ORIGIN)
         .set('Cookie', cookie)
-        .send({ sectionId, date: '2025-06-03', records: [{ studentId: studentA, status: 'PRESENT' }] });
+        .send({ sectionId, date: TODAY(), records: [{ studentId: studentA, status: 'PRESENT' }] });
       expect(second.status).toBe(201);
       expect(second.body).toHaveLength(1);
       expect(second.body[0].status).toBe('PRESENT');
@@ -184,7 +212,7 @@ describe('Attendance (e2e)', () => {
         .post('/api/v1/attendance')
         .set('Origin', WEB_ORIGIN)
         .set('Cookie', cookie)
-        .send({ sectionId, date: '2025-06-04', records: [{ studentId: outsideStudent, status: 'PRESENT' }] });
+        .send({ sectionId, date: TODAY(), records: [{ studentId: outsideStudent, status: 'PRESENT' }] });
       expect(res.status).toBe(400);
     });
 
@@ -196,7 +224,7 @@ describe('Attendance (e2e)', () => {
         .post('/api/v1/attendance')
         .set('Origin', WEB_ORIGIN)
         .set('Cookie', cookie)
-        .send({ sectionId, date: '2025-06-05', records: [{ studentId: studentA, status: 'ABSENT' }] });
+        .send({ sectionId, date: TODAY(), records: [{ studentId: studentA, status: 'ABSENT' }] });
       const attendanceId = mark.body[0].attendanceId;
 
       const corrected = await agent()
@@ -224,7 +252,7 @@ describe('Attendance (e2e)', () => {
         .post('/api/v1/attendance')
         .set('Origin', WEB_ORIGIN)
         .set('Cookie', teacherCookie)
-        .send({ sectionId, date: '2025-06-06', records: [{ studentId: studentA, status: 'PRESENT' }] });
+        .send({ sectionId, date: TODAY(), records: [{ studentId: studentA, status: 'PRESENT' }] });
       expect(res.status).toBe(404);
     });
 
@@ -253,7 +281,7 @@ describe('Attendance (e2e)', () => {
         .post('/api/v1/attendance')
         .set('Origin', WEB_ORIGIN)
         .set('Cookie', teacherCookie)
-        .send({ sectionId, date: '2025-06-07', records: [{ studentId: studentA, status: 'PRESENT' }] });
+        .send({ sectionId, date: TODAY(), records: [{ studentId: studentA, status: 'PRESENT' }] });
       expect(res.status).toBe(201);
     });
 
@@ -267,7 +295,7 @@ describe('Attendance (e2e)', () => {
         .post('/api/v1/attendance')
         .set('Origin', WEB_ORIGIN)
         .set('Cookie', schoolB.cookie)
-        .send({ sectionId: sectionA, date: '2025-06-08', records: [{ studentId: studentA, status: 'PRESENT' }] });
+        .send({ sectionId: sectionA, date: TODAY(), records: [{ studentId: studentA, status: 'PRESENT' }] });
       expect(res.status).toBe(404);
     });
   });
@@ -277,16 +305,10 @@ describe('Attendance (e2e)', () => {
       const { cookie } = await registerSchool('History School', 'history1@example.test');
       const sectionId = await setUpSection(cookie);
       const studentA = await admitStudent(cookie, sectionId, 'A-1');
-      await agent()
-        .post('/api/v1/attendance')
-        .set('Origin', WEB_ORIGIN)
-        .set('Cookie', cookie)
-        .send({ sectionId, date: '2025-06-10', records: [{ studentId: studentA, status: 'PRESENT' }] });
-      await agent()
-        .post('/api/v1/attendance')
-        .set('Origin', WEB_ORIGIN)
-        .set('Cookie', cookie)
-        .send({ sectionId, date: '2025-06-11', records: [{ studentId: studentA, status: 'ABSENT' }] });
+      await insertAttendance('History School', sectionId, [
+        { studentId: studentA, date: '2025-06-10', status: 'PRESENT' },
+        { studentId: studentA, date: '2025-06-11', status: 'ABSENT' },
+      ]);
 
       const history = await agent()
         .get(`/api/v1/attendance/history?studentId=${studentA}&from=2025-06-01&to=2025-06-30`)
@@ -299,21 +321,11 @@ describe('Attendance (e2e)', () => {
       const { cookie } = await registerSchool('Summary School', 'summary1@example.test');
       const sectionId = await setUpSection(cookie);
       const studentA = await admitStudent(cookie, sectionId, 'A-1');
-      await agent()
-        .post('/api/v1/attendance')
-        .set('Origin', WEB_ORIGIN)
-        .set('Cookie', cookie)
-        .send({ sectionId, date: '2025-06-10', records: [{ studentId: studentA, status: 'PRESENT' }] });
-      await agent()
-        .post('/api/v1/attendance')
-        .set('Origin', WEB_ORIGIN)
-        .set('Cookie', cookie)
-        .send({ sectionId, date: '2025-06-11', records: [{ studentId: studentA, status: 'ABSENT' }] });
-      await agent()
-        .post('/api/v1/attendance')
-        .set('Origin', WEB_ORIGIN)
-        .set('Cookie', cookie)
-        .send({ sectionId, date: '2025-06-12', records: [{ studentId: studentA, status: 'PRESENT' }] });
+      await insertAttendance('Summary School', sectionId, [
+        { studentId: studentA, date: '2025-06-10', status: 'PRESENT' },
+        { studentId: studentA, date: '2025-06-11', status: 'ABSENT' },
+        { studentId: studentA, date: '2025-06-12', status: 'PRESENT' },
+      ]);
 
       const summary = await agent()
         .get(`/api/v1/attendance/summary?sectionId=${sectionId}&from=2025-06-01&to=2025-06-30`)
@@ -329,11 +341,7 @@ describe('Attendance (e2e)', () => {
       const { cookie } = await registerSchool('Parent History School', 'parenthistory1@example.test');
       const sectionId = await setUpSection(cookie);
       const studentA = await admitStudent(cookie, sectionId, 'A-1');
-      await agent()
-        .post('/api/v1/attendance')
-        .set('Origin', WEB_ORIGIN)
-        .set('Cookie', cookie)
-        .send({ sectionId, date: '2025-06-10', records: [{ studentId: studentA, status: 'PRESENT' }] });
+      await insertAttendance('Parent History School', sectionId, [{ studentId: studentA, date: '2025-06-10', status: 'PRESENT' }]);
 
       // Parent onboarding via the portal (linking a login to a Parent
       // profile) is deferred to a later phase — set up the link directly
@@ -384,6 +392,84 @@ describe('Attendance (e2e)', () => {
       } finally {
         await prisma.$disconnect();
       }
+    });
+  });
+
+  describe('Past dates are locked', () => {
+    async function markOn(cookie: string, sectionId: string, studentId: string, date: string, status = 'PRESENT') {
+      return agent()
+        .post('/api/v1/attendance')
+        .set('Origin', WEB_ORIGIN)
+        .set('Cookie', cookie)
+        .send({ sectionId, date, records: [{ studentId, status }] });
+    }
+
+    it('marks attendance for today', async () => {
+      const { cookie } = await registerSchool('Lock Today School', 'locktoday@example.test');
+      const sectionId = await setUpSection(cookie);
+      const studentA = await admitStudent(cookie, sectionId, 'A-1');
+      const res = await markOn(cookie, sectionId, studentA, TODAY());
+      expect(res.status).toBe(201);
+    });
+
+    it('rejects marking attendance for a past date, even for the Director', async () => {
+      const { cookie } = await registerSchool('Lock Past School', 'lockpast@example.test');
+      const sectionId = await setUpSection(cookie);
+      const studentA = await admitStudent(cookie, sectionId, 'A-1');
+
+      for (const date of [YESTERDAY(), '2025-06-01']) {
+        const res = await markOn(cookie, sectionId, studentA, date);
+        expect(res.status).toBe(400);
+        expect(res.body.error.code).toBe('ATTENDANCE_LOCKED');
+      }
+      const roster = await agent().get(`/api/v1/attendance?sectionId=${sectionId}&date=${YESTERDAY()}`).set('Cookie', cookie);
+      expect(roster.body[0].status).toBeNull(); // nothing was written
+    });
+
+    it('rejects marking attendance in advance', async () => {
+      const { cookie } = await registerSchool('Lock Future School', 'lockfuture@example.test');
+      const sectionId = await setUpSection(cookie);
+      const studentA = await admitStudent(cookie, sectionId, 'A-1');
+      const res = await markOn(cookie, sectionId, studentA, TOMORROW());
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('ATTENDANCE_LOCKED');
+    });
+
+    it('rejects correcting a record once its day has passed, but still lets you read it', async () => {
+      const { cookie } = await registerSchool('Lock Correct School', 'lockcorrect@example.test');
+      const sectionId = await setUpSection(cookie);
+      const studentA = await admitStudent(cookie, sectionId, 'A-1');
+      await insertAttendance('Lock Correct School', sectionId, [{ studentId: studentA, date: YESTERDAY(), status: 'ABSENT' }]);
+
+      const roster = await agent().get(`/api/v1/attendance?sectionId=${sectionId}&date=${YESTERDAY()}`).set('Cookie', cookie);
+      expect(roster.status).toBe(200);
+      expect(roster.body[0].status).toBe('ABSENT');
+
+      const patch = await agent()
+        .patch(`/api/v1/attendance/${roster.body[0].attendanceId}`)
+        .set('Origin', WEB_ORIGIN)
+        .set('Cookie', cookie)
+        .send({ status: 'PRESENT' });
+      expect(patch.status).toBe(400);
+      expect(patch.body.error.code).toBe('ATTENDANCE_LOCKED');
+
+      const after = await agent().get(`/api/v1/attendance?sectionId=${sectionId}&date=${YESTERDAY()}`).set('Cookie', cookie);
+      expect(after.body[0].status).toBe('ABSENT');
+    });
+
+    it("tells the UI what the school's today is", async () => {
+      const { cookie } = await registerSchool('Lock Today Endpoint School', 'locktodayep@example.test');
+      const res = await agent().get('/api/v1/attendance/today').set('Cookie', cookie);
+      expect(res.status).toBe(200);
+      expect(res.body.today).toBe(TODAY());
+    });
+
+    it('rejects a malformed date', async () => {
+      const { cookie } = await registerSchool('Lock Format School', 'lockformat@example.test');
+      const sectionId = await setUpSection(cookie);
+      const studentA = await admitStudent(cookie, sectionId, 'A-1');
+      const res = await markOn(cookie, sectionId, studentA, 'yesterday');
+      expect(res.status).toBe(400);
     });
   });
 });

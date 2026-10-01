@@ -34,12 +34,13 @@ export class ReportsController {
     @Query('classId') classId: string | undefined,
     @Query('sectionId') sectionId: string | undefined,
     @Query('status') status: string | undefined,
+    @Query('search') search: string | undefined,
     @Query('page') page: string | undefined,
     @Query('pageSize') pageSize: string | undefined,
     @CurrentAuthContext() auth: AuthContext,
   ) {
     const { page: p, pageSize: ps } = parsePagination(page, pageSize);
-    return this.reportsService.studentsReport(auth, { classId, sectionId, status }, p, ps);
+    return this.reportsService.studentsReport(auth, { classId, sectionId, status, search }, p, ps);
   }
 
   @Get('students/export')
@@ -48,10 +49,11 @@ export class ReportsController {
     @Query('classId') classId: string | undefined,
     @Query('sectionId') sectionId: string | undefined,
     @Query('status') status: string | undefined,
+    @Query('search') search: string | undefined,
     @CurrentAuthContext() auth: AuthContext,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
-    const rows = await this.reportsService.studentsReportRows(auth, { classId, sectionId, status });
+    const rows = await this.reportsService.studentsReportRows(auth, { classId, sectionId, status, search });
     const csv = toCsv(rows, [
       { key: 'admissionNo', header: 'Admission No' },
       { key: 'firstName', header: 'First Name' },
@@ -71,6 +73,7 @@ export class ReportsController {
     @Query('sectionId') sectionId: string | undefined,
     @Query('from') from: string | undefined,
     @Query('to') to: string | undefined,
+    @Query('search') search: string | undefined,
     @Query('page') page: string | undefined,
     @Query('pageSize') pageSize: string | undefined,
     @CurrentAuthContext() auth: AuthContext,
@@ -80,7 +83,7 @@ export class ReportsController {
     const { page: p, pageSize: ps } = parsePagination(page, pageSize);
     return this.reportsService.attendanceReport(
       auth,
-      { classId, sectionId, from: requiredFrom, to: requiredTo },
+      { classId, sectionId, from: requiredFrom, to: requiredTo, search },
       p,
       ps,
     );
@@ -93,6 +96,7 @@ export class ReportsController {
     @Query('sectionId') sectionId: string | undefined,
     @Query('from') from: string | undefined,
     @Query('to') to: string | undefined,
+    @Query('search') search: string | undefined,
     @CurrentAuthContext() auth: AuthContext,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
@@ -103,6 +107,7 @@ export class ReportsController {
       sectionId,
       from: requiredFrom,
       to: requiredTo,
+      search,
     });
     const csv = toCsv(rows, [
       { key: 'admissionNo', header: 'Admission No' },
@@ -124,22 +129,28 @@ export class ReportsController {
   @RequirePermission('report.view')
   async fees(
     @Query('academicYearId') academicYearId: string | undefined,
+    @Query('feeCategoryId') feeCategoryId: string | undefined,
+    @Query('status') status: string | undefined,
+    @Query('search') search: string | undefined,
     @Query('page') page: string | undefined,
     @Query('pageSize') pageSize: string | undefined,
     @CurrentAuthContext() auth: AuthContext,
   ) {
     const { page: p, pageSize: ps } = parsePagination(page, pageSize);
-    return this.reportsService.feesReport(auth, { academicYearId }, p, ps);
+    return this.reportsService.feesReport(auth, { academicYearId, feeCategoryId, status, search }, p, ps);
   }
 
   @Get('fees/export')
   @RequirePermission('report.export')
   async feesExport(
     @Query('academicYearId') academicYearId: string | undefined,
+    @Query('feeCategoryId') feeCategoryId: string | undefined,
+    @Query('status') status: string | undefined,
+    @Query('search') search: string | undefined,
     @CurrentAuthContext() auth: AuthContext,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
-    const rows = await this.reportsService.feesReportRows(auth, { academicYearId });
+    const rows = await this.reportsService.feesReportRows(auth, { academicYearId, feeCategoryId, status, search });
     const csv = toCsv(rows, [
       { key: 'admissionNo', header: 'Admission No' },
       { key: 'firstName', header: 'First Name' },

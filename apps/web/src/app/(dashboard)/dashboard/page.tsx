@@ -29,6 +29,7 @@ import { useNotices } from '../../../hooks/useNotices';
 import { formatMinor } from '../../../lib/currency';
 import { CountUp } from '../../../components/count-up';
 import { NoticeCard, useNoticeViewer } from '../../../components/notice-card';
+import { NextHolidayCard } from '../../../components/next-holiday';
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -94,6 +95,8 @@ export default function DashboardHomePage() {
             {school ? <>Here&apos;s what&apos;s happening at {school.name} today.</> : <>Here&apos;s your overview for today.</>}
           </p>
         </div>
+        <div className="flex flex-col items-start gap-3 sm:items-end">
+        <NextHolidayCard />
         {unreadNotices.length > 0 && (
           <Link
             href="/dashboard/notices"
@@ -115,6 +118,7 @@ export default function DashboardHomePage() {
             <ArrowRight size={16} className="ml-1 transition-transform group-hover:translate-x-1" />
           </Link>
         )}
+        </div>
       </div>
     </div>
   );

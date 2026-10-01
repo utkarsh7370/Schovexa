@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import type { MarkAttendanceInput, UpdateAttendanceInput } from '@schovexa/validation';
+import { dateOnlyToIso, todayInTimezone } from '../common/dates.util';
 
 @Injectable()
 export class AttendanceService {
@@ -18,6 +19,7 @@ export class AttendanceService {
     if (Number.isNaN(date.getTime())) {
       throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Invalid date.' });
     }
+    await this.assertEditableDate(schoolId, input.date);
 
     // Every studentId must actually belong to this section, in this
     // school — a caller with OWN_CLASS scope for their own section could
@@ -157,7 +159,9 @@ export class AttendanceService {
     return record;
   }
 
-  async correct(attendanceId: string, input: UpdateAttendanceInput) {
+  async correct(schoolId: string, attendanceId: string, input: UpdateAttendanceInput) {
+    const record = await this.findForAuth(schoolId, attendanceId);
+    await this.assertEditableDate(schoolId, dateOnlyToIso(record.date));
     return this.prisma.attendance.update({
       where: { id: attendanceId },
       data: {
@@ -165,5 +169,34 @@ export class AttendanceService {
         ...(input.remarks !== undefined ? { remarks: input.remarks || null } : {}),
       },
     });
+  }
+
+  /** The school's current calendar date — what the UI treats as "today" (the only editable day). */
+  async getToday(schoolId: string): Promise<{ today: string }> {
+    const school = await this.prisma.school.findUnique({ where: { id: schoolId }, select: { timezone: true } });
+    return { today: todayInTimezone(school?.timezone) };
+  }
+
+  // Attendance is a same-day record: it can be marked or changed only on
+  // the day itself, in the school's own time zone. Once that day is over
+  // it is locked for everyone — a Director included — so history can't be
+  // quietly rewritten. Reading past days stays open (roster, history and
+  // summary are unaffected).
+  private async assertEditableDate(schoolId: string, dateIso: string): Promise<void> {
+    const school = await this.prisma.school.findUnique({ where: { id: schoolId }, select: { timezone: true } });
+    const today = todayInTimezone(school?.timezone);
+    const day = dateIso.slice(0, 10);
+    if (day < today) {
+      throw new BadRequestException({
+        code: 'ATTENDANCE_LOCKED',
+        message: 'Attendance for a past date is locked and can no longer be changed.',
+      });
+    }
+    if (day > today) {
+      throw new BadRequestException({
+        code: 'ATTENDANCE_LOCKED',
+        message: 'Attendance can only be marked on the day itself, not in advance.',
+      });
+    }
   }
 }

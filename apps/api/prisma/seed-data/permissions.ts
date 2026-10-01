@@ -91,6 +91,12 @@ export const permissionCatalog: PermissionSeed[] = [
     upload: 'Upload a document',
     delete: 'Delete a document',
   }),
+  ...perms('holiday', {
+    view: 'View the school holiday calendar',
+    create: 'Add a holiday',
+    update: 'Edit a holiday',
+    delete: 'Delete a holiday',
+  }),
   ...perms('audit', {
     view: 'View the audit log',
   }),

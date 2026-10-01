@@ -49,5 +49,9 @@ export interface CurrentUser {
   // school.view into a redirect loop, caught via Phase 10 live
   // verification with a Teacher login).
   activeSchoolId: string | null;
+  // Permission keys the active school's role grants (e.g. 'holiday.create').
+  // For showing or hiding controls only — every API route still enforces
+  // its own permission, so this is a convenience, never a security check.
+  permissions: string[];
   memberships: SchoolMembershipSummary[];
 }

@@ -11,11 +11,12 @@ const ROLE_ROUTES: Record<string, string[]> = {
     '/dashboard/classes',
     '/dashboard/subjects',
     '/dashboard/attendance',
+    '/dashboard/holidays',
     '/dashboard/notices',
   ],
-  Accountant: ['/dashboard', '/dashboard/students', '/dashboard/fees', '/dashboard/notices'],
-  Receptionist: ['/dashboard', '/dashboard/students', '/dashboard/parents', '/dashboard/notices'],
-  Parent: ['/dashboard', '/dashboard/my-children', '/dashboard/notices'],
+  Accountant: ['/dashboard', '/dashboard/students', '/dashboard/fees', '/dashboard/holidays', '/dashboard/notices'],
+  Receptionist: ['/dashboard', '/dashboard/students', '/dashboard/parents', '/dashboard/holidays', '/dashboard/notices'],
+  Parent: ['/dashboard', '/dashboard/my-children', '/dashboard/holidays', '/dashboard/notices'],
 };
 
 // Pages that only make sense for one role. "My Children" lists the

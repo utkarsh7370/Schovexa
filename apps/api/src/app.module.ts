@@ -25,6 +25,7 @@ import { FeeCategoriesModule } from './fee-categories/fee-categories.module';
 import { FeeStructuresModule } from './fee-structures/fee-structures.module';
 import { StudentFeesModule } from './student-fees/student-fees.module';
 import { NoticesModule } from './notices/notices.module';
+import { HolidaysModule } from './holidays/holidays.module';
 import { ReportsModule } from './reports/reports.module';
 import { HttpExceptionFilter } from './common/http-exception.filter';
 import { RequestIdMiddleware } from './common/request-id.middleware';
@@ -61,6 +62,7 @@ import { OriginCheckMiddleware } from './common/origin-check.middleware';
     FeeStructuresModule,
     StudentFeesModule,
     NoticesModule,
+    HolidaysModule,
     ReportsModule,
     // Further domain modules are added here one at a time as each is
     // implemented, per docs/modules.md's phase order.

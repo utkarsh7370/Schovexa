@@ -257,10 +257,11 @@ async function main() {
   console.log(`   ${linkPlan.length} parents created and linked, ${parentPortalCount} given a portal login`);
 
   // 9. Attendance — mark 2 days, then correct a few records -----------------------
-  console.log('[9/12] Attendance (today + yesterday, with a few corrections)...');
-  const today = new Date();
-  const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
-  const dates = [isoDate(yesterday), isoDate(today)];
+  // The API only allows marking/changing attendance on the day itself (in
+  // the school's time zone), so the demo can only seed today.
+  console.log("[9/12] Attendance (today only — past days are locked by the API, with a few corrections)...");
+  // New schools default to Asia/Kolkata, and "today" must be that zone's today.
+  const dates = [new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date())];
   const todaysFirstRecordBySection = [];
   for (const date of dates) {
     for (const section of sections) {
@@ -272,7 +273,7 @@ async function main() {
         return { studentId: s.id, status };
       });
       const roster = await director.call('POST', '/attendance', { sectionId: section.id, date, records });
-      if (date === dates[1]) todaysFirstRecordBySection.push(roster[0]);
+      if (date === dates[0]) todaysFirstRecordBySection.push(roster[0]);
     }
   }
   let corrected = 0;
@@ -283,7 +284,7 @@ async function main() {
     });
     corrected++;
   }
-  console.log(`   Marked attendance for 2 days across ${sections.length} sections, corrected ${corrected} record(s)`);
+  console.log(`   Marked today's attendance across ${sections.length} sections, corrected ${corrected} record(s)`);
 
   // 10. Notices — one of each audience type ---------------------------------------
   console.log('[10/12] Notices (one of each audience type)...');

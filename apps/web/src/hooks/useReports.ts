@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api-client';
 
 export interface PaginationMeta {
@@ -67,30 +67,42 @@ function buildQuery(params: Record<string, string | number | undefined>): string
   return qs ? `?${qs}` : '';
 }
 
-export function useStudentReport(filters: { classId?: string; sectionId?: string; status?: string }, page: number) {
-  const query = buildQuery({ ...filters, page, pageSize: 20 });
+export function useStudentReport(
+  filters: { classId?: string; sectionId?: string; status?: string; search?: string },
+  page: number,
+  pageSize = 20,
+) {
+  const query = buildQuery({ ...filters, page, pageSize });
   return useQuery({
-    queryKey: ['reports-students', filters, page],
+    queryKey: ['reports-students', filters, page, pageSize],
     queryFn: () => api.get<Paginated<StudentReportRow>>(`/reports/students${query}`),
+    placeholderData: keepPreviousData,
   });
 }
 
 export function useAttendanceReport(
-  filters: { classId?: string; sectionId?: string; from: string; to: string },
+  filters: { classId?: string; sectionId?: string; from: string; to: string; search?: string },
   page: number,
+  pageSize = 20,
 ) {
-  const query = buildQuery({ ...filters, page, pageSize: 20 });
+  const query = buildQuery({ ...filters, page, pageSize });
   return useQuery({
-    queryKey: ['reports-attendance', filters, page],
+    queryKey: ['reports-attendance', filters, page, pageSize],
+    placeholderData: keepPreviousData,
     queryFn: () => api.get<Paginated<AttendanceReportRow>>(`/reports/attendance${query}`),
     enabled: !!filters.from && !!filters.to,
   });
 }
 
-export function useFeeReport(filters: { academicYearId?: string }, page: number) {
-  const query = buildQuery({ ...filters, page, pageSize: 20 });
+export function useFeeReport(
+  filters: { academicYearId?: string; feeCategoryId?: string; status?: string; search?: string },
+  page: number,
+  pageSize = 20,
+) {
+  const query = buildQuery({ ...filters, page, pageSize });
   return useQuery({
-    queryKey: ['reports-fees', filters, page],
+    queryKey: ['reports-fees', filters, page, pageSize],
+    placeholderData: keepPreviousData,
     queryFn: () => api.get<Paginated<FeeReportRow> & { totals: FeeReportTotals }>(`/reports/fees${query}`),
   });
 }

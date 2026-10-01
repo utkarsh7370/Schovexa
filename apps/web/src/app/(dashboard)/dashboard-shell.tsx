@@ -23,6 +23,7 @@ import {
   ChevronDown,
   BarChart3,
   Search,
+  PartyPopper,
 } from 'lucide-react';
 import { Avatar, LogoMark, Spinner } from '@schovexa/ui';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
@@ -70,6 +71,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/dashboard/attendance', label: 'Attendance', icon: ClipboardCheck },
     ],
   },
+  { label: 'Calendar', items: [{ href: '/dashboard/holidays', label: 'Holidays', icon: PartyPopper }] },
   { label: 'Money', items: [{ href: '/dashboard/fees', label: 'Fees', icon: Wallet }] },
   { label: 'Insights', items: [{ href: '/dashboard/reports', label: 'Reports', icon: BarChart3 }] },
   { label: 'Communication', items: [{ href: '/dashboard/notices', label: 'Notices', icon: Bell }] },

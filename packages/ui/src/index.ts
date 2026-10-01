@@ -39,3 +39,5 @@ export { Pagination } from './Pagination';
 export type { PaginationProps } from './Pagination';
 export { Tabs } from './Tabs';
 export type { TabsProps, TabItem } from './Tabs';
+export { TextAreaField } from './TextAreaField';
+export type { TextAreaFieldProps } from './TextAreaField';

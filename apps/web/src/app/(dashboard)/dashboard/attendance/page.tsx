@@ -11,6 +11,7 @@ import {
   CircleHelp,
   ClipboardCheck,
   Clock,
+  Lock,
   ListChecks,
   Save,
   School,
@@ -19,7 +20,7 @@ import {
 } from 'lucide-react';
 import { useClasses } from '../../../../hooks/useClasses';
 import { useSections } from '../../../../hooks/useSections';
-import { useAttendanceRoster, useAttendanceSummary, rosterQueryKey, type AttendanceStatus } from '../../../../hooks/useAttendance';
+import { useAttendanceRoster, useAttendanceSummary, useAttendanceToday, rosterQueryKey, type AttendanceStatus } from '../../../../hooks/useAttendance';
 import { api, ApiError } from '../../../../lib/api-client';
 
 const STATUSES: { value: AttendanceStatus; label: string; short: string; icon: typeof CircleCheck; active: string; text: string; dot: string }[] = [
@@ -33,17 +34,26 @@ function toDateInput(date: Date): string {
   // Local calendar date, not UTC — otherwise "today" flips a day early or late near midnight.
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
-const today = () => toDateInput(new Date());
-const daysAgo = (n: number) => toDateInput(new Date(Date.now() - n * 24 * 60 * 60 * 1000));
+// Pure calendar maths on YYYY-MM-DD strings (via UTC, so no zone or DST can shift the day).
+const shiftIso = (iso: string, days: number) => new Date(new Date(`${iso}T00:00:00Z`).getTime() + days * 86_400_000).toISOString().slice(0, 10);
 
 export default function AttendancePage() {
   const { data: classes } = useClasses();
+  const { data: school } = useAttendanceToday();
   const [classId, setClassId] = useState('');
   const [sectionId, setSectionId] = useState('');
-  const [date, setDate] = useState(today());
+  const [pickedDate, setPickedDate] = useState('');
   const { data: sections } = useSections(classId || undefined);
   const className = classes?.find((c) => c.id === classId)?.name;
   const sectionName = sections?.find((s) => s.id === sectionId)?.name;
+
+  // Attendance is a same-day record: only the school's today can be
+  // marked or changed (the server enforces this too). Until the server
+  // has told us what "today" is, fall back to the browser's date.
+  const today = school?.today ?? toDateInput(new Date());
+  const date = pickedDate || today;
+  const mode: 'edit' | 'locked' | 'future' = date === today ? 'edit' : date < today ? 'locked' : 'future';
+  const yesterday = shiftIso(today, -1);
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -75,17 +85,17 @@ export default function AttendancePage() {
               </option>
             ))}
           </SelectField>
-          <TextField label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <TextField label="Date" type="date" max={today} value={date} onChange={(e) => setPickedDate(e.target.value)} />
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           {[
-            { label: 'Today', value: today() },
-            { label: 'Yesterday', value: daysAgo(1) },
+            { label: 'Today', value: today },
+            { label: 'Yesterday (view only)', value: yesterday },
           ].map((d) => (
             <button
               key={d.label}
               type="button"
-              onClick={() => setDate(d.value)}
+              onClick={() => setPickedDate(d.value)}
               aria-pressed={date === d.value}
               className={['rounded-full px-3 py-1 text-xs font-semibold transition-colors', date === d.value ? 'bg-brand-blue text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'].join(' ')}
             >
@@ -105,26 +115,41 @@ export default function AttendancePage() {
         </div>
       )}
 
-      {sectionId && date && (
+      {sectionId && mode === 'future' && (
+        <div className="mt-6">
+          <EmptyState
+            icon={<Lock size={22} />}
+            title="Attendance can’t be marked in advance"
+            description="You can only mark attendance on the day itself. Pick today’s date to continue."
+            action={
+              <Button variant="secondary" onClick={() => setPickedDate(today)}>
+                Go to today
+              </Button>
+            }
+          />
+        </div>
+      )}
+
+      {sectionId && date && mode !== 'future' && (
         <div className="mt-6">
           {/* key forces a full remount on section/date change, so local
               marking state (including the "Saved" confirmation) always
               starts fresh rather than needing to be reset by an effect
               racing against the post-save roster refetch below. */}
-          <MarkingPanel key={`${sectionId}-${date}`} sectionId={sectionId} date={date} title={`${className ?? ''} · Section ${sectionName ?? ''}`} />
+          <MarkingPanel key={`${sectionId}-${date}`} sectionId={sectionId} date={date} locked={mode === 'locked'} title={`${className ?? ''} · Section ${sectionName ?? ''}`} />
         </div>
       )}
 
       {sectionId && (
         <div className="mt-6">
-          <SummaryPanel sectionId={sectionId} />
+          <SummaryPanel sectionId={sectionId} today={today} />
         </div>
       )}
     </div>
   );
 }
 
-function MarkingPanel({ sectionId, date, title }: { sectionId: string; date: string; title: string }) {
+function MarkingPanel({ sectionId, date, title, locked }: { sectionId: string; date: string; title: string; locked: boolean }) {
   const { data: roster, isLoading } = useAttendanceRoster(sectionId, date);
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -227,11 +252,25 @@ function MarkingPanel({ sectionId, date, title }: { sectionId: string; date: str
 
   return (
     <div>
+      {locked && (
+        <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="status">
+          <Lock size={18} className="mt-0.5 shrink-0 text-amber-600" />
+          <p>
+            <span className="font-bold">This day is locked.</span> Attendance can only be marked or changed on the day itself. You can still see what was recorded, but it can no longer be edited.
+          </p>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Present" tone="emerald" icon={<CircleCheck size={18} />} value={counts.PRESENT} hint={`of ${total} students`} />
         <StatCard label="Absent" tone="violet" icon={<CircleAlert size={18} />} value={counts.ABSENT} hint={counts.ABSENT ? 'Consider informing parents' : 'Nobody absent'} />
         <StatCard label="Late" tone="amber" icon={<Clock size={18} />} value={counts.LATE} />
-        <StatCard label="Not marked yet" tone="default" icon={<CircleHelp size={18} />} value={counts.UNMARKED} hint={counts.UNMARKED ? 'Needs a mark before saving' : 'Everyone is marked'} />
+        <StatCard
+          label={locked ? 'No record' : 'Not marked yet'}
+          tone="default"
+          icon={<CircleHelp size={18} />}
+          value={counts.UNMARKED}
+          hint={locked ? (counts.UNMARKED ? 'Nothing was recorded for them' : 'Everyone has a record') : counts.UNMARKED ? 'Needs a mark before saving' : 'Everyone is marked'}
+        />
       </div>
 
       <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-card">
@@ -248,16 +287,18 @@ function MarkingPanel({ sectionId, date, title }: { sectionId: string; date: str
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="secondary" onClick={markRestPresent} disabled={counts.UNMARKED === 0}>
-              <CircleCheck size={15} className="text-emerald-500" /> Mark rest present
-            </Button>
+            {!locked && (
+              <Button size="sm" variant="secondary" onClick={markRestPresent} disabled={counts.UNMARKED === 0}>
+                <CircleCheck size={15} className="text-emerald-500" /> Mark rest present
+              </Button>
+            )}
           </div>
         </header>
 
         <div className="border-b border-slate-100 px-5 py-3 sm:px-6">
           <div className="flex items-center justify-between text-xs font-medium text-slate-500">
             <span>
-              <span className="font-bold text-navy">{marked}</span> of {total} marked
+              <span className="font-bold text-navy">{marked}</span> of {total} {locked ? 'recorded' : 'marked'}
             </span>
             <span className="font-semibold text-navy">{pct}%</span>
           </div>
@@ -294,11 +335,14 @@ function MarkingPanel({ sectionId, date, title }: { sectionId: string; date: str
                         key={option.value}
                         type="button"
                         aria-pressed={on}
+                        disabled={locked}
                         onClick={() => setStatus(student.studentId, option.value)}
                         title={option.label}
                         className={[
                           'inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-xs font-bold transition-all duration-200 sm:min-w-[5.25rem]',
-                          on ? option.active : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50',
+                          on ? option.active : locked ? 'border-slate-100 bg-slate-50 text-slate-300' : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50',
+                          locked ? 'cursor-not-allowed' : '',
+                          locked && on ? 'opacity-80' : '',
                         ].join(' ')}
                       >
                         <option.icon size={14} className={on ? '' : option.text} />
@@ -311,7 +355,8 @@ function MarkingPanel({ sectionId, date, title }: { sectionId: string; date: str
 
                 <input
                   type="text"
-                  placeholder="Remarks (optional)"
+                  readOnly={locked}
+                  placeholder={locked ? 'No remarks' : 'Remarks (optional)'}
                   aria-label={`Remarks for ${name}`}
                   value={entry?.remarks ?? ''}
                   onChange={(e) => setRemarks(student.studentId, e.target.value)}
@@ -327,7 +372,7 @@ function MarkingPanel({ sectionId, date, title }: { sectionId: string; date: str
           </div>
         )}
 
-        {roster && roster.length > 0 && (
+        {roster && roster.length > 0 && !locked && (
           <footer className="sticky bottom-0 flex flex-col items-stretch justify-between gap-3 border-t border-slate-100 bg-white/90 px-5 py-4 backdrop-blur sm:flex-row sm:items-center sm:px-6">
             <p className="flex items-center gap-2 text-sm text-slate-500">
               {saved && !serverError ? (
@@ -357,15 +402,21 @@ function MarkingPanel({ sectionId, date, title }: { sectionId: string; date: str
   );
 }
 
-const PRESETS = [
-  { label: 'Last 7 days', from: () => daysAgo(6) },
-  { label: 'Last 30 days', from: () => daysAgo(29) },
-  { label: 'This month', from: () => toDateInput(new Date(new Date().getFullYear(), new Date().getMonth(), 1)) },
+const PRESETS: { label: string; from: (today: string) => string }[] = [
+  { label: 'Last 7 days', from: (today) => shiftIso(today, -6) },
+  { label: 'Last 30 days', from: (today) => shiftIso(today, -29) },
+  { label: 'This month', from: (today) => `${today.slice(0, 8)}01` },
 ];
 
-function SummaryPanel({ sectionId }: { sectionId: string }) {
-  const [from, setFrom] = useState(daysAgo(6));
-  const [to, setTo] = useState(today());
+function SummaryPanel({ sectionId, today }: { sectionId: string; today: string }) {
+  const [from, setFrom] = useState(shiftIso(today, -6));
+  const [to, setTo] = useState(today);
+  // `today` first arrives from the browser's clock, then from the server;
+  // re-anchor the default range once when it changes.
+  useEffect(() => {
+    setFrom(shiftIso(today, -6));
+    setTo(today);
+  }, [today]);
   const { data: summary, isLoading } = useAttendanceSummary(sectionId, from, to);
 
   return (
@@ -382,8 +433,8 @@ function SummaryPanel({ sectionId }: { sectionId: string }) {
 
       <div className="mt-5 flex flex-wrap gap-2">
         {PRESETS.map((p) => {
-          const start = p.from();
-          const active = from === start && to === today();
+          const start = p.from(today);
+          const active = from === start && to === today;
           return (
             <button
               key={p.label}
@@ -391,7 +442,7 @@ function SummaryPanel({ sectionId }: { sectionId: string }) {
               aria-pressed={active}
               onClick={() => {
                 setFrom(start);
-                setTo(today());
+                setTo(today);
               }}
               className={['rounded-full px-3 py-1.5 text-xs font-semibold transition-colors', active ? 'bg-brand-blue text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'].join(' ')}
             >

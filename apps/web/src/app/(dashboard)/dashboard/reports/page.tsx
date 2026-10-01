@@ -1,82 +1,62 @@
 'use client';
 
-import { useState } from 'react';
-import { PageHeader, Card, Badge, EmptyState, SkeletonRows, Button, type BadgeTone } from '@schovexa/ui';
-import { BarChart3, Download, FileSpreadsheet } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import {
+  Alert,
+  Avatar,
+  Badge,
+  EmptyState,
+  PageHeader,
+  Pagination,
+  SearchInput,
+  SelectField,
+  Skeleton,
+  StatCard,
+  Tabs,
+  TextField,
+  type BadgeTone,
+} from '@schovexa/ui';
+import { BadgeIndianRupee, BarChart3, CalendarCheck, Download, FileSpreadsheet, HandCoins, IdCard, Layers, Percent, School, Shapes, Tag, Users, Wallet } from 'lucide-react';
 import { useClasses } from '../../../../hooks/useClasses';
 import { useSections } from '../../../../hooks/useSections';
-import {
-  useStudentReport,
-  useAttendanceReport,
-  useFeeReport,
-  type PaginationMeta,
-} from '../../../../hooks/useReports';
+import { useFeeCategories } from '../../../../hooks/useFees';
+import { useDebouncedValue } from '../../../../hooks/useDebouncedValue';
+import { useStudentReport, useAttendanceReport, useFeeReport } from '../../../../hooks/useReports';
 import { formatMinor } from '../../../../lib/currency';
+import { downloadLinkClass, TABLE } from '../../../../lib/table-styles';
+import { STUDENT_STATUS_LABELS, STUDENT_STATUS_TONES } from '../../../../components/student-card';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
+const PAGE_SIZES = [10, 20, 50];
 
-const STUDENT_STATUS_TONES: Record<string, BadgeTone> = {
-  ENROLLED: 'success',
-  TRANSFERRED: 'info',
-  GRADUATED: 'brand',
-  WITHDRAWN: 'neutral',
-};
-
-const FEE_STATUS_TONES: Record<string, BadgeTone> = {
-  PENDING: 'warning',
-  PARTIALLY_PAID: 'info',
-  PAID: 'success',
-  WAIVED: 'neutral',
-};
+const FEE_STATUS_LABELS: Record<string, string> = { PENDING: 'Pending', PARTIALLY_PAID: 'Partially paid', PAID: 'Paid', WAIVED: 'Waived' };
+const FEE_STATUS_TONES: Record<string, BadgeTone> = { PENDING: 'warning', PARTIALLY_PAID: 'info', PAID: 'success', WAIVED: 'neutral' };
 
 type ReportTab = 'students' | 'attendance' | 'fees';
 
-const TABS: { value: ReportTab; label: string }[] = [
-  { value: 'students', label: 'Students' },
-  { value: 'attendance', label: 'Attendance' },
-  { value: 'fees', label: 'Fees' },
-];
+const toLocalIso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+const todayIso = () => toLocalIso(new Date());
+const daysAgoIso = (n: number) => toLocalIso(new Date(Date.now() - n * 86_400_000));
 
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function selectClasses(): string {
-  return 'h-10 rounded-lg border border-slate-300 px-3 text-sm focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue';
+function queryString(params: Record<string, string | undefined>): string {
+  const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
+  return qs ? `?${qs}` : '';
 }
 
 function ExportLink({ href }: { href: string }) {
   return (
-    <a
-      href={href}
-      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100"
-    >
-      <Download size={15} strokeWidth={2} />
-      Export CSV
+    <a href={href} className={downloadLinkClass()}>
+      <Download size={16} /> Export CSV
     </a>
   );
 }
 
-function Pagination({ pagination, onPage }: { pagination: PaginationMeta; onPage: (page: number) => void }) {
-  if (pagination.totalPages <= 1) return null;
+function TableSkeleton() {
   return (
-    <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
-      <span>
-        Page {pagination.page} of {pagination.totalPages} · {pagination.total} total
-      </span>
-      <div className="flex gap-2">
-        <Button size="sm" variant="secondary" disabled={pagination.page <= 1} onClick={() => onPage(pagination.page - 1)}>
-          Previous
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={pagination.page >= pagination.totalPages}
-          onClick={() => onPage(pagination.page + 1)}
-        >
-          Next
-        </Button>
-      </div>
+    <div className="flex flex-col gap-2" role="status" aria-label="Loading report">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <Skeleton key={i} className="h-12 w-full rounded-xl" />
+      ))}
     </div>
   );
 }
@@ -85,30 +65,25 @@ export default function ReportsPage() {
   const [tab, setTab] = useState<ReportTab>('students');
 
   return (
-    <div>
+    <div className="mx-auto max-w-6xl">
       <PageHeader
         eyebrow="Insights"
         title="Reports"
-        description="School-wide student, attendance, and fee reports — paginated and exportable to CSV."
+        description="School-wide student, attendance and fee reports. Search, filter, and export exactly what you see to CSV."
       />
 
-      <div className="mt-6 flex gap-1 border-b border-slate-200">
-        {TABS.map((t) => (
-          <button
-            key={t.value}
-            type="button"
-            onClick={() => setTab(t.value)}
-            className={[
-              'border-b-2 px-4 py-2 text-sm font-medium transition-colors',
-              tab === t.value ? 'border-brand-blue text-brand-blue' : 'border-transparent text-slate-500 hover:text-navy',
-            ].join(' ')}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        className="mt-6 w-fit max-w-full"
+        value={tab}
+        onChange={(v) => setTab(v as ReportTab)}
+        tabs={[
+          { id: 'students', label: 'Students', icon: <IdCard size={16} /> },
+          { id: 'attendance', label: 'Attendance', icon: <CalendarCheck size={16} /> },
+          { id: 'fees', label: 'Fees', icon: <Wallet size={16} /> },
+        ]}
+      />
 
-      <div className="mt-6">
+      <div key={tab} id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} className="mt-6 animate-fade-in-up">
         {tab === 'students' && <StudentsReportPanel />}
         {tab === 'attendance' && <AttendanceReportPanel />}
         {tab === 'fees' && <FeesReportPanel />}
@@ -117,330 +92,335 @@ export default function ReportsPage() {
   );
 }
 
+// Filter bar + results frame shared by all three reports.
+function ReportFrame({ filters, exportHref, children }: { filters: React.ReactNode; exportHref: string; children: React.ReactNode }) {
+  return (
+    <>
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-card sm:p-5">
+        <div className="flex flex-col gap-3">{filters}</div>
+        <div className="mt-4 flex justify-end border-t border-slate-100 pt-4">
+          <ExportLink href={exportHref} />
+        </div>
+      </div>
+      <div className="mt-6 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-card sm:p-5">{children}</div>
+    </>
+  );
+}
+
 function StudentsReportPanel() {
   const { data: classes } = useClasses();
+  const [search, setSearch] = useState('');
   const [classId, setClassId] = useState('');
   const [sectionId, setSectionId] = useState('');
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZES[1]);
+  const debouncedSearch = useDebouncedValue(search.trim());
   const { data: sections } = useSections(classId || undefined);
-  const filters = { classId: classId || undefined, sectionId: sectionId || undefined, status: status || undefined };
-  const { data, isLoading } = useStudentReport(filters, page);
+  const filters = { classId: classId || undefined, sectionId: sectionId || undefined, status: status || undefined, search: debouncedSearch || undefined };
+  const { data, isLoading, isFetching, isError } = useStudentReport(filters, page, pageSize);
 
-  const exportHref = `${API_URL}/reports/students/export?${new URLSearchParams(
-    Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== undefined) as [string, string][]),
-  ).toString()}`;
+  useEffect(() => setPage(1), [debouncedSearch]);
 
   return (
-    <Card className="p-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-wrap gap-3">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-navy">Class</label>
-            <select
-              className={selectClasses()}
-              value={classId}
-              onChange={(e) => {
-                setClassId(e.target.value);
-                setSectionId('');
-                setPage(1);
-              }}
-            >
+    <ReportFrame
+      exportHref={`${API_URL}/reports/students/export${queryString(filters)}`}
+      filters={
+        <>
+          <SearchInput value={search} onChange={setSearch} busy={isFetching && !isLoading} placeholder="Search by student name or admission number…" aria-label="Search students" />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <SelectField fieldSize="sm" aria-label="Filter by class" leftIcon={<School size={16} />} value={classId} onChange={(e) => { setClassId(e.target.value); setSectionId(''); setPage(1); }}>
               <option value="">All classes</option>
               {classes?.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
+                <option key={c.id} value={c.id}>{c.name}</option>
               ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-navy">Section</label>
-            <select
-              className={selectClasses()}
-              disabled={!classId}
-              value={sectionId}
-              onChange={(e) => {
-                setSectionId(e.target.value);
-                setPage(1);
-              }}
-            >
-              <option value="">All sections</option>
+            </SelectField>
+            <SelectField fieldSize="sm" aria-label="Filter by section" leftIcon={<Shapes size={16} />} disabled={!classId} value={sectionId} onChange={(e) => { setSectionId(e.target.value); setPage(1); }}>
+              <option value="">{classId ? 'All sections' : 'Pick a class first'}</option>
               {sections?.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
+                <option key={s.id} value={s.id}>Section {s.name}</option>
               ))}
-            </select>
+            </SelectField>
+            <SelectField fieldSize="sm" aria-label="Filter by status" leftIcon={<Users size={16} />} value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
+              <option value="">Any status</option>
+              {Object.entries(STUDENT_STATUS_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </SelectField>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-navy">Status</label>
-            <select
-              className={selectClasses()}
-              value={status}
-              onChange={(e) => {
-                setStatus(e.target.value);
-                setPage(1);
-              }}
-            >
-              <option value="">All statuses</option>
-              <option value="ENROLLED">Enrolled</option>
-              <option value="TRANSFERRED">Transferred</option>
-              <option value="GRADUATED">Graduated</option>
-              <option value="WITHDRAWN">Withdrawn</option>
-            </select>
-          </div>
-        </div>
-        <ExportLink href={exportHref} />
-      </div>
-
-      <div className="mt-5">
-        {isLoading && <SkeletonRows count={5} />}
-        {!isLoading && data?.data.length === 0 && (
-          <EmptyState icon={<FileSpreadsheet size={22} />} title="No students match these filters" />
-        )}
-        {!isLoading && data && data.data.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="text-xs uppercase text-slate-500">
-                  <th className="py-2">Admission No</th>
-                  <th className="py-2">Name</th>
-                  <th className="py-2">Class</th>
-                  <th className="py-2">Section</th>
-                  <th className="py-2">Status</th>
+        </>
+      }
+    >
+      {isError && <Alert variant="error">We couldn’t load this report. Please try again.</Alert>}
+      {isLoading && <TableSkeleton />}
+      {!isLoading && data?.data.length === 0 && <EmptyState icon={<FileSpreadsheet size={22} />} title="No students match these filters" description="Try clearing a filter or searching for something else." />}
+      {data && data.data.length > 0 && (
+        <>
+          <div className={TABLE.wrap}>
+            <table className={TABLE.table}>
+              <thead className={TABLE.head}>
+                <tr>
+                  <th className={TABLE.th}>Student</th>
+                  <th className={TABLE.th}>Admission no.</th>
+                  <th className={TABLE.th}>Class</th>
+                  <th className={TABLE.th}>Section</th>
+                  <th className={TABLE.th}>Status</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className={TABLE.body}>
                 {data.data.map((row) => (
-                  <tr key={row.studentId} className="border-t border-slate-100">
-                    <td className="py-2 text-navy">{row.admissionNo}</td>
-                    <td className="py-2 text-navy">
-                      {row.firstName} {row.lastName}
+                  <tr key={row.studentId} className={TABLE.row}>
+                    <td className={TABLE.td}>
+                      <div className="flex items-center gap-2.5">
+                        <Avatar name={`${row.firstName} ${row.lastName}`} tone="auto" size={32} />
+                        <span className="font-semibold text-navy">{row.firstName} {row.lastName}</span>
+                      </div>
                     </td>
-                    <td className="py-2 text-slate-600">{row.className ?? '—'}</td>
-                    <td className="py-2 text-slate-600">{row.sectionName ?? '—'}</td>
-                    <td className="py-2">
-                      <Badge tone={STUDENT_STATUS_TONES[row.status] ?? 'neutral'}>{row.status}</Badge>
+                    <td className={TABLE.td}><span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-slate-600">{row.admissionNo}</span></td>
+                    <td className={`${TABLE.td} text-slate-600`}>{row.className ?? '—'}</td>
+                    <td className={`${TABLE.td} text-slate-600`}>{row.sectionName ?? '—'}</td>
+                    <td className={TABLE.td}>
+                      <Badge tone={STUDENT_STATUS_TONES[row.status] ?? 'neutral'} dot>{STUDENT_STATUS_LABELS[row.status] ?? row.status}</Badge>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        )}
-        {data && <Pagination pagination={data.pagination} onPage={setPage} />}
-      </div>
-    </Card>
+          <div className="mt-4">
+            <Pagination page={data.pagination.page} totalPages={data.pagination.totalPages} total={data.pagination.total} pageSize={data.pagination.pageSize} noun="students" pageSizeOptions={PAGE_SIZES} onPageChange={setPage} onPageSizeChange={(n) => { setPageSize(n); setPage(1); }} />
+          </div>
+        </>
+      )}
+    </ReportFrame>
   );
 }
 
+const ATTENDANCE_PRESETS = [
+  { label: 'Last 7 days', from: () => daysAgoIso(6) },
+  { label: 'Last 30 days', from: () => daysAgoIso(29) },
+  { label: 'This month', from: () => `${todayIso().slice(0, 8)}01` },
+];
+
 function AttendanceReportPanel() {
   const { data: classes } = useClasses();
+  const [search, setSearch] = useState('');
   const [classId, setClassId] = useState('');
   const [sectionId, setSectionId] = useState('');
-  const [from, setFrom] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 6);
-    return d.toISOString().slice(0, 10);
-  });
-  const [to, setTo] = useState(today());
+  const [from, setFrom] = useState(daysAgoIso(6));
+  const [to, setTo] = useState(todayIso());
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZES[1]);
+  const debouncedSearch = useDebouncedValue(search.trim());
   const { data: sections } = useSections(classId || undefined);
-  const filters = { classId: classId || undefined, sectionId: sectionId || undefined, from, to };
-  const { data, isLoading } = useAttendanceReport(filters, page);
+  const filters = { classId: classId || undefined, sectionId: sectionId || undefined, from, to, search: debouncedSearch || undefined };
+  const { data, isLoading, isFetching, isError } = useAttendanceReport(filters, page, pageSize);
 
-  const exportHref = `${API_URL}/reports/attendance/export?${new URLSearchParams(
-    Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== undefined) as [string, string][]),
-  ).toString()}`;
+  useEffect(() => setPage(1), [debouncedSearch]);
 
   return (
-    <Card className="p-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-wrap gap-3">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-navy">Class</label>
-            <select
-              className={selectClasses()}
-              value={classId}
-              onChange={(e) => {
-                setClassId(e.target.value);
-                setSectionId('');
-                setPage(1);
-              }}
-            >
+    <ReportFrame
+      exportHref={`${API_URL}/reports/attendance/export${queryString(filters)}`}
+      filters={
+        <>
+          <SearchInput value={search} onChange={setSearch} busy={isFetching && !isLoading} placeholder="Search by student name or admission number…" aria-label="Search students" />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <SelectField fieldSize="sm" aria-label="Filter by class" leftIcon={<School size={16} />} value={classId} onChange={(e) => { setClassId(e.target.value); setSectionId(''); setPage(1); }}>
               <option value="">All classes</option>
               {classes?.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
+                <option key={c.id} value={c.id}>{c.name}</option>
               ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-navy">Section</label>
-            <select
-              className={selectClasses()}
-              disabled={!classId}
-              value={sectionId}
-              onChange={(e) => {
-                setSectionId(e.target.value);
-                setPage(1);
-              }}
-            >
-              <option value="">All sections</option>
+            </SelectField>
+            <SelectField fieldSize="sm" aria-label="Filter by section" leftIcon={<Shapes size={16} />} disabled={!classId} value={sectionId} onChange={(e) => { setSectionId(e.target.value); setPage(1); }}>
+              <option value="">{classId ? 'All sections' : 'Pick a class first'}</option>
               {sections?.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
+                <option key={s.id} value={s.id}>Section {s.name}</option>
               ))}
-            </select>
+            </SelectField>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-navy">From</label>
-            <input
-              type="date"
-              className={selectClasses()}
-              value={from}
-              onChange={(e) => {
-                setFrom(e.target.value);
-                setPage(1);
-              }}
-            />
+          <div className="flex flex-wrap gap-2">
+            {ATTENDANCE_PRESETS.map((p) => {
+              const start = p.from();
+              const active = from === start && to === todayIso();
+              return (
+                <button key={p.label} type="button" aria-pressed={active} onClick={() => { setFrom(start); setTo(todayIso()); setPage(1); }} className={['rounded-full px-3 py-1.5 text-xs font-semibold transition-colors', active ? 'bg-brand-blue text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'].join(' ')}>
+                  {p.label}
+                </button>
+              );
+            })}
           </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-navy">To</label>
-            <input
-              type="date"
-              className={selectClasses()}
-              value={to}
-              onChange={(e) => {
-                setTo(e.target.value);
-                setPage(1);
-              }}
-            />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <TextField label="From" type="date" value={from} max={to} onChange={(e) => { setFrom(e.target.value); setPage(1); }} />
+            <TextField label="To" type="date" value={to} min={from} onChange={(e) => { setTo(e.target.value); setPage(1); }} />
           </div>
-        </div>
-        <ExportLink href={exportHref} />
-      </div>
-
-      <div className="mt-5">
-        {isLoading && <SkeletonRows count={5} />}
-        {!isLoading && data?.data.length === 0 && (
-          <EmptyState icon={<BarChart3 size={22} />} title="No students match these filters" />
-        )}
-        {!isLoading && data && data.data.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="text-xs uppercase text-slate-500">
-                  <th className="py-2">Student</th>
-                  <th className="py-2">Class</th>
-                  <th className="py-2 text-center">Present</th>
-                  <th className="py-2 text-center">Absent</th>
-                  <th className="py-2 text-center">Late</th>
-                  <th className="py-2 text-center">Excused</th>
-                  <th className="py-2 text-center">Attendance %</th>
+        </>
+      }
+    >
+      {isError && <Alert variant="error">We couldn’t load this report. Please try again.</Alert>}
+      {isLoading && <TableSkeleton />}
+      {!isLoading && data?.data.length === 0 && <EmptyState icon={<BarChart3 size={22} />} title="No students match these filters" description="Try clearing a filter or searching for something else." />}
+      {data && data.data.length > 0 && (
+        <>
+          <div className={TABLE.wrap}>
+            <table className={`${TABLE.table} min-w-[44rem]`}>
+              <thead className={TABLE.head}>
+                <tr>
+                  <th className={TABLE.th}>Student</th>
+                  <th className={TABLE.th}>Class</th>
+                  <th className={TABLE.thCenter}>Present</th>
+                  <th className={TABLE.thCenter}>Absent</th>
+                  <th className={TABLE.thCenter}>Late</th>
+                  <th className={TABLE.thCenter}>Excused</th>
+                  <th className={TABLE.th}>Attendance</th>
                 </tr>
               </thead>
-              <tbody>
-                {data.data.map((row) => (
-                  <tr key={row.studentId} className="border-t border-slate-100">
-                    <td className="py-2 text-navy">
-                      {row.firstName} {row.lastName}
-                      <span className="ml-2 text-xs text-slate-400">{row.admissionNo}</span>
-                    </td>
-                    <td className="py-2 text-slate-600">
-                      {row.className ?? '—'} {row.sectionName ?? ''}
-                    </td>
-                    <td className="py-2 text-center">{row.present}</td>
-                    <td className="py-2 text-center">{row.absent}</td>
-                    <td className="py-2 text-center">{row.late}</td>
-                    <td className="py-2 text-center">{row.excused}</td>
-                    <td className="py-2 text-center font-medium">
-                      {row.attendancePercent === null ? '—' : `${row.attendancePercent}%`}
-                    </td>
-                  </tr>
-                ))}
+              <tbody className={TABLE.body}>
+                {data.data.map((row) => {
+                  const pct = row.attendancePercent;
+                  const bar = pct === null ? 'bg-slate-200' : pct >= 90 ? 'from-emerald-400 to-teal-500' : pct >= 75 ? 'from-amber-400 to-orange-500' : 'from-rose-400 to-red-500';
+                  return (
+                    <tr key={row.studentId} className={TABLE.row}>
+                      <td className={TABLE.td}>
+                        <div className="flex items-center gap-2.5">
+                          <Avatar name={`${row.firstName} ${row.lastName}`} tone="auto" size={32} />
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold text-navy">{row.firstName} {row.lastName}</p>
+                            <p className="font-mono text-[11px] text-slate-400">{row.admissionNo}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className={`${TABLE.td} text-slate-600`}>{row.className ?? '—'} {row.sectionName ? `· ${row.sectionName}` : ''}</td>
+                      <td className={`${TABLE.tdCenter} font-semibold text-emerald-600`}>{row.present}</td>
+                      <td className={`${TABLE.tdCenter} font-semibold text-red-600`}>{row.absent}</td>
+                      <td className={`${TABLE.tdCenter} font-semibold text-amber-600`}>{row.late}</td>
+                      <td className={`${TABLE.tdCenter} font-semibold text-slate-500`}>{row.excused}</td>
+                      <td className={TABLE.td}>
+                        {pct === null ? (
+                          <span className="text-xs text-slate-400">No records</span>
+                        ) : (
+                          <div className="flex items-center gap-2.5">
+                            <div className="h-2 w-24 overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
+                              <div className={['h-full rounded-full bg-gradient-to-r', bar].join(' ')} style={{ width: `${pct}%` }} />
+                            </div>
+                            <span className="w-12 text-xs font-bold text-navy">{pct}%</span>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-        )}
-        {data && <Pagination pagination={data.pagination} onPage={setPage} />}
-      </div>
-    </Card>
+          <div className="mt-4">
+            <Pagination page={data.pagination.page} totalPages={data.pagination.totalPages} total={data.pagination.total} pageSize={data.pagination.pageSize} noun="students" pageSizeOptions={PAGE_SIZES} onPageChange={setPage} onPageSizeChange={(n) => { setPageSize(n); setPage(1); }} />
+          </div>
+        </>
+      )}
+    </ReportFrame>
   );
 }
 
 function FeesReportPanel() {
+  const { data: categories } = useFeeCategories();
+  const [search, setSearch] = useState('');
+  const [feeCategoryId, setFeeCategoryId] = useState('');
+  const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
-  const { data, isLoading } = useFeeReport({}, page);
+  const [pageSize, setPageSize] = useState(PAGE_SIZES[1]);
+  const debouncedSearch = useDebouncedValue(search.trim());
+  const filters = { feeCategoryId: feeCategoryId || undefined, status: status || undefined, search: debouncedSearch || undefined };
+  const { data, isLoading, isFetching, isError } = useFeeReport(filters, page, pageSize);
 
-  const exportHref = `${API_URL}/reports/fees/export`;
+  useEffect(() => setPage(1), [debouncedSearch]);
+  const rate = data && data.totals.assignedMinor > 0 ? Math.round((data.totals.paidMinor / data.totals.assignedMinor) * 100) : null;
 
   return (
-    <Card className="p-6">
-      {data && (
-        <div className="mb-5 grid grid-cols-3 gap-3">
-          <div className="rounded-xl border border-slate-200 p-4">
-            <p className="text-xs font-medium uppercase text-slate-500">Assigned</p>
-            <p className="mt-1 text-lg font-bold text-navy">{formatMinor(data.totals.assignedMinor)}</p>
-          </div>
-          <div className="rounded-xl border border-slate-200 p-4">
-            <p className="text-xs font-medium uppercase text-slate-500">Collected</p>
-            <p className="mt-1 text-lg font-bold text-green-700">{formatMinor(data.totals.paidMinor)}</p>
-          </div>
-          <div className="rounded-xl border border-slate-200 p-4">
-            <p className="text-xs font-medium uppercase text-slate-500">Outstanding</p>
-            <p className="mt-1 text-lg font-bold text-amber-700">{formatMinor(data.totals.outstandingMinor)}</p>
-          </div>
-        </div>
-      )}
-
-      <div className="flex justify-end">
-        <ExportLink href={exportHref} />
+    <>
+      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard label="Assigned" tone="blue" icon={<Layers size={18} />} value={data ? formatMinor(data.totals.assignedMinor) : <Skeleton className="h-8 w-24" />} hint="Matches your filters" />
+        <StatCard label="Collected" tone="emerald" icon={<HandCoins size={18} />} value={data ? formatMinor(data.totals.paidMinor) : <Skeleton className="h-8 w-24" />} />
+        <StatCard label="Outstanding" tone="amber" icon={<BadgeIndianRupee size={18} />} value={data ? formatMinor(data.totals.outstandingMinor) : <Skeleton className="h-8 w-24" />} />
+        <StatCard label="Collection rate" tone="violet" icon={<Percent size={18} />} value={data ? (rate === null ? '—' : `${rate}%`) : <Skeleton className="h-8 w-16" />} />
       </div>
 
-      <div className="mt-3">
-        {isLoading && <SkeletonRows count={5} />}
-        {!isLoading && data?.data.length === 0 && (
-          <EmptyState icon={<FileSpreadsheet size={22} />} title="No fee records yet" />
-        )}
-        {!isLoading && data && data.data.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="text-xs uppercase text-slate-500">
-                  <th className="py-2">Student</th>
-                  <th className="py-2">Category</th>
-                  <th className="py-2 text-right">Due</th>
-                  <th className="py-2 text-right">Paid</th>
-                  <th className="py-2 text-right">Balance</th>
-                  <th className="py-2">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.data.map((row) => (
-                  <tr key={row.studentFeeId} className="border-t border-slate-100">
-                    <td className="py-2 text-navy">
-                      {row.firstName} {row.lastName}
-                      <span className="ml-2 text-xs text-slate-400">{row.admissionNo}</span>
-                    </td>
-                    <td className="py-2 text-slate-600">{row.feeCategory}</td>
-                    <td className="py-2 text-right">{formatMinor(row.amountDueMinor)}</td>
-                    <td className="py-2 text-right">{formatMinor(row.paidMinor)}</td>
-                    <td className="py-2 text-right font-medium">{formatMinor(row.balanceMinor)}</td>
-                    <td className="py-2">
-                      <Badge tone={FEE_STATUS_TONES[row.status] ?? 'neutral'}>{row.status.replace('_', ' ')}</Badge>
-                    </td>
-                  </tr>
+      <ReportFrame
+        exportHref={`${API_URL}/reports/fees/export${queryString(filters)}`}
+        filters={
+          <>
+            <SearchInput value={search} onChange={setSearch} busy={isFetching && !isLoading} placeholder="Search by student, admission number or fee category…" aria-label="Search fees" />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <SelectField fieldSize="sm" aria-label="Filter by fee category" leftIcon={<Tag size={16} />} value={feeCategoryId} onChange={(e) => { setFeeCategoryId(e.target.value); setPage(1); }}>
+                <option value="">All categories</option>
+                {categories?.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </SelectField>
+              <SelectField fieldSize="sm" aria-label="Filter by payment status" leftIcon={<Wallet size={16} />} value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
+                <option value="">Any status</option>
+                {Object.entries(FEE_STATUS_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </SelectField>
+            </div>
+          </>
+        }
+      >
+        {isError && <Alert variant="error">We couldn’t load this report. Please try again.</Alert>}
+        {isLoading && <TableSkeleton />}
+        {!isLoading && data?.data.length === 0 && <EmptyState icon={<FileSpreadsheet size={22} />} title="No fee records match" description="Try clearing a filter or searching for something else." />}
+        {data && data.data.length > 0 && (
+          <>
+            <div className={TABLE.wrap}>
+              <table className={`${TABLE.table} min-w-[44rem]`}>
+                <thead className={TABLE.head}>
+                  <tr>
+                    <th className={TABLE.th}>Student</th>
+                    <th className={TABLE.th}>Category</th>
+                    <th className={TABLE.thRight}>Due</th>
+                    <th className={TABLE.thRight}>Paid</th>
+                    <th className={TABLE.thRight}>Balance</th>
+                    <th className={TABLE.th}>Status</th>
+                  </tr>
+                </thead>
+                <tbody className={TABLE.body}>
+                  {data.data.map((row) => {
+                    const pct = row.amountDueMinor > 0 ? Math.min(100, Math.round((row.paidMinor / row.amountDueMinor) * 100)) : 0;
+                    return (
+                      <tr key={row.studentFeeId} className={TABLE.row}>
+                        <td className={TABLE.td}>
+                          <div className="flex items-center gap-2.5">
+                            <Avatar name={`${row.firstName} ${row.lastName}`} tone="auto" size={32} />
+                            <div className="min-w-0">
+                              <p className="truncate font-semibold text-navy">{row.firstName} {row.lastName}</p>
+                              <p className="font-mono text-[11px] text-slate-400">{row.admissionNo}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className={`${TABLE.td} text-slate-600`}>{row.feeCategory}</td>
+                        <td className={TABLE.tdRight}>{formatMinor(row.amountDueMinor)}</td>
+                        <td className={TABLE.tdRight}>
+                          <span className="font-semibold text-emerald-600">{formatMinor(row.paidMinor)}</span>
+                          <div className="ml-auto mt-1 h-1 w-16 overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
+                            <div className="h-full rounded-full bg-gradient-to-r from-brand-electric to-brand-blue" style={{ width: `${pct}%` }} />
+                          </div>
+                        </td>
+                        <td className={`${TABLE.tdRight} font-semibold ${row.balanceMinor > 0 ? 'text-amber-600' : 'text-slate-500'}`}>{formatMinor(row.balanceMinor)}</td>
+                        <td className={TABLE.td}>
+                          <Badge tone={FEE_STATUS_TONES[row.status] ?? 'neutral'} dot>{FEE_STATUS_LABELS[row.status] ?? row.status}</Badge>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-4">
+              <Pagination page={data.pagination.page} totalPages={data.pagination.totalPages} total={data.pagination.total} pageSize={data.pagination.pageSize} noun="fee records" pageSizeOptions={PAGE_SIZES} onPageChange={setPage} onPageSizeChange={(n) => { setPageSize(n); setPage(1); }} />
+            </div>
+          </>
         )}
-        {data && <Pagination pagination={data.pagination} onPage={setPage} />}
-      </div>
-    </Card>
+      </ReportFrame>
+    </>
   );
 }

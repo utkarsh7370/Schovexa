@@ -47,6 +47,17 @@ export const registerSchoolSchema = z.object({
 });
 export type RegisterSchoolInput = z.infer<typeof registerSchoolSchema>;
 
+// Intl is the source of truth for what counts as a real IANA zone name
+// ('Asia/Kolkata' yes, 'Mars/Olympus' no) — in Node and every browser.
+export function isValidTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const updateSchoolSchema = z.object({
   name: z.string().min(2).optional(),
   address: z.string().optional(),
@@ -58,8 +69,10 @@ export const updateSchoolSchema = z.object({
   contactEmail: z.union([z.literal(''), z.string().email()]).optional(),
   contactPhone: z.string().optional(),
   website: z.union([z.literal(''), z.string().url()]).optional(),
-  timezone: z.string().optional(),
-  currency: z.string().optional(),
+  // Decides what "today" means for the school: when attendance locks, which
+  // holiday is "next". An unknown zone would silently fall back, so reject it here.
+  timezone: z.string().refine(isValidTimeZone, 'Choose a valid time zone').optional(),
+  currency: z.string().regex(/^[A-Z]{3}$/, 'Use a 3-letter currency code, like INR').optional(),
   dateFormat: z.string().optional(),
 });
 export type UpdateSchoolInput = z.infer<typeof updateSchoolSchema>;
@@ -225,7 +238,7 @@ const attendanceStatusSchema = z.enum(['PRESENT', 'ABSENT', 'LATE', 'EXCUSED']);
 
 export const markAttendanceSchema = z.object({
   sectionId: z.string().min(1, 'Section is required'),
-  date: z.string().min(1, 'Date is required'),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
   records: z
     .array(
       z.object({
@@ -420,3 +433,36 @@ export const registerSchoolFormSchema = z
   });
 export type RegisterSchoolFormInput = z.input<typeof registerSchoolFormSchema>;
 export type RegisterSchoolFormOutput = z.output<typeof registerSchoolFormSchema>;
+
+// --- Holidays ---------------------------------------------------------------
+
+export const HOLIDAY_TYPES = ['NATIONAL', 'FESTIVAL', 'VACATION', 'SCHOOL', 'OTHER'] as const;
+const holidayTypeSchema = z.enum(HOLIDAY_TYPES);
+const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a valid date');
+
+const holidayBase = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(2, 'Give the holiday a name (at least 2 characters)')
+    .max(100, 'Keep the name under 100 characters'),
+  type: holidayTypeSchema.default('OTHER'),
+  startDate: isoDateSchema,
+  // Same as startDate for a one-day holiday.
+  endDate: isoDateSchema,
+  description: z.string().trim().max(500, 'Keep the note under 500 characters').optional().or(z.literal('')),
+});
+
+const endNotBeforeStart = (v: { startDate?: string; endDate?: string }) => !v.startDate || !v.endDate || v.endDate >= v.startDate;
+
+export const createHolidaySchema = holidayBase.refine(endNotBeforeStart, {
+  path: ['endDate'],
+  message: 'The end date can’t be before the start date',
+});
+export type CreateHolidayInput = z.input<typeof createHolidaySchema>;
+
+export const updateHolidaySchema = holidayBase.partial().refine(endNotBeforeStart, {
+  path: ['endDate'],
+  message: 'The end date can’t be before the start date',
+});
+export type UpdateHolidayInput = z.input<typeof updateHolidaySchema>;

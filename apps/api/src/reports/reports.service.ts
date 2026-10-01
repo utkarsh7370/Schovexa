@@ -8,6 +8,7 @@ export interface StudentReportFilters {
   classId?: string;
   sectionId?: string;
   status?: string;
+  search?: string;
 }
 
 export interface AttendanceReportFilters {
@@ -15,10 +16,23 @@ export interface AttendanceReportFilters {
   sectionId?: string;
   from: string;
   to: string;
+  search?: string;
 }
 
 export interface FeeReportFilters {
   academicYearId?: string;
+  feeCategoryId?: string;
+  status?: string;
+  search?: string;
+}
+
+const FEE_STATUSES = ['PENDING', 'PARTIALLY_PAID', 'PAID', 'WAIVED'];
+
+// Every whitespace-separated word must match at least one of the given
+// fields (case-insensitive "contains"), so "riya sharma" and "sharma riya"
+// both find Riya Sharma. Capped at 6 words / 80 characters.
+function wordsOf(search: string | undefined): string[] {
+  return (search ?? '').trim().slice(0, 80).split(/\s+/).filter(Boolean).slice(0, 6);
 }
 
 const STUDENT_WITH_SECTION = { section: { include: { class: true } } } as const;
@@ -44,11 +58,20 @@ export class ReportsService {
 
   private buildStudentWhere(
     schoolId: string,
-    filters: { classId?: string; sectionId?: string; status?: string },
+    filters: { classId?: string; sectionId?: string; status?: string; search?: string },
   ): Prisma.StudentWhereInput {
+    const words = wordsOf(filters.search);
     return {
       schoolId,
       deletedAt: null,
+      ...(words.length
+        ? {
+            AND: words.map((word) => {
+              const contains = { contains: word, mode: 'insensitive' as const };
+              return { OR: [{ firstName: contains }, { lastName: contains }, { admissionNo: contains }] };
+            }),
+          }
+        : {}),
       ...(filters.status ? { status: filters.status as never } : {}),
       ...(filters.sectionId
         ? { sectionId: filters.sectionId }
@@ -139,7 +162,7 @@ export class ReportsService {
 
   async attendanceReport(auth: AuthContext, filters: AttendanceReportFilters, page: number, pageSize: number) {
     requireAllSchoolScope(auth);
-    const where = this.buildStudentWhere(auth.schoolId, { classId: filters.classId, sectionId: filters.sectionId });
+    const where = this.buildStudentWhere(auth.schoolId, { classId: filters.classId, sectionId: filters.sectionId, search: filters.search });
     const total = await this.prisma.student.count({ where });
     // Paginate over students first (cheap), then compute attendance only
     // for that one page's students rather than the whole school.
@@ -156,7 +179,7 @@ export class ReportsService {
 
   async attendanceReportRows(auth: AuthContext, filters: AttendanceReportFilters) {
     requireAllSchoolScope(auth);
-    const where = this.buildStudentWhere(auth.schoolId, { classId: filters.classId, sectionId: filters.sectionId });
+    const where = this.buildStudentWhere(auth.schoolId, { classId: filters.classId, sectionId: filters.sectionId, search: filters.search });
     const students = await this.prisma.student.findMany({
       where,
       include: STUDENT_WITH_SECTION,
@@ -166,10 +189,32 @@ export class ReportsService {
   }
 
   private buildFeeWhere(schoolId: string, filters: FeeReportFilters): Prisma.StudentFeeWhereInput {
+    const words = wordsOf(filters.search);
+    // academicYearId and feeCategoryId both live on feeStructure — one
+    // relation filter, since Prisma rejects two `feeStructure` keys.
+    const structure: Prisma.FeeStructureWhereInput = {};
+    if (filters.academicYearId) structure.academicYearId = filters.academicYearId;
+    if (filters.feeCategoryId) structure.feeCategoryId = filters.feeCategoryId;
     return {
       schoolId,
       deletedAt: null,
-      ...(filters.academicYearId ? { feeStructure: { academicYearId: filters.academicYearId } } : {}),
+      ...(filters.status && FEE_STATUSES.includes(filters.status) ? { status: filters.status as never } : {}),
+      ...(Object.keys(structure).length ? { feeStructure: structure } : {}),
+      ...(words.length
+        ? {
+            AND: words.map((word) => {
+              const contains = { contains: word, mode: 'insensitive' as const };
+              return {
+                OR: [
+                  { student: { firstName: contains } },
+                  { student: { lastName: contains } },
+                  { student: { admissionNo: contains } },
+                  { feeStructure: { feeCategory: { name: contains } } },
+                ],
+              };
+            }),
+          }
+        : {}),
     };
   }
 

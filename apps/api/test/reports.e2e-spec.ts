@@ -144,6 +144,36 @@ describe('Reports (e2e)', () => {
       expect(res.body.data[0].admissionNo).toBe('A-1');
     });
 
+    it('searches by name or admission number (every word must match)', async () => {
+      const { cookie } = await registerSchool('Roster Search School', 'rostersearch1@example.test');
+      const { sectionId } = await setUpClassAndSection(cookie);
+      await admitStudent(cookie, sectionId, 'A-1'); // Kabir Rao
+      const other = await agent()
+        .post('/api/v1/students')
+        .set('Origin', WEB_ORIGIN)
+        .set('Cookie', cookie)
+        .send({ admissionNo: 'Z-9', firstName: 'Meera', lastName: 'Nair', sectionId });
+      expect(other.status).toBe(201);
+
+      const search = async (q: string) =>
+        (await agent().get('/api/v1/reports/students').set('Cookie', cookie).query({ search: q })).body.data.map((r: { admissionNo: string }) => r.admissionNo);
+      expect(await search('kabir')).toEqual(['A-1']);
+      expect(await search('rao kabir')).toEqual(['A-1']);
+      expect(await search('z-9')).toEqual(['Z-9']);
+      expect(await search('nobody')).toEqual([]);
+      expect(await search("%' OR 1=1 --")).toEqual([]);
+    });
+
+    it('applies the same search to the CSV export', async () => {
+      const { cookie } = await registerSchool('Roster Search CSV School', 'rostersearchcsv1@example.test');
+      const { sectionId } = await setUpClassAndSection(cookie);
+      await admitStudent(cookie, sectionId, 'A-1');
+      await agent().post('/api/v1/students').set('Origin', WEB_ORIGIN).set('Cookie', cookie).send({ admissionNo: 'Z-9', firstName: 'Meera', lastName: 'Nair', sectionId });
+      const res = await agent().get('/api/v1/reports/students/export').set('Cookie', cookie).query({ search: 'meera' });
+      expect(res.text).toContain('Z-9');
+      expect(res.text).not.toContain('A-1');
+    });
+
     it('exports the roster as CSV', async () => {
       const { cookie } = await registerSchool('Roster CSV School', 'rostercsv1@example.test');
       const { sectionId } = await setUpClassAndSection(cookie);
@@ -165,30 +195,21 @@ describe('Reports (e2e)', () => {
       const studentA = await admitStudent(cookie, sectionId, 'A-1');
       const studentB = await admitStudent(cookie, sectionId, 'A-2');
 
-      await agent()
-        .post('/api/v1/attendance')
-        .set('Origin', WEB_ORIGIN)
-        .set('Cookie', cookie)
-        .send({
-          sectionId,
-          date: '2025-06-01',
-          records: [
-            { studentId: studentA, status: 'PRESENT' },
-            { studentId: studentB, status: 'ABSENT' },
-          ],
+      // The API only lets attendance be marked for today, so a two-day
+      // range for the report is seeded straight into the database.
+      const school = await seedClient.school.findFirstOrThrow({ where: { name: 'Attendance Report School' } });
+      const member = await seedClient.schoolMembership.findFirstOrThrow({ where: { schoolId: school.id } });
+      const rows: [string, string, 'PRESENT' | 'ABSENT'][] = [
+        [studentA, '2025-06-01', 'PRESENT'],
+        [studentB, '2025-06-01', 'ABSENT'],
+        [studentA, '2025-06-02', 'PRESENT'],
+        [studentB, '2025-06-02', 'PRESENT'],
+      ];
+      for (const [studentId, date, status] of rows) {
+        await seedClient.attendance.create({
+          data: { schoolId: school.id, sectionId, studentId, date: new Date(date), status, markedById: member.userId },
         });
-      await agent()
-        .post('/api/v1/attendance')
-        .set('Origin', WEB_ORIGIN)
-        .set('Cookie', cookie)
-        .send({
-          sectionId,
-          date: '2025-06-02',
-          records: [
-            { studentId: studentA, status: 'PRESENT' },
-            { studentId: studentB, status: 'PRESENT' },
-          ],
-        });
+      }
 
       const res = await agent()
         .get('/api/v1/reports/attendance')
@@ -240,6 +261,34 @@ describe('Reports (e2e)', () => {
       expect(res.body.data).toHaveLength(1);
       expect(res.body.data[0]).toMatchObject({ amountDueMinor: 500000, paidMinor: 200000, balanceMinor: 300000 });
       expect(res.body.totals).toMatchObject({ assignedMinor: 500000, paidMinor: 200000, outstandingMinor: 300000 });
+    });
+
+    it('filters by status, category and search, with totals following the filter', async () => {
+      const { cookie } = await registerSchool('Fee Filter School', 'feefilter1@example.test');
+      const { academicYearId } = await setUpClassAndSection(cookie);
+      const post = (path: string, body: object) => agent().post(`/api/v1${path}`).set('Origin', WEB_ORIGIN).set('Cookie', cookie).send(body);
+      const tuition = await post('/fee-categories', { name: 'Tuition' });
+      const transport = await post('/fee-categories', { name: 'Transport' });
+      const tuitionStructure = await post('/fee-structures', { feeCategoryId: tuition.body.id, academicYearId, amountMinor: 500000, frequency: 'MONTHLY' });
+      const transportStructure = await post('/fee-structures', { feeCategoryId: transport.body.id, academicYearId, amountMinor: 100000, frequency: 'MONTHLY' });
+      const studentA = await admitStudent(cookie, undefined, 'A-1');
+      const studentB = await admitStudent(cookie, undefined, 'B-2');
+      const feeA = await post(`/students/${studentA}/fees`, { feeStructureId: tuitionStructure.body.id });
+      await post(`/students/${studentA}/fees`, { feeStructureId: transportStructure.body.id });
+      await post(`/students/${studentB}/fees`, { feeStructureId: tuitionStructure.body.id });
+      await post(`/student-fees/${feeA.body.id}/payments`, { amountMinor: 200000, method: 'CASH' });
+
+      const get = (query: object) => agent().get('/api/v1/reports/fees').set('Cookie', cookie).query(query);
+
+      expect((await get({})).body.data).toHaveLength(3);
+      const partial = await get({ status: 'PARTIALLY_PAID' });
+      expect(partial.body.data).toHaveLength(1);
+      expect(partial.body.totals).toMatchObject({ assignedMinor: 500000, paidMinor: 200000 });
+      expect((await get({ feeCategoryId: transport.body.id })).body.data).toHaveLength(1);
+      expect((await get({ search: 'transport' })).body.data).toHaveLength(1);
+      expect((await get({ search: 'b-2' })).body.data).toHaveLength(1);
+      expect((await get({ status: 'PENDING', feeCategoryId: tuition.body.id })).body.data).toHaveLength(1);
+      expect((await get({ status: 'NOT_A_STATUS' })).body.data).toHaveLength(3); // unknown status is ignored, not an error
     });
   });
 

@@ -84,6 +84,7 @@ describe('School Management (e2e)', () => {
         'Accountant',
         'Director',
         'Parent',
+        'Principal',
         'Receptionist',
         'Teacher',
       ]);
@@ -98,6 +99,20 @@ describe('School Management (e2e)', () => {
   });
 
   describe('School settings', () => {
+    it('saves regional settings and rejects an unknown time zone or malformed currency', async () => {
+      const { cookie } = await registerSchool('Regional School', 'regional1@example.test');
+      const patch = (body: object) => agent().patch('/api/v1/schools/me').set('Origin', WEB_ORIGIN).set('Cookie', cookie).send(body);
+
+      const ok = await patch({ timezone: 'America/New_York', currency: 'USD', dateFormat: 'MM/DD/YYYY' });
+      expect(ok.status).toBe(200);
+      expect(ok.body).toMatchObject({ timezone: 'America/New_York', currency: 'USD', dateFormat: 'MM/DD/YYYY' });
+
+      expect((await patch({ timezone: 'Mars/Olympus_Mons' })).status).toBe(400);
+      expect((await patch({ currency: 'dollars' })).status).toBe(400);
+      const school = await agent().get('/api/v1/schools/me').set('Cookie', cookie);
+      expect(school.body.timezone).toBe('America/New_York'); // unchanged by the rejected requests
+    });
+
     it('allows the director to update settings', async () => {
       const { cookie } = await registerSchool('Settings School', 'settings1@example.test');
       const res = await agent()
@@ -188,6 +203,53 @@ describe('School Management (e2e)', () => {
         .set('Cookie', schoolB.cookie)
         .send({ name: 'Hijacked' });
       expect(res.status).toBe(404);
+    });
+
+    it('updates a custom role: renames it and replaces its permission grants', async () => {
+      const { cookie } = await registerSchool('Edit Role School', 'editrole1@example.test');
+      const created = await agent()
+        .post('/api/v1/roles')
+        .set('Origin', WEB_ORIGIN)
+        .set('Cookie', cookie)
+        .send({ name: 'Front Desk', permissions: [{ permissionKey: 'student.view', scope: 'ALL_SCHOOL' }] });
+
+      const res = await agent()
+        .patch(`/api/v1/roles/${created.body.id}`)
+        .set('Origin', WEB_ORIGIN)
+        .set('Cookie', cookie)
+        .send({
+          name: 'Front Office',
+          permissions: [
+            { permissionKey: 'student.view', scope: 'OWN_CLASS', readOnly: true },
+            { permissionKey: 'holiday.create', scope: 'ALL_SCHOOL' },
+          ],
+        });
+      expect(res.status).toBe(200);
+      expect(res.body.name).toBe('Front Office');
+      expect(res.body.permissions).toEqual(
+        expect.arrayContaining([
+          { permissionKey: 'student.view', scope: 'OWN_CLASS', readOnly: true },
+          { permissionKey: 'holiday.create', scope: 'ALL_SCHOOL', readOnly: false },
+        ]),
+      );
+      expect(res.body.permissions).toHaveLength(2);
+    });
+
+    it('refuses to edit the built-in Director role (it must always keep full access)', async () => {
+      const { cookie } = await registerSchool('Director Guard School', 'directorguard1@example.test');
+      const roles = await agent().get('/api/v1/roles').set('Cookie', cookie);
+      const director = roles.body.find((r: { name: string }) => r.name === 'Director');
+
+      const res = await agent()
+        .patch(`/api/v1/roles/${director.id}`)
+        .set('Origin', WEB_ORIGIN)
+        .set('Cookie', cookie)
+        .send({ permissions: [] });
+      expect(res.status).toBe(400);
+
+      const after = await agent().get('/api/v1/roles').set('Cookie', cookie);
+      const unchanged = after.body.find((r: { name: string }) => r.name === 'Director');
+      expect(unchanged.permissions.length).toBe(director.permissions.length);
     });
 
     it('lists the permission catalog for the role editor', async () => {

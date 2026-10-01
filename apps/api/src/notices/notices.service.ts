@@ -117,16 +117,24 @@ export class NoticesService {
   async markRead(schoolId: string, userId: string, noticeId: string) {
     const notice = await this.findOwn(schoolId, noticeId);
 
+    // Everyone who opens a notice gets a NoticeRead row. That is what
+    // list() reads back as `isRead` — including for an INDIVIDUAL notice
+    // addressed to someone else, which a manager (anyone with
+    // notice.create) can still see and open. Marking only the recipient's
+    // Notification row, as this used to, matched zero rows for that
+    // viewer and left the notice "unread" — and blinking — forever.
+    await this.prisma.noticeRead.upsert({
+      where: { noticeId_userId: { noticeId, userId } },
+      create: { schoolId, noticeId, userId },
+      update: {},
+    });
+
+    // The addressed recipient additionally has an in-app Notification
+    // (created at publish time) that tracks its own read state.
     if (notice.audienceType === NoticeAudience.INDIVIDUAL) {
       await this.prisma.notification.updateMany({
         where: { schoolId, noticeId, userId, readAt: null },
         data: { readAt: new Date() },
-      });
-    } else {
-      await this.prisma.noticeRead.upsert({
-        where: { noticeId_userId: { noticeId, userId } },
-        create: { schoolId, noticeId, userId },
-        update: {},
       });
     }
     return { id: noticeId };

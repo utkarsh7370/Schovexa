@@ -151,7 +151,7 @@ export class AuthService {
       include: {
         memberships: {
           where: { deletedAt: null },
-          include: { school: true, role: true },
+          include: { school: true, role: { include: { permissions: { include: { permission: true } } } } },
         },
       },
     });
@@ -167,6 +167,7 @@ export class AuthService {
       lastName: user.lastName,
       status: user.status,
       activeSchoolId: activeMembership?.schoolId ?? null,
+      permissions: activeMembership?.role.permissions.map((rp) => rp.permission.key).sort() ?? [],
       memberships: user.memberships.map((m) => ({
         membershipId: m.id,
         schoolId: m.schoolId,

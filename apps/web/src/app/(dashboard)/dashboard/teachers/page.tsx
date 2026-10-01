@@ -196,7 +196,7 @@ export default function TeachersPage() {
                   </span>
                 </button>
 
-                <div className={['grid transition-[grid-template-rows] duration-300 ease-out', open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'].join(' ')}>
+                <div className={['grid transition-[grid-template-rows,visibility] duration-300 ease-out', open ? 'visible grid-rows-[1fr]' : 'invisible grid-rows-[0fr]'].join(' ')}>
                   <div className="overflow-hidden">
                     {opened.has(teacher.id) && (
                       <div className="border-t border-slate-100 bg-slate-50/60 p-4 sm:p-5">

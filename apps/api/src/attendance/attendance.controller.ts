@@ -36,6 +36,15 @@ export class AttendanceController {
     return this.attendanceService.markBulk(auth.schoolId, auth.userId, body);
   }
 
+  // The school's own "today" — the single day attendance can be marked or
+  // changed. The browser's clock and zone can disagree with the school's,
+  // so the UI asks instead of guessing.
+  @Get('today')
+  @RequirePermission('attendance.view')
+  async getToday(@CurrentAuthContext() auth: AuthContext) {
+    return this.attendanceService.getToday(auth.schoolId);
+  }
+
   @Get()
   @RequirePermission('attendance.view')
   async getRoster(
@@ -88,6 +97,6 @@ export class AttendanceController {
   ) {
     const record = await this.attendanceService.findForAuth(auth.schoolId, id);
     await this.authorizationService.authorizeResource(auth, 'Section', record.sectionId);
-    return this.attendanceService.correct(id, body);
+    return this.attendanceService.correct(auth.schoolId, id, body);
   }
 }

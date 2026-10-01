@@ -98,6 +98,14 @@ enum PaymentMethod {
   ONLINE
 }
 
+enum HolidayType {
+  NATIONAL
+  FESTIVAL
+  VACATION
+  SCHOOL
+  OTHER
+}
+
 enum NoticeAudience {
   ALL_SCHOOL
   CLASS
@@ -236,6 +244,7 @@ model School {
   notices           Notice[]
   notifications     Notification[]
   noticeReads       NoticeRead[]
+  holidays          Holiday[]
   documents         Document[]
   auditLogs         AuditLog[]
   subscription      Subscription?
@@ -778,4 +787,26 @@ model Subscription {
 
   school School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   plan   Plan   @relation(fields: [planId], references: [id])
+}
+
+// A day (or run of days) the school is closed — a public holiday, a
+// festival, a vacation break. `startDate`/`endDate` are inclusive calendar
+// dates (a single-day holiday has them equal), stored as DATE with no time
+// zone; "is it upcoming?" is always decided in the school's own zone.
+model Holiday {
+  id          String      @id @default(cuid())
+  schoolId    String
+  name        String
+  type        HolidayType @default(OTHER)
+  startDate   DateTime    @db.Date
+  endDate     DateTime    @db.Date
+  description String?
+  createdById String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  deletedAt   DateTime?
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, startDate])
 }

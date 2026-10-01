@@ -75,6 +75,16 @@ export class RolesService {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Resource not found.' });
     }
 
+    // The Director role must always be able to do everything — otherwise
+    // one careless edit could lock the whole school out of its own
+    // settings, roles and staff pages with no way back in.
+    if (role.isSystem && role.name === 'Director') {
+      throw new BadRequestException({
+        code: 'VALIDATION_FAILED',
+        message: 'The Director role always has full access and can’t be edited.',
+      });
+    }
+
     if (name && name !== role.name) {
       const nameTaken = await this.prisma.role.findFirst({
         where: { schoolId, name, deletedAt: null, id: { not: roleId } },

@@ -12,7 +12,7 @@ export interface DialogProps {
   children?: ReactNode;
   footer?: ReactNode;
   /** Width of the panel. Default 'md'. */
-  size?: 'md' | 'lg';
+  size?: 'md' | 'lg' | 'xl';
   /** Small content rendered above the title (e.g. badges). */
   eyebrow?: ReactNode;
 }
@@ -89,7 +89,7 @@ export function Dialog({ open, onClose, title, description, children, footer, si
         tabIndex={-1}
         className={[
           'relative z-10 w-full overflow-hidden rounded-3xl bg-white shadow-elevated focus:outline-none',
-          size === 'lg' ? 'max-w-xl' : 'max-w-md',
+          size === 'xl' ? 'max-w-3xl' : size === 'lg' ? 'max-w-xl' : 'max-w-md',
           closing ? 'animate-scale-out' : 'animate-scale-in',
         ].join(' ')}
       >
@@ -102,7 +102,7 @@ export function Dialog({ open, onClose, title, description, children, footer, si
         >
           <XIcon size={18} />
         </button>
-        <div className="max-h-[80vh] overflow-y-auto p-6 sm:p-7">
+        <div className="max-h-[85vh] overflow-y-auto p-6 sm:p-7">
           {eyebrow && <div className="mb-3 flex flex-wrap items-center gap-2 pr-8">{eyebrow}</div>}
           <h2 id="dialog-title" className="pr-8 text-xl font-bold tracking-tight text-navy">
             {title}

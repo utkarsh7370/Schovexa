@@ -219,6 +219,34 @@ describe('Notices (e2e)', () => {
       expect(after.body[0].readAt).toBeTruthy();
     });
 
+    it("a manager opening someone else's INDIVIDUAL notice marks it read for themselves (it must not stay unread forever)", async () => {
+      const { cookie: directorCookie } = await registerSchool('Bystander Read School', 'bystanderread1@example.test');
+      const { cookie: teacherCookie, userId: teacherUserId } = await inviteAndLogin(
+        directorCookie,
+        'Teacher',
+        'bystandertarget1@example.test',
+        'teacher-pass-123',
+      );
+      const draft = await createDraft(directorCookie, { audienceType: 'INDIVIDUAL', audienceRefId: teacherUserId });
+      await agent().post(`/api/v1/notices/${draft.body.id}/publish`).set('Origin', WEB_ORIGIN).set('Cookie', directorCookie);
+
+      const isReadFor = async (cookie: string) => {
+        const list = await agent().get('/api/v1/notices').set('Cookie', cookie);
+        return list.body.find((n: { id: string }) => n.id === draft.body.id).isRead as boolean;
+      };
+
+      // The Director is not the recipient, but can see (and open) the notice.
+      expect(await isReadFor(directorCookie)).toBe(false);
+      const read = await agent().post(`/api/v1/notices/${draft.body.id}/read`).set('Origin', WEB_ORIGIN).set('Cookie', directorCookie);
+      expect(read.status).toBeLessThan(300);
+      expect(await isReadFor(directorCookie)).toBe(true);
+
+      // …and that did not mark it read for the actual recipient.
+      expect(await isReadFor(teacherCookie)).toBe(false);
+      const notifications = await agent().get('/api/v1/notifications').set('Cookie', teacherCookie);
+      expect(notifications.body[0].readAt).toBeNull();
+    });
+
     it("rejects an INDIVIDUAL notice targeting a user with no active membership in this school", async () => {
       const { cookie } = await registerSchool('Bad Target School', 'badtarget1@example.test');
       const res = await createDraft(cookie, { audienceType: 'INDIVIDUAL', audienceRefId: 'not-a-real-user-id' });
