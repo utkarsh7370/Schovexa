@@ -112,9 +112,12 @@ async function main() {
     });
   } catch (err) {
     if (err.status === 409) {
-      console.error(`\nAn account with email ${directorEmail} already exists.`);
-      console.error('Either drop/reset your dev database, or re-run with a different suffix:');
-      console.error('  DEMO_SUFFIX=2 node scripts/seed-demo-school.js\n');
+      console.error(`\nThe demo school is already in this database (${directorEmail} exists), so nothing was changed.`);
+      console.error('\nYou can:');
+      console.error(`  1. Just log in at ${WEB_ORIGIN}/login as ${directorEmail}`);
+      console.error(`       password: ${DIRECTOR_PASSWORD}   (schools seeded before the password-policy update use Director@12345)`);
+      console.error('  2. Seed another copy alongside it:   DEMO_SUFFIX=2 node scripts/seed-demo-school.js');
+      console.error('  3. Start clean (DELETES all dev data):  npx prisma migrate reset   — then run this script again\n');
       process.exit(1);
     }
     throw err;
