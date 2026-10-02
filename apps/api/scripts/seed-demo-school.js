@@ -269,6 +269,14 @@ async function main() {
   // New schools default to Asia/Kolkata, and "today" must be that zone's today.
   const dates = [new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date())];
   const todaysFirstRecordBySection = [];
+  // The school week is Monday–Saturday by default and attendance isn't taken
+  // on a day off. If the demo is seeded on one (a Sunday, a holiday), allow it
+  // so there is still something to look at.
+  const todayInfo = await director.call('GET', '/attendance/today');
+  if (!todayInfo.schoolDay.working) {
+    await director.call('PATCH', '/school-settings', { attendanceOnNonWorkingDays: true });
+    console.log(`   (${todayInfo.schoolDay.message} Allowed attendance on closed days so the demo has data.)`);
+  }
   for (const date of dates) {
     for (const section of sections) {
       const sectionStudents = students.filter((s) => s.sectionId === section.id);

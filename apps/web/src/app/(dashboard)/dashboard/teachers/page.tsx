@@ -22,18 +22,22 @@ import {
   useToast,
 } from '@schovexa/ui';
 import Link from 'next/link';
-import { ArrowUpRight, BookOpen, CalendarDays, ChevronDown, GraduationCap, Hash, Mail, Plus, SearchX, UserPlus2, Users, X } from 'lucide-react';
+import { ArrowUpRight, BookOpen, CalendarDays, ChevronDown, GraduationCap, Hash, Mail, Plus, SearchX, Shapes, UserPlus2, Users, X } from 'lucide-react';
 import { useMemberships } from '../../../../hooks/useMemberships';
 import { useTeachers, TEACHERS_QUERY_KEY, useTeacherAssignments, teacherAssignmentsQueryKey } from '../../../../hooks/useTeachers';
 import { useClasses } from '../../../../hooks/useClasses';
 import { useSections } from '../../../../hooks/useSections';
 import { useSubjects } from '../../../../hooks/useSubjects';
+import { useDepartments } from '../../../../hooks/useDepartments';
+import { useCan } from '../../../../hooks/useCan';
 import { api, ApiError } from '../../../../lib/api-client';
 
 const PAGE_SIZES = [10, 20, 50];
 
 export default function TeachersPage() {
   const { data: memberships } = useMemberships();
+  const { can } = useCan();
+  const { data: departments } = useDepartments(can('department.view'));
   const { data: teachers, isLoading, isError } = useTeachers();
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -180,6 +184,11 @@ export default function TeachersPage() {
                       <span className="inline-flex items-center gap-1.5 truncate">
                         <Mail size={13} /> {teacher.user.email}
                       </span>
+                      {teacher.department && (
+                        <span className="inline-flex items-center gap-1.5 font-medium text-brand-blue">
+                          <Shapes size={13} /> {teacher.department.name}
+                        </span>
+                      )}
                       {teacher.joiningDate && (
                         <span className="inline-flex items-center gap-1.5">
                           <CalendarDays size={13} /> Joined {new Date(teacher.joiningDate).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
@@ -273,6 +282,12 @@ export default function TeachersPage() {
             <TextField label="Employee code" placeholder="EMP-001" helperText="Optional." leftIcon={<Hash size={16} />} error={errors.employeeCode?.message} {...register('employeeCode')} />
             <TextField label="Joining date" type="date" helperText="Optional." error={errors.joiningDate?.message} {...register('joiningDate')} />
           </div>
+          {departments && departments.length > 0 && (
+            <SelectField label="Department" leftIcon={<Shapes size={16} />} helperText="Optional." {...register('departmentId')}>
+              <option value="">No department</option>
+              {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </SelectField>
+          )}
         </form>
       </Dialog>
     </div>

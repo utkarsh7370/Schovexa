@@ -63,8 +63,8 @@ export class MeController {
 
   @Post('documents')
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: MAX_DOCUMENT_SIZE_BYTES } }))
-  async upload(@UploadedFile() file: Express.Multer.File, @CurrentAuthContext() auth: AuthContext) {
-    const document = await this.documentsService.upload(auth.schoolId, 'User', auth.userId, auth.userId, file);
+  async upload(@UploadedFile() file: Express.Multer.File, @Body('category') category: string | undefined, @CurrentAuthContext() auth: AuthContext) {
+    const document = await this.documentsService.upload(auth.schoolId, 'User', auth.userId, auth.userId, file, category);
     await this.audit.record({
       schoolId: auth.schoolId,
       userId: auth.userId,

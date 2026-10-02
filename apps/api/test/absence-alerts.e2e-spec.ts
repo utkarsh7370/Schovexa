@@ -5,7 +5,7 @@ import request from 'supertest';
 import { PrismaClient } from '@prisma/client';
 import { AppModule } from '../src/app.module';
 import { EmailService } from '../src/email/email.service';
-import { resetTestData } from './db-helpers';
+import { openAllWeek, resetTestData } from './db-helpers';
 import { permissionCatalog } from '../prisma/seed-data/permissions';
 import { currentYearDates } from './year-helpers';
 
@@ -66,6 +66,7 @@ describe('Absence alerts to parents (e2e)', () => {
       .set('Origin', WEB_ORIGIN)
       .send({ schoolName: `Alert School ${tag}`, directorFirstName: 'Dee', directorLastName: 'Rector', email: `dir-${tag}@example.test`, password: 'correct-horse-battery' });
     const cookie = reg.headers['set-cookie'] as unknown as string;
+    await openAllWeek(seedClient, reg.body.schoolId);
     const year = await post(cookie, '/academic-years', { name: '2026-27', ...currentYearDates() });
     const klass = await post(cookie, '/classes', { academicYearId: year.body.id, name: 'Grade 5', order: 5 });
     const section = await post(cookie, `/classes/${klass.body.id}/sections`, { name: 'A' });

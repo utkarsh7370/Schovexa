@@ -3,12 +3,15 @@ import { PrismaService } from '../prisma/prisma.service';
 import type { MarkAttendanceInput, UpdateAttendanceInput } from '@schovexa/validation';
 import { dateOnlyToIso, todayInTimezone } from '../common/dates.util';
 import { AbsenceAlertsService } from './absence-alerts.service';
+import { SchoolSettingsService } from '../school-settings/school-settings.service';
+import { describeDayOff } from '../common/school-calendar.util';
 
 @Injectable()
 export class AttendanceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly absenceAlerts: AbsenceAlertsService,
+    private readonly settings: SchoolSettingsService,
   ) {}
 
   async markBulk(schoolId: string, markedById: string, input: MarkAttendanceInput) {
@@ -210,32 +213,63 @@ export class AttendanceService {
     return updated;
   }
 
-  /** The school's current calendar date — what the UI treats as "today" (the only editable day). */
-  async getToday(schoolId: string): Promise<{ today: string }> {
-    const school = await this.prisma.school.findUnique({ where: { id: schoolId }, select: { timezone: true } });
-    return { today: todayInTimezone(school?.timezone) };
+  /**
+   * The school's current calendar date — what the UI treats as "today" — plus
+   * how far back attendance can still be changed (the school's edit window)
+   * and whether today is a teaching day.
+   */
+  async getToday(schoolId: string): Promise<{ today: string; editableFrom: string; editWindowDays: number; schoolDay: { working: boolean; reason: string | null; message: string } }> {
+    const [school, settings] = await Promise.all([
+      this.prisma.school.findUnique({ where: { id: schoolId }, select: { timezone: true } }),
+      this.settings.get(schoolId),
+    ]);
+    const today = todayInTimezone(school?.timezone);
+    const [status] = await this.settings.dayStatuses(schoolId, today, today, settings);
+    return {
+      today,
+      editableFrom: shiftDay(today, -settings.attendanceEditWindowDays),
+      editWindowDays: settings.attendanceEditWindowDays,
+      schoolDay: { working: status.working, reason: status.reason, message: status.working ? '' : describeDayOff(status) },
+    };
   }
 
-  // Attendance is a same-day record: it can be marked or changed only on
-  // the day itself, in the school's own time zone. Once that day is over
-  // it is locked for everyone — a Director included — so history can't be
-  // quietly rewritten. Reading past days stays open (roster, history and
-  // summary are unaffected).
+  // Attendance is a same-day record by default: it can be marked or changed
+  // only on the day itself, in the school's own time zone. A school can allow
+  // a short correction window (attendanceEditWindowDays), after which it
+  // locks for everyone — a Director included — so history can't be quietly
+  // rewritten. It can't be marked in advance, and (unless the school allows
+  // it) not on a day the school is closed. Reading past days stays open.
   private async assertEditableDate(schoolId: string, dateIso: string): Promise<void> {
-    const school = await this.prisma.school.findUnique({ where: { id: schoolId }, select: { timezone: true } });
+    const [school, settings] = await Promise.all([
+      this.prisma.school.findUnique({ where: { id: schoolId }, select: { timezone: true } }),
+      this.settings.get(schoolId),
+    ]);
     const today = todayInTimezone(school?.timezone);
     const day = dateIso.slice(0, 10);
-    if (day < today) {
-      throw new BadRequestException({
-        code: 'ATTENDANCE_LOCKED',
-        message: 'Attendance for a past date is locked and can no longer be changed.',
-      });
-    }
     if (day > today) {
       throw new BadRequestException({
         code: 'ATTENDANCE_LOCKED',
         message: 'Attendance can only be marked on the day itself, not in advance.',
       });
     }
+    if (day < shiftDay(today, -settings.attendanceEditWindowDays)) {
+      throw new BadRequestException({
+        code: 'ATTENDANCE_LOCKED',
+        message:
+          settings.attendanceEditWindowDays === 0
+            ? 'Attendance for a past date is locked and can no longer be changed.'
+            : `Attendance can be changed for ${settings.attendanceEditWindowDays} day${settings.attendanceEditWindowDays === 1 ? '' : 's'} after the day itself. This date is locked.`,
+      });
+    }
+    if (!settings.attendanceOnNonWorkingDays) {
+      const [status] = await this.settings.dayStatuses(schoolId, day, day, settings);
+      if (!status.working) {
+        throw new BadRequestException({ code: 'NOT_A_SCHOOL_DAY', message: `${describeDayOff(status)} Attendance isn’t taken on days the school is closed.` });
+      }
+    }
   }
+}
+
+function shiftDay(iso: string, days: number): string {
+  return new Date(new Date(`${iso}T00:00:00Z`).getTime() + days * 86_400_000).toISOString().slice(0, 10);
 }

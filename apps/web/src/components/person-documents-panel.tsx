@@ -126,7 +126,7 @@ export function PersonDocumentsPanel({ basePath, canUpload, canDelete, descripti
           <EmptyState
             icon={<FileText size={22} />}
             title="No documents yet"
-            description="PDF, JPEG or PNG, up to 10 MB each."
+            description="PDF, JPEG or PNG, within your school’s size limit."
             action={
               canUpload ? (
                 <Button size="sm" variant="secondary" onClick={() => fileInputRef.current?.click()}>
@@ -137,7 +137,7 @@ export function PersonDocumentsPanel({ basePath, canUpload, canDelete, descripti
           />
         )}
       </div>
-      {documents && documents.length > 0 && <p className="mt-4 text-xs text-slate-400">PDF, JPEG or PNG. Max 10MB.</p>}
+      {documents && documents.length > 0 && <p className="mt-4 text-xs text-slate-400">PDF, JPEG or PNG.</p>}
     </SectionCard>
   );
 }

@@ -3,7 +3,11 @@ import { AuthService, RequestMeta } from '../auth/auth.service';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RolesService } from '../roles/roles.service';
+import { StorageService } from '../storage/storage.service';
+import { sniffDocumentType } from '../documents/documents.service';
 import type { RegisterSchoolInput, UpdateSchoolInput } from '@schovexa/validation';
+
+const LOGO_MAX_BYTES = 1024 * 1024;
 
 function slugify(input: string): string {
   return input
@@ -20,6 +24,7 @@ export class SchoolsService {
     private readonly rolesService: RolesService,
     private readonly authService: AuthService,
     private readonly audit: AuditService,
+    private readonly storage: StorageService,
   ) {}
 
   /**
@@ -107,7 +112,43 @@ export class SchoolsService {
   }
 
   async getSchool(schoolId: string) {
-    return this.prisma.school.findUniqueOrThrow({ where: { id: schoolId } });
+    const { logoKey, ...school } = await this.prisma.school.findUniqueOrThrow({ where: { id: schoolId } });
+    // The storage key stays server-side; the app asks for the file itself.
+    return { ...school, hasLogo: !!logoKey };
+  }
+
+  // A school logo: a small PNG or JPEG, identified by its content like every
+  // other upload, kept in object storage and served only to the school's members.
+  async setLogo(schoolId: string, file: Express.Multer.File | undefined) {
+    if (!file) throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'No file was uploaded.' });
+    const detected = sniffDocumentType(file.buffer);
+    if (detected !== 'image/png' && detected !== 'image/jpeg') {
+      throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'The logo must be a PNG or JPEG image.' });
+    }
+    if (file.size > LOGO_MAX_BYTES) {
+      throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'The logo is too large (max 1 MB).' });
+    }
+    const school = await this.prisma.school.findFirstOrThrow({ where: { id: schoolId, deletedAt: null } });
+    const key = this.storage.buildKey(schoolId, 'School', schoolId, detected === 'image/png' ? 'logo.png' : 'logo.jpg');
+    await this.storage.putObject(key, file.buffer);
+    await this.prisma.school.update({ where: { id: schoolId }, data: { logoKey: key } });
+    if (school.logoKey) await this.storage.deleteObject(school.logoKey).catch(() => undefined);
+    return this.getSchool(schoolId);
+  }
+
+  async removeLogo(schoolId: string) {
+    const school = await this.prisma.school.findFirstOrThrow({ where: { id: schoolId, deletedAt: null } });
+    if (school.logoKey) {
+      await this.prisma.school.update({ where: { id: schoolId }, data: { logoKey: null } });
+      await this.storage.deleteObject(school.logoKey).catch(() => undefined);
+    }
+    return this.getSchool(schoolId);
+  }
+
+  async getLogo(schoolId: string) {
+    const school = await this.prisma.school.findFirst({ where: { id: schoolId, deletedAt: null }, select: { logoKey: true } });
+    if (!school?.logoKey) throw new NotFoundException({ code: 'NOT_FOUND', message: 'Resource not found.' });
+    return { stream: await this.storage.getObjectStream(school.logoKey), mimeType: school.logoKey.endsWith('.png') ? 'image/png' : 'image/jpeg' };
   }
 
   async updateSchool(schoolId: string, input: UpdateSchoolInput) {
@@ -126,7 +167,13 @@ export class SchoolsService {
         details: [{ field: input.staffPunchInTime ? 'staffPunchInTime' : 'staffPunchOutTime', message: 'Punch-out must be later than punch-in' }],
       });
     }
-    return this.prisma.school.update({ where: { id: schoolId }, data: input });
+    // An emptied text box clears the field rather than saving "".
+    const data: Record<string, unknown> = { ...input };
+    for (const key of ['motto', 'description', 'schoolCode', 'board', 'schoolType', 'affiliationNo', 'alternatePhone', 'city', 'state', 'postalCode', 'address']) {
+      if (data[key] === '') data[key] = null;
+    }
+    await this.prisma.school.update({ where: { id: schoolId }, data });
+    return this.getSchool(schoolId);
   }
 
   private async generateUniqueSlug(schoolName: string): Promise<string> {

@@ -109,4 +109,14 @@ export const permissionCatalog: PermissionSeed[] = [
   ...perms('audit', {
     view: 'View the audit log',
   }),
+  ...perms('department', {
+    view: 'View departments',
+    create: 'Create a department',
+    update: 'Edit or remove a department',
+  }),
+  ...perms('group', {
+    view: 'View houses and groups',
+    create: 'Create a house or group',
+    update: 'Edit a house or group and manage its members',
+  }),
 ];

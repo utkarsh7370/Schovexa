@@ -6,6 +6,8 @@ export interface Subject {
   schoolId: string;
   name: string;
   code: string | null;
+  departmentId: string | null;
+  department: { id: string; name: string } | null;
 }
 
 export const SUBJECTS_QUERY_KEY = ['subjects'];

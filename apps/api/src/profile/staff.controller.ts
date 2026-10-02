@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
@@ -58,11 +59,12 @@ export class StaffController {
   async upload(
     @Param('membershipId') membershipId: string,
     @UploadedFile() file: Express.Multer.File,
+    @Body('category') category: string | undefined,
     @CurrentAuthContext() auth: AuthContext,
   ) {
     await this.authorizationService.authorizeResource(auth, 'SchoolMembership', membershipId);
     const userId = await this.profileService.userIdForMembership(auth.schoolId, membershipId);
-    return this.documentsService.upload(auth.schoolId, 'User', userId, auth.userId, file);
+    return this.documentsService.upload(auth.schoolId, 'User', userId, auth.userId, file, category);
   }
 
   @Get(':membershipId/documents/:id/download')

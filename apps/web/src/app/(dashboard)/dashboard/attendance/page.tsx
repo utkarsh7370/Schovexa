@@ -58,7 +58,16 @@ export default function AttendancePage() {
   // has told us what "today" is, fall back to the browser's date.
   const today = school?.today ?? toDateInput(new Date());
   const date = pickedDate || today;
-  const mode: 'edit' | 'locked' | 'future' = date === today ? 'edit' : date < today ? 'locked' : 'future';
+  // How far back the school lets attendance be corrected (0 = same day only).
+  const editableFrom = school?.editableFrom ?? today;
+  const windowDays = school?.editWindowDays ?? 0;
+  const closedToday = date === today && school?.schoolDay.working === false;
+  const mode: 'edit' | 'locked' | 'future' = date > today ? 'future' : date < editableFrom || closedToday ? 'locked' : 'edit';
+  const lockMessage = closedToday
+    ? `${school?.schoolDay.message ?? 'The school is closed today.'} Attendance isn’t taken on days the school is closed.`
+    : windowDays === 0
+      ? 'Attendance can only be marked or changed on the day itself. You can still see what was recorded, but it can no longer be edited.'
+      : `Attendance can be corrected for ${windowDays} day${windowDays === 1 ? '' : 's'} after the day itself. You can still see what was recorded, but it can no longer be edited.`;
   const yesterday = shiftIso(today, -1);
 
   return (
@@ -96,7 +105,7 @@ export default function AttendancePage() {
         <div className="mt-3 flex flex-wrap gap-2">
           {[
             { label: 'Today', value: today },
-            { label: 'Yesterday (view only)', value: yesterday },
+            { label: windowDays > 0 ? 'Yesterday' : 'Yesterday (view only)', value: yesterday },
           ].map((d) => (
             <button
               key={d.label}
@@ -142,7 +151,7 @@ export default function AttendancePage() {
               marking state (including the "Saved" confirmation) always
               starts fresh rather than needing to be reset by an effect
               racing against the post-save roster refetch below. */}
-          <MarkingPanel key={`${sectionId}-${date}`} sectionId={sectionId} date={date} locked={mode === 'locked'} title={`${className ?? ''} · Section ${sectionName ?? ''}`} />
+          <MarkingPanel key={`${sectionId}-${date}`} sectionId={sectionId} date={date} locked={mode === 'locked'} lockMessage={lockMessage} title={`${className ?? ''} · Section ${sectionName ?? ''}`} />
         </div>
       )}
 
@@ -155,7 +164,7 @@ export default function AttendancePage() {
   );
 }
 
-function MarkingPanel({ sectionId, date, title, locked }: { sectionId: string; date: string; title: string; locked: boolean }) {
+function MarkingPanel({ sectionId, date, title, locked, lockMessage }: { sectionId: string; date: string; title: string; locked: boolean; lockMessage: string }) {
   const { data: roster, isLoading } = useAttendanceRoster(sectionId, date);
   const { data: alerts } = useAbsenceAlerts(sectionId, date);
   const alertByStudent = useMemo(() => new Map((alerts ?? []).map((a) => [a.studentId, a])), [alerts]);
@@ -270,7 +279,7 @@ function MarkingPanel({ sectionId, date, title, locked }: { sectionId: string; d
         <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="status">
           <Lock size={18} className="mt-0.5 shrink-0 text-amber-600" />
           <p>
-            <span className="font-bold">This day is locked.</span> Attendance can only be marked or changed on the day itself. You can still see what was recorded, but it can no longer be edited.
+            <span className="font-bold">This day is locked.</span> {lockMessage}
           </p>
         </div>
       )}

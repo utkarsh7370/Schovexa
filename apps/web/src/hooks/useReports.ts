@@ -35,6 +35,8 @@ export interface AttendanceReportRow {
   excused: number;
   totalMarked: number;
   attendancePercent: number | null;
+  /** Below the school's minimum attendance percentage. */
+  lowAttendance: boolean;
 }
 
 export interface FeeReportRow {

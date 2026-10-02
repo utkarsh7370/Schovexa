@@ -1,3 +1,4 @@
+import { SchoolSettingsService } from '../school-settings/school-settings.service';
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -56,7 +57,10 @@ function requireAllSchoolScope(auth: AuthContext): void {
 
 @Injectable()
 export class ReportsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly settings: SchoolSettingsService,
+  ) {}
 
   private buildStudentWhere(
     schoolId: string,
@@ -140,6 +144,8 @@ export class ReportsService {
       byStudent.set(record.studentId, list);
     }
 
+    const { attendanceMinPercent } = await this.settings.get(schoolId);
+
     return students.map((student) => {
       const studentRecords = byStudent.get(student.id) ?? [];
       const counts = { present: 0, absent: 0, late: 0, excused: 0 };
@@ -150,6 +156,7 @@ export class ReportsService {
         else if (record.status === 'EXCUSED') counts.excused += 1;
       }
       const totalMarked = studentRecords.length;
+      const attendancePercent = totalMarked > 0 ? Math.round((counts.present / totalMarked) * 1000) / 10 : null;
       return {
         studentId: student.id,
         admissionNo: student.admissionNo,
@@ -160,7 +167,9 @@ export class ReportsService {
         schoolDay: student.schoolDay,
         ...counts,
         totalMarked,
-        attendancePercent: totalMarked > 0 ? Math.round((counts.present / totalMarked) * 1000) / 10 : null,
+        attendancePercent,
+        // Below the school's own minimum (School Settings → Attendance).
+        lowAttendance: attendancePercent !== null && attendancePercent < attendanceMinPercent,
       };
     });
   }

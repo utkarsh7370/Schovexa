@@ -1,4 +1,6 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Patch, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Patch, Post, Req, Res, StreamableFile, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { registerSchoolSchema, updateSchoolSchema } from '@schovexa/validation';
@@ -52,5 +54,30 @@ export class SchoolsController {
     @CurrentAuthContext() auth: AuthContext,
   ) {
     return this.schoolsService.updateSchool(auth.schoolId, body);
+  }
+
+  // The logo is shown on every screen, so every member of the school may
+  // fetch it (no permission beyond membership); only school.update changes it.
+  @Get('me/logo')
+  @UseGuards(AuthGuard, SchoolContextGuard)
+  async logo(@CurrentAuthContext() auth: AuthContext, @Res({ passthrough: true }) res: Response): Promise<StreamableFile> {
+    const { stream, mimeType } = await this.schoolsService.getLogo(auth.schoolId);
+    res.set({ 'Content-Type': mimeType, 'Cache-Control': 'private, max-age=300' });
+    return new StreamableFile(stream);
+  }
+
+  @Post('me/logo')
+  @UseGuards(AuthGuard, SchoolContextGuard, PermissionGuard)
+  @RequirePermission('school.update')
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } }))
+  async uploadLogo(@UploadedFile() file: Express.Multer.File, @CurrentAuthContext() auth: AuthContext) {
+    return this.schoolsService.setLogo(auth.schoolId, file);
+  }
+
+  @Delete('me/logo')
+  @UseGuards(AuthGuard, SchoolContextGuard, PermissionGuard)
+  @RequirePermission('school.update')
+  async deleteLogo(@CurrentAuthContext() auth: AuthContext) {
+    return this.schoolsService.removeLogo(auth.schoolId);
   }
 }

@@ -25,6 +25,11 @@ import { FeeCategoriesModule } from './fee-categories/fee-categories.module';
 import { FeeStructuresModule } from './fee-structures/fee-structures.module';
 import { StudentFeesModule } from './student-fees/student-fees.module';
 import { NoticesModule } from './notices/notices.module';
+import { SchoolSettingsModule } from './school-settings/school-settings.module';
+import { CalendarModule } from './calendar/calendar.module';
+import { DepartmentsModule } from './departments/departments.module';
+import { GroupsModule } from './groups/groups.module';
+import { GradingModule } from './grading/grading.module';
 import { HolidaysModule } from './holidays/holidays.module';
 import { ReportsModule } from './reports/reports.module';
 import { ContactModule } from './contact/contact.module';
@@ -80,6 +85,11 @@ import { AuditLogsModule } from './audit/audit-logs.module';
     StudentFeesModule,
     NoticesModule,
     HolidaysModule,
+    SchoolSettingsModule,
+    CalendarModule,
+    DepartmentsModule,
+    GroupsModule,
+    GradingModule,
     ReportsModule,
     ContactModule,
     AuditLogsModule,

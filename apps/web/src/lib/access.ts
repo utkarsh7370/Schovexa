@@ -10,15 +10,18 @@ const ROLE_ROUTES: Record<string, string[]> = {
     '/dashboard/students',
     '/dashboard/classes',
     '/dashboard/subjects',
+    '/dashboard/departments',
+    '/dashboard/groups',
     '/dashboard/attendance',
     '/dashboard/holidays',
+    '/dashboard/calendar',
     '/dashboard/notices',
     '/dashboard/my-attendance',
     '/dashboard/profile',
   ],
-  Accountant: ['/dashboard', '/dashboard/students', '/dashboard/fees', '/dashboard/holidays', '/dashboard/notices', '/dashboard/my-attendance', '/dashboard/profile'],
-  Receptionist: ['/dashboard', '/dashboard/students', '/dashboard/parents', '/dashboard/holidays', '/dashboard/notices', '/dashboard/my-attendance', '/dashboard/profile'],
-  Parent: ['/dashboard', '/dashboard/my-children', '/dashboard/holidays', '/dashboard/notices', '/dashboard/profile'],
+  Accountant: ['/dashboard', '/dashboard/students', '/dashboard/fees', '/dashboard/holidays', '/dashboard/calendar', '/dashboard/notices', '/dashboard/my-attendance', '/dashboard/profile'],
+  Receptionist: ['/dashboard', '/dashboard/students', '/dashboard/parents', '/dashboard/holidays', '/dashboard/calendar', '/dashboard/notices', '/dashboard/my-attendance', '/dashboard/profile'],
+  Parent: ['/dashboard', '/dashboard/my-children', '/dashboard/holidays', '/dashboard/calendar', '/dashboard/notices', '/dashboard/profile'],
 };
 
 // Pages that only make sense for one role. "My Children" lists the

@@ -249,7 +249,12 @@ function OutstandingPanel() {
                             <div className="h-full rounded-full bg-gradient-to-r from-brand-electric to-brand-blue" style={{ width: `${pct}%` }} />
                           </div>
                         </td>
-                        <td className={`${TABLE.tdRight} font-bold text-amber-600`}>{formatMinor(row.balanceMinor)}</td>
+                        <td className={`${TABLE.tdRight} font-bold text-amber-600`}>
+                          {formatMinor(row.balanceMinor)}
+                          {row.lateFeeMinor > 0 && (
+                            <span className="mt-0.5 block text-[11px] font-semibold text-rose-600">+ {formatMinor(row.lateFeeMinor)} late fee · {row.daysLate}d overdue</span>
+                          )}
+                        </td>
                         <td className={TABLE.td}>
                           <Badge tone={FEE_STATUS_TONES[row.status] ?? 'neutral'} dot>{FEE_STATUS_LABELS[row.status] ?? row.status}</Badge>
                         </td>

@@ -1,13 +1,18 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { SchoolSettingsService } from '../school-settings/school-settings.service';
 
 export const ALLOWED_DOCUMENT_MIME_TYPES = new Set([
   'application/pdf',
   'image/jpeg',
   'image/png',
 ]);
-export const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
+// The hard ceiling, enforced while the upload streams in. Each school sets
+// its own (lower or equal) limit in its document settings.
+export const MAX_DOCUMENT_SIZE_BYTES = 25 * 1024 * 1024;
+
+const TYPE_LABELS: Record<string, string> = { 'application/pdf': 'PDF', 'image/jpeg': 'JPEG', 'image/png': 'PNG' };
 
 // What the file's own first bytes say it is. The browser-supplied
 // Content-Type is just a label the uploader chose, so it is checked against
@@ -25,7 +30,19 @@ export class DocumentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly settings: SchoolSettingsService,
   ) {}
+
+  /** What this school accepts — for the upload form and the "required documents" checklist. */
+  async config(schoolId: string) {
+    const s = await this.settings.get(schoolId);
+    return {
+      maxSizeMb: s.documentMaxSizeMb,
+      allowedTypes: s.allowedDocumentTypes,
+      categories: s.documentCategories,
+      requiredStudentDocuments: s.requiredStudentDocuments,
+    };
+  }
 
   async listForOwner(schoolId: string, ownerType: string, ownerId: string) {
     return this.prisma.document.findMany({
@@ -40,22 +57,33 @@ export class DocumentsService {
     ownerId: string,
     uploadedById: string,
     file: Express.Multer.File | undefined,
+    category?: string,
   ) {
     if (!file) {
       throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'No file was uploaded.' });
     }
-    if (!ALLOWED_DOCUMENT_MIME_TYPES.has(file.mimetype)) {
+    const rules = await this.settings.get(schoolId);
+    const allowed = rules.allowedDocumentTypes.filter((t) => ALLOWED_DOCUMENT_MIME_TYPES.has(t));
+    if (!allowed.includes(file.mimetype)) {
       throw new BadRequestException({
         code: 'VALIDATION_FAILED',
-        message: 'Unsupported file type. Allowed: PDF, JPEG, PNG.',
+        message: `Unsupported file type. Allowed: ${allowed.map((t) => TYPE_LABELS[t]).join(', ')}.`,
       });
     }
-    if (file.size > MAX_DOCUMENT_SIZE_BYTES) {
-      throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'File is too large (max 10MB).' });
+    if (file.size > rules.documentMaxSizeMb * 1024 * 1024) {
+      throw new BadRequestException({ code: 'VALIDATION_FAILED', message: `File is too large (max ${rules.documentMaxSizeMb} MB).` });
+    }
+    // A category is optional, but when given it must be one the school uses.
+    let canonicalCategory: string | null = null;
+    if (category && category.trim()) {
+      canonicalCategory = rules.documentCategories.find((c) => c.toLowerCase() === category.trim().toLowerCase()) ?? null;
+      if (!canonicalCategory) {
+        throw new BadRequestException({ code: 'VALIDATION_FAILED', message: `“${category.trim().slice(0, 40)}” isn’t one of this school’s document categories.` });
+      }
     }
 
     const detected = sniffDocumentType(file.buffer);
-    if (!detected || detected !== file.mimetype) {
+    if (!detected || detected !== file.mimetype || !allowed.includes(detected)) {
       throw new BadRequestException({
         code: 'VALIDATION_FAILED',
         message: 'This file doesn’t look like a real PDF, JPEG or PNG. Check it opens on your computer, then try again.',
@@ -74,6 +102,7 @@ export class DocumentsService {
         fileName: file.originalname,
         mimeType: detected,
         sizeBytes: file.size,
+        category: canonicalCategory,
         uploadedById,
       },
     });

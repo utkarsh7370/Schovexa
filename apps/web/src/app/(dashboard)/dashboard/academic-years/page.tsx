@@ -22,7 +22,9 @@ import {
   ThumbsUp,
   UserRound,
   XCircle,
+  CalendarRange,
 } from 'lucide-react';
+import { TermsPanel } from '../../../../components/terms-panel';
 import {
   ACADEMIC_YEARS_QUERY_KEY,
   ACADEMIC_YEAR_ATTENTION_QUERY_KEY,
@@ -320,6 +322,7 @@ interface YearCardProps {
 }
 
 function YearCard({ year, index, now, busy, canApprove, canCreate, canUpdate, historyOpen, onToggleHistory, onMakeCurrent, onEdit, onReview, onResubmit }: YearCardProps) {
+  const [termsOpen, setTermsOpen] = useState(false);
   const status = STATUS_BADGE[year.status];
   const phase = phaseOf(year, now);
   const approved = year.status === 'APPROVED';
@@ -425,7 +428,15 @@ function YearCard({ year, index, now, busy, canApprove, canCreate, canUpdate, hi
           </div>
         )}
 
-        <div className="border-t border-slate-100 px-5 py-2.5 sm:px-6">
+        <div className="flex flex-wrap items-center gap-x-5 border-t border-slate-100 px-5 py-2.5 sm:px-6">
+          <button
+            type="button"
+            onClick={() => setTermsOpen((v) => !v)}
+            aria-expanded={termsOpen}
+            className="inline-flex items-center gap-1.5 rounded-lg py-1 text-xs font-semibold text-slate-500 transition-colors hover:text-brand-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
+          >
+            <CalendarRange size={14} /> {termsOpen ? 'Hide terms' : 'Terms'}
+          </button>
           <button
             type="button"
             onClick={onToggleHistory}
@@ -435,6 +446,7 @@ function YearCard({ year, index, now, busy, canApprove, canCreate, canUpdate, hi
             <History size={14} /> {historyOpen ? 'Hide history' : 'Show history'}
           </button>
         </div>
+        {termsOpen && <TermsPanel yearId={year.id} yearName={year.name} canEdit={canUpdate && year.status !== 'REJECTED'} />}
         <div className={['grid transition-[grid-template-rows,visibility] duration-300 ease-out', historyOpen ? 'visible grid-rows-[1fr]' : 'invisible grid-rows-[0fr]'].join(' ')}>
           <div className="overflow-hidden">{historyOpen && <HistoryTimeline yearId={year.id} />}</div>
         </div>

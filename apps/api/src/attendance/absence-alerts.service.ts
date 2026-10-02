@@ -5,6 +5,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { escapeHtml } from '../common/html.util';
+import { todayInTimezone } from '../common/dates.util';
+import { SchoolSettingsService } from '../school-settings/school-settings.service';
 
 const CHILDREN_PAGE = '/dashboard/my-children';
 
@@ -29,6 +31,7 @@ export class AbsenceAlertsService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly email: EmailService,
+    private readonly settings: SchoolSettingsService,
   ) {}
 
   /** Students just marked absent on `dateIso` → message their parents (once each). */
@@ -51,6 +54,8 @@ export class AbsenceAlertsService {
     try {
       const school = await this.prisma.school.findUnique({ where: { id: schoolId } });
       if (!school || !school.notifyParentsOnAbsence) return;
+      const { notifyAbsenceEmail } = await this.settings.get(schoolId);
+      const isToday = dateIso === todayInTimezone(school.timezone);
 
       const students = await this.prisma.student.findMany({
         where: { id: { in: studentIds }, schoolId, deletedAt: null },
@@ -58,7 +63,7 @@ export class AbsenceAlertsService {
       });
 
       for (const student of students) {
-        const message = this.buildMessage(kind, school.name, dateIso, student);
+        const message = this.buildMessage(kind, school.name, dateIso, student, isToday);
         const parents = student.parents.map((link) => link.parent).filter((p) => !p.deletedAt);
 
         if (kind === 'ABSENT') {
@@ -70,7 +75,7 @@ export class AbsenceAlertsService {
         }
 
         for (const parent of parents) {
-          await this.deliver(schoolId, student.id, dateIso, kind, parent, message, school.name);
+          await this.deliver(schoolId, student.id, dateIso, kind, parent, message, school.name, notifyAbsenceEmail);
         }
       }
     } catch (err) {
@@ -79,18 +84,20 @@ export class AbsenceAlertsService {
     }
   }
 
-  private buildMessage(kind: AbsenceAlertKind, schoolName: string, dateIso: string, student: { firstName: string; lastName: string; section: { name: string; class: { name: string } } | null }): Message {
+  private buildMessage(kind: AbsenceAlertKind, schoolName: string, dateIso: string, student: { firstName: string; lastName: string; section: { name: string; class: { name: string } } | null }, isToday: boolean): Message {
     const dateLabel = new Date(`${dateIso}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
     const full = `${student.firstName} ${student.lastName}`;
     const where = student.section ? ` (${student.section.class.name} – ${student.section.name})` : '';
+    // An absence corrected within the school's edit window can be for an earlier day.
+    const when = isToday ? 'today' : `on ${dateLabel}`;
     if (kind === 'CORRECTION') {
       return {
-        title: `Update: ${student.firstName} is not absent today`,
+        title: `Update: ${student.firstName} is not absent ${when}`,
         body: `We’re sorry for the confusion — ${full}${where} was marked absent on ${dateLabel} by mistake and is now recorded as present. — ${schoolName}`,
       };
     }
     return {
-      title: `${student.firstName} was marked absent today`,
+      title: `${student.firstName} was marked absent ${when}`,
       body: `${full}${where} was marked absent on ${dateLabel}. If you weren’t expecting this, please contact ${schoolName}.`,
     };
   }
@@ -119,6 +126,7 @@ export class AbsenceAlertsService {
     parent: { id: string; userId: string | null; email: string | null; firstName: string },
     message: Message,
     schoolName: string,
+    emailEnabled: boolean,
   ) {
     // In-app
     const inApp = await this.claim(schoolId, studentId, parent.id, dateIso, kind, NotificationChannel.IN_APP);
@@ -134,7 +142,9 @@ export class AbsenceAlertsService {
     // Email
     const mail = await this.claim(schoolId, studentId, parent.id, dateIso, kind, NotificationChannel.EMAIL);
     if (mail) {
-      if (!parent.email) {
+      if (!emailEnabled) {
+        await this.finish(mail.id, 'SKIPPED', 'Email alerts are turned off in the school’s notification settings');
+      } else if (!parent.email) {
         await this.finish(mail.id, 'SKIPPED', 'No email address on file');
       } else if (!this.email.isConfigured) {
         await this.finish(mail.id, 'SKIPPED', 'Email isn’t set up for this school yet');

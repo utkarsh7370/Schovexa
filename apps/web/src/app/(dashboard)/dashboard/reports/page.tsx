@@ -288,7 +288,7 @@ function AttendanceReportPanel() {
               <tbody className={TABLE.body}>
                 {data.data.map((row) => {
                   const pct = row.attendancePercent;
-                  const bar = pct === null ? 'bg-slate-200' : pct >= 90 ? 'from-emerald-400 to-teal-500' : pct >= 75 ? 'from-amber-400 to-orange-500' : 'from-rose-400 to-red-500';
+                  const bar = pct === null ? 'bg-slate-200' : row.lowAttendance ? 'from-rose-400 to-red-500' : pct >= 90 ? 'from-emerald-400 to-teal-500' : pct >= 75 ? 'from-amber-400 to-orange-500' : 'from-rose-400 to-red-500';
                   return (
                     <tr key={row.studentId} className={TABLE.row}>
                       <td className={TABLE.td}>
@@ -314,6 +314,7 @@ function AttendanceReportPanel() {
                               <div className={['h-full rounded-full bg-gradient-to-r', bar].join(' ')} style={{ width: `${pct}%` }} />
                             </div>
                             <span className="w-12 text-xs font-bold text-navy">{pct}%</span>
+                            {row.lowAttendance && <Badge tone="danger" dot>Low</Badge>}
                           </div>
                         )}
                       </td>

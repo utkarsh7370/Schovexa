@@ -3,13 +3,32 @@ import { Prisma, StudentFeeStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AssignFeeToStudentInput, RecordPaymentInput, UpdateStudentFeeInput } from '@schovexa/validation';
 import type { AuthContext } from '../authorization/authorization.types';
+import { SchoolSettingsService } from '../school-settings/school-settings.service';
+import { dateOnlyToIso, todayInTimezone } from '../common/dates.util';
 
 const FEE_INCLUDE = { feeStructure: { include: { feeCategory: true } }, payments: true } as const;
 type FeeWithRelations = Prisma.StudentFeeGetPayload<{ include: typeof FEE_INCLUDE }>;
+interface FeeRules {
+  today: string;
+  perDayMinor: number;
+  graceDays: number;
+}
 
 @Injectable()
 export class StudentFeesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly settings: SchoolSettingsService,
+  ) {}
+
+  // The school's late-fee rule and its own "today", read once per request.
+  private async feeRules(schoolId: string): Promise<FeeRules> {
+    const [school, settings] = await Promise.all([
+      this.prisma.school.findUnique({ where: { id: schoolId }, select: { timezone: true } }),
+      this.settings.get(schoolId),
+    ]);
+    return { today: todayInTimezone(school?.timezone), perDayMinor: settings.lateFeePerDayMinor, graceDays: settings.lateFeeGraceDays };
+  }
 
   async listForStudent(schoolId: string, studentId: string) {
     const fees = await this.prisma.studentFee.findMany({
@@ -17,7 +36,8 @@ export class StudentFeesService {
       include: FEE_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });
-    return fees.map((fee) => this.toDto(fee));
+    const rules = await this.feeRules(schoolId);
+    return fees.map((fee) => this.toDto(fee, rules));
   }
 
   // Looked up before authorizeResource() runs — the controller needs
@@ -59,7 +79,7 @@ export class StudentFeesService {
       },
       include: FEE_INCLUDE,
     });
-    return this.toDto(fee);
+    return this.toDto(fee, await this.feeRules(schoolId));
   }
 
   // A manual correction path (rare, pre-payment) — deliberately does not
@@ -79,7 +99,7 @@ export class StudentFeesService {
       },
       include: FEE_INCLUDE,
     });
-    return this.toDto(fee);
+    return this.toDto(fee, await this.feeRules(schoolId));
   }
 
   // "Process a fee refund" (fee.refund, docs/permissions.md) maps to
@@ -94,7 +114,7 @@ export class StudentFeesService {
       data: { status: StudentFeeStatus.WAIVED },
       include: FEE_INCLUDE,
     });
-    return this.toDto(fee);
+    return this.toDto(fee, await this.feeRules(schoolId));
   }
 
   async listPayments(schoolId: string, studentFeeId: string) {
@@ -113,6 +133,19 @@ export class StudentFeesService {
         code: 'VALIDATION_FAILED',
         message: 'This fee has been waived; no payment can be recorded.',
       });
+    }
+
+    const settings = await this.settings.get(schoolId);
+    if (!settings.allowPartialPayments) {
+      const paid = await this.prisma.payment.aggregate({ where: { studentFeeId, deletedAt: null }, _sum: { amountMinor: true } });
+      const balance = Math.max(studentFee.amountDueMinor - (paid._sum.amountMinor ?? 0), 0);
+      if (input.amountMinor !== balance) {
+        throw new BadRequestException({
+          code: 'PARTIAL_PAYMENT_NOT_ALLOWED',
+          message: 'This school only accepts full payment of a fee. Record the whole outstanding balance.',
+          details: [{ field: 'amountMinor', message: 'Pay the full outstanding balance.' }],
+        });
+      }
     }
 
     // Receipt numbers are a simple per-school sequential count, not a
@@ -136,7 +169,7 @@ export class StudentFeesService {
           });
 
           const receiptCount = await tx.receipt.count({ where: { schoolId } });
-          const receiptNo = String(receiptCount + 1).padStart(6, '0');
+          const receiptNo = `${settings.receiptPrefix}${String(receiptCount + 1).padStart(6, '0')}`;
           await tx.receipt.create({ data: { schoolId, paymentId: payment.id, receiptNo } });
 
           const allPayments = await tx.payment.findMany({ where: { studentFeeId, deletedAt: null } });
@@ -179,8 +212,9 @@ export class StudentFeesService {
       orderBy: { dueDate: 'asc' },
     });
 
+    const rules = await this.feeRules(auth.schoolId);
     return fees.map((fee) => ({
-      ...this.toDto(fee),
+      ...this.toDto(fee, rules),
       student: {
         id: fee.student.id,
         admissionNo: fee.student.admissionNo,
@@ -215,8 +249,16 @@ export class StudentFeesService {
     }
   }
 
-  private toDto(fee: FeeWithRelations) {
+  private toDto(fee: FeeWithRelations, rules: FeeRules) {
     const paidMinor = fee.payments.reduce((sum, p) => sum + p.amountMinor, 0);
+    const balanceMinor = Math.max(fee.amountDueMinor - paidMinor, 0);
+    // Late fee is shown, not added: it never changes what was billed or paid.
+    // It accrues per day once the grace period after the due date has passed.
+    let daysLate = 0;
+    if (fee.dueDate && balanceMinor > 0 && fee.status !== StudentFeeStatus.WAIVED && fee.status !== StudentFeeStatus.PAID) {
+      const overdue = Math.round((new Date(rules.today).getTime() - new Date(dateOnlyToIso(fee.dueDate)).getTime()) / 86_400_000);
+      daysLate = Math.max(0, overdue - rules.graceDays);
+    }
     return {
       id: fee.id,
       studentId: fee.studentId,
@@ -225,7 +267,9 @@ export class StudentFeesService {
       dueDate: fee.dueDate,
       status: fee.status,
       paidMinor,
-      balanceMinor: Math.max(fee.amountDueMinor - paidMinor, 0),
+      balanceMinor,
+      daysLate,
+      lateFeeMinor: daysLate * rules.perDayMinor,
       feeCategory: { id: fee.feeStructure.feeCategory.id, name: fee.feeStructure.feeCategory.name },
       frequency: fee.feeStructure.frequency,
     };

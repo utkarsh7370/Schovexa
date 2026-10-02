@@ -85,10 +85,18 @@ export function useAttendanceHistory(studentId: string | undefined, from: string
 // set to another zone).
 export const ATTENDANCE_TODAY_QUERY_KEY = ['attendance-today'];
 
+export interface AttendanceToday {
+  today: string;
+  /** The earliest date attendance can still be changed (today, unless the school allows a correction window). */
+  editableFrom: string;
+  editWindowDays: number;
+  schoolDay: { working: boolean; reason: string | null; message: string };
+}
+
 export function useAttendanceToday() {
   return useQuery({
     queryKey: ATTENDANCE_TODAY_QUERY_KEY,
-    queryFn: () => api.get<{ today: string }>('/attendance/today'),
+    queryFn: () => api.get<AttendanceToday>('/attendance/today'),
     staleTime: 60_000,
   });
 }

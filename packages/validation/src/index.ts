@@ -149,6 +149,19 @@ export const updateSchoolSchema = z.object({
   staffLateGraceMinutes: z.coerce.number().int().min(0, 'Use 0 or more minutes').max(120, 'Keep the grace period under 2 hours').optional(),
   // Message a student's parents when the student is marked absent.
   notifyParentsOnAbsence: z.boolean().optional(),
+  // Profile
+  motto: z.string().trim().max(120, 'Keep the motto under 120 characters').optional(),
+  description: z.string().trim().max(600, 'Keep the description under 600 characters').optional(),
+  schoolCode: z.string().trim().max(30, 'Keep the school code under 30 characters').optional(),
+  board: z.string().trim().max(60).optional(),
+  schoolType: z.string().trim().max(60).optional(),
+  establishedYear: z.number().int().min(1800, 'Enter a year from 1800').max(new Date().getFullYear(), 'That year is in the future').nullable().optional(),
+  affiliationNo: z.string().trim().max(40).optional(),
+  // Contact + address
+  alternatePhone: z.string().trim().max(30).optional(),
+  city: z.string().trim().max(80).optional(),
+  state: z.string().trim().max(80).optional(),
+  postalCode: z.string().trim().max(20).optional(),
 }).refine((v) => !v.staffPunchInTime || !v.staffPunchOutTime || v.staffPunchOutTime > v.staffPunchInTime, {
   path: ['staffPunchOutTime'],
   message: 'Punch-out must be later than punch-in',
@@ -265,12 +278,14 @@ export type UpdateSectionInput = z.infer<typeof updateSectionSchema>;
 export const createSubjectSchema = z.object({
   name: z.string().min(1, 'Subject name is required'),
   code: z.string().optional(),
+  departmentId: z.union([z.literal(''), z.string()]).optional(),
 });
 export type CreateSubjectInput = z.infer<typeof createSubjectSchema>;
 
 export const updateSubjectSchema = z.object({
   name: z.string().min(1).optional(),
   code: z.string().optional(),
+  departmentId: z.union([z.literal(''), z.string()]).optional(),
 });
 export type UpdateSubjectInput = z.infer<typeof updateSubjectSchema>;
 
@@ -278,12 +293,14 @@ export const createTeacherSchema = z.object({
   userId: z.string().min(1, 'A staff member is required'),
   employeeCode: z.string().optional(),
   joiningDate: z.union([z.literal(''), z.string()]).optional(),
+  departmentId: z.union([z.literal(''), z.string()]).optional(),
 });
 export type CreateTeacherInput = z.infer<typeof createTeacherSchema>;
 
 export const updateTeacherSchema = z.object({
   employeeCode: z.string().optional(),
   joiningDate: z.union([z.literal(''), z.string()]).optional(),
+  departmentId: z.union([z.literal(''), z.string()]).optional(),
 });
 export type UpdateTeacherInput = z.infer<typeof updateTeacherSchema>;
 
@@ -684,3 +701,146 @@ export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
 // Re-entering the password to prove it's still you before a sensitive action.
 export const reauthSchema = z.object({ password: z.string().min(1, 'Enter your password').max(256) });
 export type ReauthInput = z.infer<typeof reauthSchema>;
+
+// --- School configuration (timings, working days, attendance, fees, notifications, documents) ---
+
+export const DOCUMENT_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png'] as const;
+export const WEEKDAY_LABELS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
+
+const distinctInts = (min: number, max: number, label: string) =>
+  z
+    .array(z.number().int().min(min, `${label} must be ${min}–${max}`).max(max, `${label} must be ${min}–${max}`))
+    .refine((v) => new Set(v).size === v.length, `Each ${label.toLowerCase()} can be listed once`);
+
+const nameList = (label: string, max: number) =>
+  z
+    .array(z.string().trim().min(1, `${label} can’t be blank`).max(40, `Keep each ${label.toLowerCase()} under 40 characters`))
+    .max(max, `At most ${max} ${label.toLowerCase()}s`)
+    .refine((v) => new Set(v.map((x) => x.toLowerCase())).size === v.length, `Each ${label.toLowerCase()} can be listed once`);
+
+export const updateSchoolSettingsSchema = z
+  .object({
+    schoolStartTime: timeOfDay('start time').optional(),
+    schoolEndTime: timeOfDay('end time').optional(),
+    breakStartTime: timeOfDay('break start').nullable().optional(),
+    breakEndTime: timeOfDay('break end').nullable().optional(),
+    workingDays: distinctInts(1, 7, 'Working day').refine((v) => v.length >= 1, 'Choose at least one working day').optional(),
+    offSaturdays: distinctInts(1, 5, 'Saturday').optional(),
+    attendanceEditWindowDays: z.number().int().min(0, 'Use 0 or more days').max(30, 'At most 30 days').optional(),
+    attendanceMinPercent: z.number().int().min(0).max(100, 'Use a percentage from 0 to 100').optional(),
+    attendanceOnNonWorkingDays: z.boolean().optional(),
+    receiptPrefix: z.string().trim().regex(/^[A-Za-z0-9/_-]{0,12}$/, 'Up to 12 letters, numbers, - _ or /').optional(),
+    allowPartialPayments: z.boolean().optional(),
+    lateFeePerDayMinor: z.number().int().min(0).max(10_000_000).optional(),
+    lateFeeGraceDays: z.number().int().min(0, 'Use 0 or more days').max(365).optional(),
+    passPercent: z.number().int().min(1, 'Use 1–100').max(100, 'Use 1–100').optional(),
+    notifyAbsenceEmail: z.boolean().optional(),
+    notifyYearApprovalEmail: z.boolean().optional(),
+    notifyStaffAttendanceDecisions: z.boolean().optional(),
+    documentMaxSizeMb: z.number().int().min(1, 'At least 1 MB').max(25, 'At most 25 MB').optional(),
+    allowedDocumentTypes: z.array(z.enum(DOCUMENT_MIME_TYPES)).min(1, 'Allow at least one file type').optional(),
+    documentCategories: nameList('Category', 30).optional(),
+    requiredStudentDocuments: nameList('Category', 30).optional(),
+  })
+  .refine((v) => !v.schoolStartTime || !v.schoolEndTime || v.schoolEndTime > v.schoolStartTime, {
+    path: ['schoolEndTime'],
+    message: 'The school day must end after it starts',
+  })
+  .refine((v) => v.breakStartTime === undefined || v.breakEndTime === undefined || (v.breakStartTime === null) === (v.breakEndTime === null), {
+    path: ['breakEndTime'],
+    message: 'Set both break times, or neither',
+  })
+  .refine((v) => !v.breakStartTime || !v.breakEndTime || v.breakEndTime > v.breakStartTime, {
+    path: ['breakEndTime'],
+    message: 'The break must end after it starts',
+  });
+export type UpdateSchoolSettingsInput = z.input<typeof updateSchoolSettingsSchema>;
+
+// --- Academic terms ---
+
+const termBase = z.object({
+  name: z.string().trim().min(1, 'Give the term a name').max(60, 'Keep the name under 60 characters'),
+  startDate: isoDateSchema,
+  endDate: isoDateSchema,
+});
+export const createTermSchema = termBase.refine(endNotBeforeStart, { path: ['endDate'], message: 'The end date can’t be before the start date' });
+export type CreateTermInput = z.input<typeof createTermSchema>;
+export const updateTermSchema = termBase.partial().refine(endNotBeforeStart, { path: ['endDate'], message: 'The end date can’t be before the start date' });
+export type UpdateTermInput = z.input<typeof updateTermSchema>;
+
+// --- Departments ---
+
+export const createDepartmentSchema = z.object({
+  name: z.string().trim().min(2, 'Give the department a name (at least 2 characters)').max(80, 'Keep the name under 80 characters'),
+  code: z.string().trim().max(20, 'Keep the code under 20 characters').optional(),
+  description: z.string().trim().max(300, 'Keep the description under 300 characters').optional(),
+  headTeacherId: z.union([z.literal(''), z.string()]).optional(),
+});
+export type CreateDepartmentInput = z.input<typeof createDepartmentSchema>;
+export const updateDepartmentSchema = createDepartmentSchema.partial();
+export type UpdateDepartmentInput = z.input<typeof updateDepartmentSchema>;
+
+// --- Houses and groups ---
+
+export const GROUP_KINDS = ['HOUSE', 'CLUB', 'SPORTS', 'OTHER'] as const;
+export type GroupKind = (typeof GROUP_KINDS)[number];
+
+export const createGroupSchema = z.object({
+  name: z.string().trim().min(2, 'Give the group a name (at least 2 characters)').max(60, 'Keep the name under 60 characters'),
+  kind: z.enum(GROUP_KINDS).default('HOUSE'),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Pick a colour').default('#2563eb'),
+  motto: z.string().trim().max(120).optional(),
+  description: z.string().trim().max(300).optional(),
+  leaderTeacherId: z.union([z.literal(''), z.string()]).optional(),
+});
+export type CreateGroupInput = z.input<typeof createGroupSchema>;
+export const updateGroupSchema = createGroupSchema.partial();
+export type UpdateGroupInput = z.input<typeof updateGroupSchema>;
+
+export const addGroupMembersSchema = z.object({
+  studentIds: z.array(z.string().min(1)).min(1, 'Choose at least one student').max(200, 'Add up to 200 students at a time'),
+});
+export type AddGroupMembersInput = z.infer<typeof addGroupMembersSchema>;
+
+// --- Grading ---
+
+export const gradeBandSchema = z.object({
+  label: z.string().trim().min(1, 'Give the grade a label').max(20, 'Keep the label under 20 characters'),
+  minPercent: z.number().int().min(0, 'Use 0–100').max(100, 'Use 0–100'),
+  gradePoint: z.number().min(0).max(10).nullable().optional(),
+  remark: z.string().trim().max(40).optional().or(z.literal('')),
+});
+export const replaceGradingSchema = z
+  .object({
+    passPercent: z.number().int().min(1, 'Use 1–100').max(100, 'Use 1–100'),
+    bands: z.array(gradeBandSchema).min(2, 'Add at least two grades').max(15, 'At most 15 grades'),
+  })
+  .superRefine((v, ctx) => {
+    if (!v.bands.some((b) => b.minPercent === 0)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['bands'], message: 'The lowest grade must start at 0%, so every mark earns a grade' });
+    }
+    if (new Set(v.bands.map((b) => b.minPercent)).size !== v.bands.length) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['bands'], message: 'Two grades can’t start at the same percentage' });
+    }
+    if (new Set(v.bands.map((b) => b.label.toLowerCase())).size !== v.bands.length) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['bands'], message: 'Each grade label can be used once' });
+    }
+  });
+export type ReplaceGradingInput = z.input<typeof replaceGradingSchema>;
+
+/** The grade a percentage earns on a scale (bands in any order), or null for a bad percentage. */
+export function gradeForPercent<B extends { minPercent: number }>(bands: B[], percent: number): B | null {
+  if (!Number.isFinite(percent) || percent < 0 || percent > 100) return null;
+  const sorted = [...bands].sort((a, b) => b.minPercent - a.minPercent);
+  return sorted.find((b) => percent >= b.minPercent) ?? null;
+}
+
+export const DEFAULT_GRADE_BANDS = [
+  { label: 'A+', minPercent: 90, gradePoint: 10, remark: 'Outstanding' },
+  { label: 'A', minPercent: 80, gradePoint: 9, remark: 'Excellent' },
+  { label: 'B+', minPercent: 70, gradePoint: 8, remark: 'Very good' },
+  { label: 'B', minPercent: 60, gradePoint: 7, remark: 'Good' },
+  { label: 'C', minPercent: 50, gradePoint: 6, remark: 'Satisfactory' },
+  { label: 'D', minPercent: 40, gradePoint: 5, remark: 'Pass' },
+  { label: 'F', minPercent: 0, gradePoint: 0, remark: 'Needs improvement' },
+] as const;

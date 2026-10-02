@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
@@ -47,10 +48,18 @@ export class DocumentsController {
   async uploadForStudent(
     @Param('studentId') studentId: string,
     @UploadedFile() file: Express.Multer.File,
+    @Body('category') category: string | undefined,
     @CurrentAuthContext() auth: AuthContext,
   ) {
     await this.authorizationService.authorizeResource(auth, 'Student', studentId);
-    return this.documentsService.upload(auth.schoolId, 'Student', studentId, auth.userId, file);
+    return this.documentsService.upload(auth.schoolId, 'Student', studentId, auth.userId, file, category);
+  }
+
+  // What the school accepts (types, size, categories, required documents).
+  @Get('documents/config')
+  @RequirePermission('document.view')
+  async config(@CurrentAuthContext() auth: AuthContext) {
+    return this.documentsService.config(auth.schoolId);
   }
 
   @Get('documents/:id/download')

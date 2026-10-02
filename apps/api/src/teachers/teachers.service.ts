@@ -5,15 +5,19 @@ import type {
   CreateTeacherInput,
   UpdateTeacherInput,
 } from '@schovexa/validation';
+import { DepartmentsService } from '../departments/departments.service';
 
 @Injectable()
 export class TeachersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly departments: DepartmentsService,
+  ) {}
 
   async list(schoolId: string) {
     const teachers = await this.prisma.teacher.findMany({
       where: { schoolId, deletedAt: null },
-      include: { user: true },
+      include: { user: true, department: { select: { id: true, name: true } } },
       orderBy: { createdAt: 'asc' },
     });
     return teachers.map((t) => this.toDto(t));
@@ -44,14 +48,16 @@ export class TeachersService {
       });
     }
 
+    const departmentId = await this.departments.resolveId(schoolId, input.departmentId);
     const teacher = await this.prisma.teacher.create({
       data: {
         schoolId,
         userId: input.userId,
         employeeCode: input.employeeCode || null,
         joiningDate: input.joiningDate ? new Date(input.joiningDate) : null,
+        departmentId: departmentId ?? null,
       },
-      include: { user: true },
+      include: { user: true, department: { select: { id: true, name: true } } },
     });
     return this.toDto(teacher);
   }
@@ -64,6 +70,7 @@ export class TeachersService {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Resource not found.' });
     }
 
+    const departmentId = await this.departments.resolveId(schoolId, input.departmentId);
     const teacher = await this.prisma.teacher.update({
       where: { id: teacherId },
       data: {
@@ -71,8 +78,9 @@ export class TeachersService {
         ...(input.joiningDate !== undefined
           ? { joiningDate: input.joiningDate ? new Date(input.joiningDate) : null }
           : {}),
+        ...(departmentId !== undefined ? { departmentId } : {}),
       },
-      include: { user: true },
+      include: { user: true, department: { select: { id: true, name: true } } },
     });
     return this.toDto(teacher);
   }
@@ -136,12 +144,14 @@ export class TeachersService {
     id: string;
     employeeCode: string | null;
     joiningDate: Date | null;
+    department?: { id: string; name: string } | null;
     user: { id: string; email: string; firstName: string; lastName: string };
   }) {
     return {
       id: teacher.id,
       employeeCode: teacher.employeeCode,
       joiningDate: teacher.joiningDate,
+      department: teacher.department ?? null,
       user: {
         id: teacher.user.id,
         email: teacher.user.email,

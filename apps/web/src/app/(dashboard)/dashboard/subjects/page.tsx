@@ -5,9 +5,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { createSubjectSchema, updateSubjectSchema, type CreateSubjectInput, type UpdateSubjectInput } from '@schovexa/validation';
-import { Alert, Button, Dialog, EmptyState, PageHeader, SearchInput, Skeleton, StatCard, TextField, useToast } from '@schovexa/ui';
-import { BookOpen, Hash, Pencil, Plus, SearchX, Tags } from 'lucide-react';
+import { Alert, Button, Dialog, EmptyState, PageHeader, SearchInput, SelectField, Skeleton, StatCard, TextField, useToast } from '@schovexa/ui';
+import { BookOpen, Hash, Pencil, Plus, SearchX, Shapes, Tags } from 'lucide-react';
 import { useSubjects, SUBJECTS_QUERY_KEY, type Subject } from '../../../../hooks/useSubjects';
+import { useDepartments } from '../../../../hooks/useDepartments';
+import { useCan } from '../../../../hooks/useCan';
 import { api, ApiError } from '../../../../lib/api-client';
 
 // A stable color per subject name, so "Mathematics" is always the same
@@ -43,7 +45,7 @@ export default function SubjectsPage() {
     const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
     return (subjects ?? []).filter((s) => {
       if (!words.length) return true;
-      const haystack = `${s.name} ${s.code ?? ''}`.toLowerCase();
+      const haystack = `${s.name} ${s.code ?? ''} ${s.department?.name ?? ''}`.toLowerCase();
       return words.every((w) => haystack.includes(w));
     });
   }, [subjects, query]);
@@ -131,6 +133,11 @@ export default function SubjectsPage() {
                   ) : (
                     <p className="mt-1 text-xs text-slate-400">No code</p>
                   )}
+                  {subject.department && (
+                    <p className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-brand-blue">
+                      <Shapes size={11} /> {subject.department.name}
+                    </p>
+                  )}
                 </div>
                 <Button size="sm" variant="secondary" aria-label={`Edit ${subject.name}`} onClick={() => setEditing(subject)}>
                   <Pencil size={14} /> Edit
@@ -154,6 +161,8 @@ function SubjectDialog({ open, onClose, subject }: { open: boolean; onClose: () 
   const toast = useToast();
   const [serverError, setServerError] = useState<string | null>(null);
   const isEdit = !!subject;
+  const { can } = useCan();
+  const { data: departments } = useDepartments(can('department.view'));
   const formId = isEdit ? 'subject-edit-form' : 'subject-create-form';
 
   const {
@@ -164,7 +173,7 @@ function SubjectDialog({ open, onClose, subject }: { open: boolean; onClose: () 
   } = useForm<CreateSubjectInput | UpdateSubjectInput>({
     resolver: zodResolver(isEdit ? updateSubjectSchema : createSubjectSchema),
     // Re-key on the subject so opening a different one starts from its values.
-    values: subject ? { name: subject.name, code: subject.code ?? '' } : { name: '', code: '' },
+    values: subject ? { name: subject.name, code: subject.code ?? '', departmentId: subject.departmentId ?? '' } : { name: '', code: '', departmentId: '' },
   });
 
   const close = () => {
@@ -209,6 +218,12 @@ function SubjectDialog({ open, onClose, subject }: { open: boolean; onClose: () 
         {serverError && <Alert variant="error">{serverError}</Alert>}
         <TextField label="Name" placeholder="Mathematics" leftIcon={<BookOpen size={16} />} error={errors.name?.message} {...register('name')} />
         <TextField label="Code" placeholder="MATH" helperText="Optional." leftIcon={<Hash size={16} />} error={errors.code?.message} {...register('code')} />
+        {departments && departments.length > 0 && (
+          <SelectField label="Department" leftIcon={<Shapes size={16} />} helperText="Optional." {...register('departmentId')}>
+            <option value="">No department</option>
+            {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </SelectField>
+        )}
       </form>
     </Dialog>
   );

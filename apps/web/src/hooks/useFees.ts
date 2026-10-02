@@ -25,6 +25,10 @@ export interface StudentFee {
   status: StudentFeeStatus;
   paidMinor: number;
   balanceMinor: number;
+  /** Days past the due date (after the school's grace days). */
+  daysLate: number;
+  /** Late fee accrued so far — shown, never added to the amount billed. */
+  lateFeeMinor: number;
   feeCategory: { id: string; name: string };
   frequency: string;
 }

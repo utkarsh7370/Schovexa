@@ -1,3 +1,4 @@
+import { SchoolSettingsService } from '../school-settings/school-settings.service';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import type { StaffAttendance } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -15,6 +16,7 @@ export class StaffAttendanceService {
     private readonly audit: AuditService,
     private readonly authorization: AuthorizationService,
     private readonly notifications: NotificationsService,
+    private readonly settings: SchoolSettingsService,
   ) {}
 
   private async school(schoolId: string) {
@@ -262,7 +264,9 @@ export class StaffAttendanceService {
       where: { id: { in: rows.map((r) => r.id) } },
       data: { approval: 'APPROVED', decidedById: auth.userId, decidedAt: now },
     });
+    const tellStaff = (await this.settings.get(auth.schoolId)).notifyStaffAttendanceDecisions;
     for (const row of rows) {
+      if (!tellStaff) break;
       await this.notifications.notify({
         schoolId: auth.schoolId,
         userIds: [row.userId],
@@ -285,6 +289,7 @@ export class StaffAttendanceService {
 
   private async afterDecision(auth: AuthContext, row: StaffAttendance, action: string, title: string, body: string) {
     await this.audit.record({ schoolId: auth.schoolId, userId: auth.userId, action, module: 'staff-attendance', resourceType: 'StaffAttendance', resourceId: row.id });
+    if (!(await this.settings.get(auth.schoolId)).notifyStaffAttendanceDecisions) return;
     await this.notifications.notify({ schoolId: auth.schoolId, userIds: [row.userId], title, body, link: '/dashboard/my-attendance' });
   }
 }

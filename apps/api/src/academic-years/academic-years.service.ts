@@ -1,3 +1,4 @@
+import { SchoolSettingsService } from '../school-settings/school-settings.service';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { AcademicYear, AcademicYearReviewAction, AcademicYearStatus, Prisma } from '@prisma/client';
 import type { CreateAcademicYearInput, UpdateAcademicYearInput } from '@schovexa/validation';
@@ -24,6 +25,7 @@ export class AcademicYearsService {
     private readonly authorization: AuthorizationService,
     private readonly notifications: NotificationsService,
     private readonly email: EmailService,
+    private readonly settings: SchoolSettingsService,
   ) {}
 
   // -- Expiry ---------------------------------------------------------------
@@ -333,6 +335,8 @@ export class AcademicYearsService {
     const title = kind === 'proposed' ? `Academic year ${year.name} needs your approval` : `${year.name} was resubmitted for approval`;
     const body = `${who} ${kind === 'proposed' ? 'proposed' : 'resubmitted'} ${year.name} (${fmtRange(year)}). Review it, then approve, reject or suggest changes.`;
     await this.notifications.notify({ schoolId: auth.schoolId, userIds: approvers.map((u) => u.id), title, body, link: PAGE });
+    // The in-app notice above always goes out; the email is the school's choice.
+    if (!(await this.settings.get(auth.schoolId)).notifyYearApprovalEmail) return;
     for (const approver of approvers) {
       void this.email.send({
         to: approver.email,

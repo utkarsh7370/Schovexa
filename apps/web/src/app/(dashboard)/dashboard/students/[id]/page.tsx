@@ -28,6 +28,8 @@ import {
   ClipboardCheck,
   FileText,
   GraduationCap,
+  CircleAlert,
+  CircleCheck,
   Hash,
   IdCard,
   Link2,
@@ -43,7 +45,8 @@ import {
 } from 'lucide-react';
 import { useStudent, studentQueryKey, STUDENTS_QUERY_KEY, type StudentDetail, type StudentStatus } from '../../../../../hooks/useStudents';
 import { useParents } from '../../../../../hooks/useParents';
-import { useStudentDocuments, studentDocumentsQueryKey } from '../../../../../hooks/useDocuments';
+import { useStudentGroups } from '../../../../../hooks/useGroups';
+import { useStudentDocuments, studentDocumentsQueryKey, useDocumentConfig, describeAllowedTypes } from '../../../../../hooks/useDocuments';
 import { useAttendanceHistory, type AttendanceStatus } from '../../../../../hooks/useAttendance';
 import { useFeeStructures, useStudentFees, studentFeesQueryKey } from '../../../../../hooks/useFees';
 import { formatMinor, majorToMinor } from '../../../../../lib/currency';
@@ -68,6 +71,7 @@ function toDateInput(date: Date): string {
 export default function StudentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: student, isLoading, isError, error } = useStudent(id);
+  const { data: studentGroups } = useStudentGroups(id);
   const queryClient = useQueryClient();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -175,6 +179,11 @@ export default function StudentDetailPage() {
               {STUDENT_STATUS_LABELS[student.status] ?? student.status}
             </Badge>
             <SchoolDayBadge value={student.schoolDay} className="!px-3 !py-1 shadow-card" />
+            {studentGroups?.map((g) => (
+              <span key={g.id} className="inline-flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-navy shadow-card">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: g.color }} aria-hidden="true" /> {g.name}
+              </span>
+            ))}
           </>
         }
         chips={chips}
@@ -721,6 +730,7 @@ function FeesPanel({ studentId }: { studentId: string }) {
                     Due <span className="font-semibold text-slate-700">{formatMinor(fee.amountDueMinor)}</span> · Paid{' '}
                     <span className="font-semibold text-emerald-600">{formatMinor(fee.paidMinor)}</span> · Balance{' '}
                     <span className={['font-semibold', fee.balanceMinor > 0 ? 'text-amber-600' : 'text-slate-700'].join(' ')}>{formatMinor(fee.balanceMinor)}</span>
+                    {fee.lateFeeMinor > 0 && <span className="font-semibold text-rose-600"> · Late fee {formatMinor(fee.lateFeeMinor)} ({fee.daysLate}d overdue)</span>}
                   </p>
                 </div>
                 {open && (
@@ -792,6 +802,13 @@ function formatBytes(bytes: number): string {
 
 function DocumentsPanel({ studentId }: { studentId: string }) {
   const { data: documents } = useStudentDocuments(studentId);
+  const { data: config } = useDocumentConfig();
+  const [category, setCategory] = useState('');
+  const acceptedTypes = config ? describeAllowedTypes(config.allowedTypes) : 'PDF, JPEG or PNG';
+  const sizeLimit = config ? `${config.maxSizeMb} MB` : '10 MB';
+  // Which of the school's required documents this student has on file yet.
+  const have = new Set((documents ?? []).map((d) => d.category?.toLowerCase()));
+  const missing = (config?.requiredStudentDocuments ?? []).filter((c) => !have.has(c.toLowerCase()));
   const queryClient = useQueryClient();
   const toast = useToast();
   const [uploading, setUploading] = useState(false);
@@ -805,6 +822,7 @@ function DocumentsPanel({ studentId }: { studentId: string }) {
     try {
       const formData = new FormData();
       formData.append('file', file);
+      if (category) formData.append('category', category);
       await api.postForm(`/students/${studentId}/documents`, formData);
       await queryClient.invalidateQueries({ queryKey: studentDocumentsQueryKey(studentId) });
       toast.show({ tone: 'success', title: 'Document uploaded', description: file.name });
@@ -856,6 +874,32 @@ function DocumentsPanel({ studentId }: { studentId: string }) {
         </Alert>
       )}
 
+      {config && config.categories.length > 0 && (
+        <div className="mb-4 max-w-xs">
+          <SelectField label="Next upload is a…" fieldSize="sm" value={category} onChange={(e) => setCategory(e.target.value)}>
+            <option value="">Not categorised</option>
+            {config.categories.map((c) => <option key={c} value={c}>{c}</option>)}
+          </SelectField>
+        </div>
+      )}
+
+      {config && config.requiredStudentDocuments.length > 0 && documents && (
+        <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50/60 p-3" aria-label="Required documents">
+          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Required documents</p>
+          <ul className="flex flex-wrap gap-2">
+            {config.requiredStudentDocuments.map((c) => {
+              const ok = have.has(c.toLowerCase());
+              return (
+                <li key={c} className={['inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold', ok ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'].join(' ')}>
+                  {ok ? <CircleCheck size={13} /> : <CircleAlert size={13} />} {c}{ok ? '' : ' — missing'}
+                </li>
+              );
+            })}
+          </ul>
+          {missing.length === 0 && <p className="mt-2 text-xs text-emerald-700">Everything the school requires is on file.</p>}
+        </div>
+      )}
+
       <div className="flex flex-col gap-2">
         {documents?.map((doc) => (
           <div key={doc.id} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3 transition-colors hover:border-brand-blue/30 hover:bg-white">
@@ -865,6 +909,7 @@ function DocumentsPanel({ studentId }: { studentId: string }) {
             <a href={`${API_URL}/documents/${doc.id}/download`} target="_blank" rel="noreferrer" className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-navy hover:text-brand-blue">{doc.fileName}</p>
               <p className="text-xs text-slate-500">
+                {doc.category && <span className="mr-1.5 rounded-full bg-brand-blue/10 px-2 py-0.5 font-semibold text-brand-blue">{doc.category}</span>}
                 {formatBytes(doc.sizeBytes)} · {new Date(doc.createdAt).toLocaleDateString()}
               </p>
             </a>
@@ -877,7 +922,7 @@ function DocumentsPanel({ studentId }: { studentId: string }) {
           <EmptyState
             icon={<FileText size={22} />}
             title="No documents uploaded yet"
-            description="PDF, JPEG or PNG, up to 10 MB each."
+            description={`${acceptedTypes}, up to ${sizeLimit} each.`}
             action={
               <Button size="sm" variant="secondary" onClick={() => fileInputRef.current?.click()}>
                 <Upload size={15} /> Upload the first one
@@ -886,7 +931,7 @@ function DocumentsPanel({ studentId }: { studentId: string }) {
           />
         )}
       </div>
-      {documents && documents.length > 0 && <p className="mt-4 text-xs text-slate-400">PDF, JPEG, or PNG. Max 10MB.</p>}
+      {documents && documents.length > 0 && <p className="mt-4 text-xs text-slate-400">{acceptedTypes}. Max {sizeLimit}.</p>}
     </SectionCard>
   );
 }

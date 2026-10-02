@@ -28,6 +28,9 @@ import {
   Search,
   PartyPopper,
   ScrollText,
+  Shapes,
+  Trophy,
+  CalendarRange,
 } from 'lucide-react';
 import { Avatar, LogoMark, Spinner } from '@schovexa/ui';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
@@ -76,12 +79,20 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/dashboard/academic-years', label: 'Academic Years', icon: CalendarDays },
       { href: '/dashboard/classes', label: 'Classes', icon: School },
       { href: '/dashboard/subjects', label: 'Subjects', icon: BookOpen },
+      { href: '/dashboard/departments', label: 'Departments', icon: Shapes, permission: 'department.view' },
+      { href: '/dashboard/groups', label: 'Houses & Groups', icon: Trophy, permission: 'group.view' },
       { href: '/dashboard/attendance', label: 'Attendance', icon: ClipboardCheck },
       { href: '/dashboard/my-attendance', label: 'My Attendance', icon: Fingerprint, permission: 'staffAttendance.mark' },
       { href: '/dashboard/staff-attendance', label: 'Staff Attendance', icon: UserCheck, permission: 'staffAttendance.view' },
     ],
   },
-  { label: 'Calendar', items: [{ href: '/dashboard/holidays', label: 'Holidays', icon: PartyPopper }] },
+  {
+    label: 'Calendar',
+    items: [
+      { href: '/dashboard/calendar', label: 'School Calendar', icon: CalendarRange },
+      { href: '/dashboard/holidays', label: 'Holidays', icon: PartyPopper },
+    ],
+  },
   { label: 'Money', items: [{ href: '/dashboard/fees', label: 'Fees', icon: Wallet }] },
   { label: 'Insights', items: [{ href: '/dashboard/reports', label: 'Reports', icon: BarChart3 }] },
   { label: 'Communication', items: [{ href: '/dashboard/notices', label: 'Notices', icon: Bell }] },

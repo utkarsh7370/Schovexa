@@ -141,6 +141,10 @@ duplicate record. This matters most once payment gateway webhooks
 convention is established now so early endpoints (e.g. manually recorded
 MVP payments) are consistent with it.
 
+School-rule error codes: `NOT_A_SCHOOL_DAY` and `ATTENDANCE_LOCKED` (attendance),
+`PARTIAL_PAYMENT_NOT_ALLOWED` (fees), `ALREADY_IN_HOUSE` (groups). See
+`docs/school-management.md`.
+
 Two error codes are part of the contract for sensitive actions:
 `403 REAUTH_REQUIRED` (confirm the password via `/auth/reauth`, then
 retry) and `403 EMAIL_NOT_VERIFIED`. Rules: `docs/security-rules.md`.
@@ -166,6 +170,15 @@ retry) and `403 EMAIL_NOT_VERIFIED`. Rules: `docs/security-rules.md`.
 | POST | `/api/v1/auth/verify-email` | None | Single-use emailed token |
 | POST | `/api/v1/auth/resend-verification` | Session | Limited to 1/min and 5/hour |
 | GET | `/api/v1/audit-logs` | Session + School + Permission | `audit.view` (Director); filters `q`, `module`, `userId`, `from`, `to`, paging; read-only |
+| GET/PATCH | `/api/v1/schools/me` | Session + School + Permission | `school.view` / `school.update`; profile, contact, address, regional, staff hours |
+| GET/POST/DELETE | `/api/v1/schools/me/logo` | Session + School (+ `school.update` to change) | PNG/JPEG ≤ 1 MB; any member may fetch it |
+| GET/PATCH | `/api/v1/school-settings` | Session + School + Permission | `school.view` / `school.update`; timings, working days, attendance, fee, notification, document rules |
+| GET/PUT | `/api/v1/grading` | Session + School + Permission | `school.view` / `school.update`; `GET /grading/preview?percent=` |
+| GET | `/api/v1/calendar?from&to` | Session + School + Permission | `holiday.view`; ≤ 100 days; working/off reason per day, terms, years |
+| GET/POST/PATCH/DELETE | `/api/v1/academic-years/:id/terms…` | Session + School + Permission | `academicYear.view` / `.update` |
+| GET/POST/PATCH/DELETE | `/api/v1/departments…` | Session + School + Permission | `department.view` / `.create` / `.update` |
+| GET/POST/PATCH/DELETE | `/api/v1/groups…`, `/groups/:id/members…`, `GET /groups/student/:studentId` | Session + School + Permission | `group.view` / `.create` / `.update`; the student route follows `student.view` scope |
+| GET | `/api/v1/documents/config` | Session + School + Permission | `document.view`; what the school accepts |
 | GET | `/api/v1/students/:id` | Session + School + Permission | `student.view`; scope-checked against the specific student. Phase 4 demonstration endpoint only — see note below |
 
 "Session" means `AuthGuard` only (user-level validity). "Session +

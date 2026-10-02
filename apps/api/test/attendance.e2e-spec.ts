@@ -5,7 +5,7 @@ import request from 'supertest';
 import { PrismaClient } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { AppModule } from '../src/app.module';
-import { resetTestData } from './db-helpers';
+import { openAllWeek, resetTestData } from './db-helpers';
 import { permissionCatalog } from '../prisma/seed-data/permissions';
 import { currentYearDates } from './year-helpers';
 
@@ -84,6 +84,7 @@ describe('Attendance (e2e)', () => {
       .post('/api/v1/schools/register')
       .set('Origin', WEB_ORIGIN)
       .send({ schoolName, directorFirstName: 'D', directorLastName: 'R', email, password });
+    await openAllWeek(seedClient, res.body.schoolId);
     return { schoolId: res.body.schoolId as string, cookie: res.headers['set-cookie'] as string };
   }
 

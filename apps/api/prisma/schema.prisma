@@ -293,9 +293,24 @@ model School {
   name         String
   slug         String       @unique
   logoUrl      String?
+  // The logo file's storage key (the file itself is served by the API).
+  logoKey      String?
+  // Profile — what the school says about itself.
+  motto         String?
+  description   String?
+  schoolCode    String?
+  board         String?
+  schoolType    String?
+  establishedYear Int?
+  affiliationNo String?
+  // Contact + address (address is line 1; the country is below).
   address      String?
+  city         String?
+  state        String?
+  postalCode   String?
   contactEmail String?
   contactPhone String?
+  alternatePhone String?
   website      String?
   timezone     String       @default("Asia/Kolkata")
   // ISO 3166-1 alpha-2 — where the school is. Shown in the dashboard header.
@@ -340,6 +355,11 @@ model School {
   documents         Document[]
   auditLogs         AuditLog[]
   subscription      Subscription?
+  settings          SchoolSettings?
+  academicTerms     AcademicTerm[]
+  departments       Department[]
+  studentGroups     StudentGroup[]
+  gradeBands        GradeBand[]
 }
 
 model SchoolMembership {
@@ -438,6 +458,7 @@ model AcademicYear {
   classes Class[]
   feeStructures FeeStructure[]
   reviews AcademicYearReview[]
+  terms   AcademicTerm[]
 
   @@index([schoolId, name]) // F1: uniqueness enforced by partial index
   @@index([schoolId])
@@ -507,15 +528,18 @@ model Subject {
   schoolId  String
   name      String
   code      String?
+  departmentId String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
   school      School              @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  department  Department?         @relation(fields: [departmentId], references: [id])
   assignments TeacherAssignment[]
 
   @@index([schoolId, name]) // F1: uniqueness enforced by partial index
   @@index([schoolId])
+  @@index([departmentId])
 }
 
 model Teacher {
@@ -524,11 +548,15 @@ model Teacher {
   userId       String
   employeeCode String?
   joiningDate  DateTime?
+  departmentId String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
 
   school         School              @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  department     Department?         @relation("DepartmentMembers", fields: [departmentId], references: [id])
+  headOfDepartments Department[]     @relation("DepartmentHead")
+  ledGroups      StudentGroup[]
   user           User                @relation(fields: [userId], references: [id])
   assignments    TeacherAssignment[]
   classTeacherOf Section[]           @relation("ClassTeacherOf")
@@ -590,6 +618,7 @@ model Student {
   parents    StudentParent[]
   attendance Attendance[]
   fees       StudentFee[]
+  groups     StudentGroupMember[]
   // Documents owned by a student are queried via Document.ownerType/
   // ownerId (polymorphic — see Document model), not a Prisma relation.
 
@@ -826,6 +855,8 @@ model Document {
   fileName     String
   mimeType     String
   sizeBytes    Int
+  // One of the school's configured document categories (ID proof, …).
+  category     String?
   uploadedById String
   createdAt    DateTime  @default(now())
   deletedAt    DateTime?
@@ -1011,4 +1042,155 @@ model LoginAttempt {
 
   @@index([email, createdAt])
   @@index([ipAddress, createdAt])
+}
+
+// A named stretch of an academic year (Term 1, Semester 2, …). Terms sit
+// inside the year's dates and never overlap one another.
+model AcademicTerm {
+  id             String    @id @default(cuid())
+  schoolId       String
+  academicYearId String
+  name           String
+  startDate      DateTime  @db.Date
+  endDate        DateTime  @db.Date
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  school       School       @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+
+  @@index([academicYearId, startDate])
+  @@index([schoolId])
+}
+
+// Everything a school can configure beyond who it is: its day, its week,
+// and the rules attendance, fees, notifications and documents follow.
+// One row per school, created on first save; until then the defaults below
+// apply (see school-settings.service.ts).
+model SchoolSettings {
+  schoolId String @id
+
+  // Timings (24-hour HH:mm, in the school's time zone)
+  schoolStartTime String  @default("08:00")
+  schoolEndTime   String  @default("14:30")
+  breakStartTime  String? @default("11:00")
+  breakEndTime    String? @default("11:30")
+
+  // Working days — ISO weekdays (1 = Monday … 7 = Sunday) — and which
+  // Saturdays of the month are off (e.g. [2, 4] = 2nd and 4th).
+  workingDays  Int[] @default([1, 2, 3, 4, 5, 6])
+  offSaturdays Int[] @default([])
+
+  // Attendance
+  attendanceEditWindowDays   Int     @default(0)
+  attendanceMinPercent       Int     @default(75)
+  attendanceOnNonWorkingDays Boolean @default(false)
+
+  // Fees
+  receiptPrefix        String  @default("")
+  allowPartialPayments Boolean @default(true)
+  lateFeePerDayMinor   Int     @default(0)
+  lateFeeGraceDays     Int     @default(0)
+
+  // Grading
+  passPercent Int @default(40)
+
+  // Notifications (absence alerts to parents are School.notifyParentsOnAbsence)
+  notifyAbsenceEmail             Boolean @default(true)
+  notifyYearApprovalEmail        Boolean @default(true)
+  notifyStaffAttendanceDecisions Boolean @default(true)
+
+  // Documents
+  documentMaxSizeMb        Int      @default(10)
+  allowedDocumentTypes     String[] @default(["application/pdf", "image/jpeg", "image/png"])
+  documentCategories       String[] @default(["ID proof", "Birth certificate", "Transfer certificate", "Address proof", "Medical record", "Certificate", "Other"])
+  requiredStudentDocuments String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+}
+
+model Department {
+  id            String    @id @default(cuid())
+  schoolId      String
+  name          String
+  code          String?
+  description   String?
+  headTeacherId String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  school      School    @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  headTeacher Teacher?  @relation("DepartmentHead", fields: [headTeacherId], references: [id])
+  teachers    Teacher[] @relation("DepartmentMembers")
+  subjects    Subject[]
+
+  @@index([schoolId, name]) // uniqueness enforced by partial index
+  @@index([schoolId])
+}
+
+enum GroupKind {
+  HOUSE
+  CLUB
+  SPORTS
+  OTHER
+}
+
+// Houses (Red, Blue…), clubs and other groups students belong to. A student
+// is in at most one house but can be in many clubs and groups.
+model StudentGroup {
+  id              String    @id @default(cuid())
+  schoolId        String
+  name            String
+  kind            GroupKind @default(HOUSE)
+  color           String    @default("#2563eb")
+  motto           String?
+  description     String?
+  leaderTeacherId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  school  School               @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  leader  Teacher?             @relation(fields: [leaderTeacherId], references: [id])
+  members StudentGroupMember[]
+
+  @@index([schoolId, name]) // uniqueness enforced by partial index
+  @@index([schoolId])
+}
+
+model StudentGroupMember {
+  id        String   @id @default(cuid())
+  schoolId  String
+  groupId   String
+  studentId String
+  createdAt DateTime @default(now())
+
+  group   StudentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  student Student      @relation(fields: [studentId], references: [id])
+
+  @@unique([groupId, studentId])
+  @@index([schoolId])
+  @@index([studentId])
+}
+
+// One step of the school's grade scale: a percentage at or above
+// `minPercent` earns `label` (until the next band up).
+model GradeBand {
+  id         String   @id @default(cuid())
+  schoolId   String
+  label      String
+  minPercent Int
+  gradePoint Float?
+  remark     String?
+  createdAt  DateTime @default(now())
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+
+  @@unique([schoolId, minPercent])
+  @@unique([schoolId, label])
 }

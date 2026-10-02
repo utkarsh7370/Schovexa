@@ -5,6 +5,7 @@ export interface Teacher {
   id: string;
   employeeCode: string | null;
   joiningDate: string | null;
+  department: { id: string; name: string } | null;
   user: { id: string; email: string; firstName: string; lastName: string };
 }
 

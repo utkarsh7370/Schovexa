@@ -5,7 +5,19 @@ export interface School {
   id: string;
   name: string;
   logoUrl: string | null;
+  hasLogo: boolean;
+  motto: string | null;
+  description: string | null;
+  schoolCode: string | null;
+  board: string | null;
+  schoolType: string | null;
+  establishedYear: number | null;
+  affiliationNo: string | null;
   address: string | null;
+  city: string | null;
+  state: string | null;
+  postalCode: string | null;
+  alternatePhone: string | null;
   contactEmail: string | null;
   contactPhone: string | null;
   website: string | null;
@@ -17,6 +29,7 @@ export interface School {
   staffPunchOutTime: string;
   staffLateGraceMinutes: number;
   notifyParentsOnAbsence: boolean;
+  updatedAt: string;
 }
 
 export const CURRENT_SCHOOL_QUERY_KEY = ['schools', 'me'];
