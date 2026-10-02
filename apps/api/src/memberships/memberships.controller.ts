@@ -6,6 +6,7 @@ import { AuthGuard } from '../auth/guards/auth.guard';
 import { SchoolContextGuard } from '../authorization/guards/school-context.guard';
 import { PermissionGuard } from '../authorization/guards/permission.guard';
 import { RequirePermission } from '../authorization/decorators/require-permission.decorator';
+import { SensitiveAction } from '../authorization/decorators/sensitive-action.decorator';
 import { CurrentAuthContext } from '../authorization/decorators/current-auth-context.decorator';
 import { AuthorizationService } from '../authorization/authorization.service';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
@@ -45,16 +46,18 @@ export class MembershipsController {
 
   @Post('invitations')
   @RequirePermission('user.create')
+  @SensitiveAction()
   async invite(
     @Body(new ZodValidationPipe(createInvitationSchema)) body: CreateInvitationInput,
     @CurrentAuthContext() auth: AuthContext,
     @Req() req: Request,
   ) {
-    return this.membershipsService.createInvitation(auth.schoolId, body, requestMeta(req));
+    return this.membershipsService.createInvitation(auth, body, requestMeta(req));
   }
 
   @Patch(':id')
   @RequirePermission('user.update')
+  @SensitiveAction()
   async update(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updateMembershipSchema)) body: UpdateMembershipInput,
@@ -62,22 +65,24 @@ export class MembershipsController {
     @Req() req: Request,
   ) {
     await this.authorizationService.authorizeResource(auth, 'SchoolMembership', id);
-    return this.membershipsService.updateMembership(auth.schoolId, id, body.roleId, requestMeta(req));
+    return this.membershipsService.updateMembership(auth, id, body.roleId, requestMeta(req));
   }
 
   @Post(':id/disable')
   @HttpCode(HttpStatus.OK)
   @RequirePermission('user.disable')
+  @SensitiveAction()
   async disable(@Param('id') id: string, @CurrentAuthContext() auth: AuthContext, @Req() req: Request) {
     await this.authorizationService.authorizeResource(auth, 'SchoolMembership', id);
-    return this.membershipsService.setMembershipStatus(auth.schoolId, id, 'DISABLED', requestMeta(req));
+    return this.membershipsService.setMembershipStatus(auth, id, 'DISABLED', requestMeta(req));
   }
 
   @Post(':id/reactivate')
   @HttpCode(HttpStatus.OK)
   @RequirePermission('user.update')
+  @SensitiveAction()
   async reactivate(@Param('id') id: string, @CurrentAuthContext() auth: AuthContext, @Req() req: Request) {
     await this.authorizationService.authorizeResource(auth, 'SchoolMembership', id);
-    return this.membershipsService.setMembershipStatus(auth.schoolId, id, 'ACTIVE', requestMeta(req));
+    return this.membershipsService.setMembershipStatus(auth, id, 'ACTIVE', requestMeta(req));
   }
 }

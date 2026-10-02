@@ -6,6 +6,7 @@ import { AuthGuard } from '../auth/guards/auth.guard';
 import { SchoolContextGuard } from '../authorization/guards/school-context.guard';
 import { PermissionGuard } from '../authorization/guards/permission.guard';
 import { RequirePermission } from '../authorization/decorators/require-permission.decorator';
+import { SensitiveAction } from '../authorization/decorators/sensitive-action.decorator';
 import { CurrentAuthContext } from '../authorization/decorators/current-auth-context.decorator';
 import { AuthorizationService } from '../authorization/authorization.service';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
@@ -46,6 +47,7 @@ export class ParentsController {
   @Post(':id/invite')
   @HttpCode(HttpStatus.OK)
   @RequirePermission('parent.update')
+  @SensitiveAction()
   async invite(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(inviteParentSchema)) body: InviteParentInput,

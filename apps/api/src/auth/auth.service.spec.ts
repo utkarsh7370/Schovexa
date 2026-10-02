@@ -196,12 +196,12 @@ describe('AuthService', () => {
       const invited = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
       expect(invited.status).toBe(UserStatus.INVITED);
 
-      await authService.acceptInvite(rawToken, 'new-password-123');
+      await authService.acceptInvite(rawToken!, 'new-password-123');
       const activated = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
       expect(activated.status).toBe(UserStatus.ACTIVE);
       expect(activated.emailVerifiedAt).not.toBeNull();
 
-      await expect(authService.acceptInvite(rawToken, 'another-password')).rejects.toMatchObject({
+      await expect(authService.acceptInvite(rawToken!, 'another-password')).rejects.toMatchObject({
         status: 400,
       });
     });

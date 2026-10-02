@@ -252,6 +252,15 @@ model Session {
   lastSeenAt         DateTime  @default(now())
   expiresAt          DateTime
   revokedAt          DateTime?
+  // Which device this is, for "Devices & sessions" — never used to make an
+  // authorization decision.
+  userAgent          String?
+  ipAddress          String?
+  // "Keep me signed in": a longer sliding window and a persistent cookie.
+  rememberMe         Boolean   @default(false)
+  // Last time the person proved who they are (login, or re-entering their
+  // password). Sensitive actions require this to be recent.
+  reauthenticatedAt  DateTime?
 
   user             User              @relation(fields: [userId], references: [id])
   activeMembership SchoolMembership? @relation(fields: [activeMembershipId], references: [id])
@@ -988,4 +997,18 @@ model AbsenceAlert {
 
   @@unique([studentId, date, parentId, channel, kind])
   @@index([schoolId, date])
+}
+
+// Every sign-in attempt, successful or not, keyed by the email typed (not by
+// whether that email exists, so lockout can't be used to probe for accounts).
+// Counting recent failures here is what locks a login after repeated misses.
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  email     String
+  ipAddress String?
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
+  @@index([ipAddress, createdAt])
 }

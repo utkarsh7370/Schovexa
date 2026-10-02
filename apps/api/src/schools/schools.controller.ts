@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Patch, Post, Req, Res, UseGuards } from '@nestjs/common';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { registerSchoolSchema, updateSchoolSchema } from '@schovexa/validation';
 import type { RegisterSchoolInput, UpdateSchoolInput } from '@schovexa/validation';
@@ -10,7 +10,7 @@ import { RequirePermission } from '../authorization/decorators/require-permissio
 import { CurrentAuthContext } from '../authorization/decorators/current-auth-context.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { requestMeta } from '../common/request-meta.util';
-import { SESSION_COOKIE_NAME, SESSION_COOKIE_OPTIONS } from '../auth/auth.constants';
+import { SESSION_COOKIE_NAME, sessionCookieOptions } from '../auth/auth.constants';
 import { SchoolsService } from './schools.service';
 import type { AuthContext } from '../authorization/authorization.types';
 
@@ -23,7 +23,6 @@ export class SchoolsController {
   // (docs/authentication.md §4) since it creates real accounts.
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
-  @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 60 * 60 * 1000 } })
   async register(
     @Body(new ZodValidationPipe(registerSchoolSchema)) body: RegisterSchoolInput,
@@ -31,7 +30,7 @@ export class SchoolsController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const { rawToken, schoolId } = await this.schoolsService.registerSchool(body, requestMeta(req));
-    res.cookie(SESSION_COOKIE_NAME, rawToken, SESSION_COOKIE_OPTIONS);
+    res.cookie(SESSION_COOKIE_NAME, rawToken, sessionCookieOptions(false));
     return { status: 'ok', schoolId };
   }
 

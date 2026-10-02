@@ -4,15 +4,67 @@
 // business rules and DB constraints are additional, separate layers).
 import { z } from 'zod';
 
+// Emails are compared case-insensitively everywhere, so the API normalises
+// them once, on the way in — "Director@School.com" and "director@school.com"
+// are the same person, never two accounts.
+export const apiEmail = z.string().trim().toLowerCase().email().max(254);
+
 export const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1, 'Password is required'),
+  email: apiEmail,
+  password: z.string().min(1, 'Password is required').max(256),
+  // "Keep me signed in": a longer session on this device.
+  rememberMe: z.boolean().optional(),
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 
+// Passwords people actually choose, 10+ characters long (shorter ones are
+// already refused by the length rule). Compared after lowercasing and
+// dropping everything but letters and digits, so "Password-123!" and
+// "password123" are the same entry.
+const COMMON_PASSWORDS = new Set([
+  'password123', 'password1234', 'password12345', 'passw0rd123', 'password123456', 'p4ssw0rd123',
+  '1234567890', '12345678910', '123456789012', '0123456789', '1234512345', '9876543210', '0987654321',
+  'qwertyuiop', 'qwerty12345', 'qwerty123456', 'qwertyuiop123', 'asdfghjkl1', 'asdfghjklqwerty', 'zxcvbnm123', '1q2w3e4r5t', '1qaz2wsx3edc', 'qazwsxedc123',
+  'abcdefghij', 'abcd123456', 'abc1234567', 'abcdefg123',
+  'iloveyou123', 'iloveyou12', 'iloveyou1234', 'iloveyou2', 'welcome123', 'welcome1234', 'welcome12345', 'letmein123', 'letmein1234', 'trustno1234',
+  'administrator', 'admin12345', 'admin123456', 'admin1234567', 'administrator1', 'changeme123', 'changeme1234', 'default1234',
+  'school12345', 'school123456', 'schoolschool', 'schovexa123', 'schovexa1234', 'schovexapassword', 'teacher12345', 'student12345', 'principal123',
+  'football123', 'baseball123', 'basketball1', 'superman123', 'batman12345', 'monkey12345', 'dragon12345', 'sunshine123', 'princess123', 'michael1234', 'jordan12345',
+  'internet123', 'computer123', 'mypassword1', 'mypassword12', 'mypassword123', 'newpassword1', 'newpassword12', 'newpassword123', 'testtest123', 'test1234567',
+]);
+
+const normalizePassword = (p: string) => p.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+// A run of the same character, or of consecutive characters, is not a password.
+function isTrivialSequence(p: string): boolean {
+  const n = normalizePassword(p);
+  if (n.length < 6) return false;
+  if (/^(.)\1+$/.test(n)) return true;
+  const code = (i: number) => n.charCodeAt(i);
+  let up = true;
+  let down = true;
+  for (let i = 1; i < n.length; i += 1) {
+    if (code(i) !== code(i - 1) + 1) up = false;
+    if (code(i) !== code(i - 1) - 1) down = false;
+  }
+  return up || down;
+}
+
+export function isCommonPassword(p: string): boolean {
+  return COMMON_PASSWORDS.has(normalizePassword(p)) || isTrivialSequence(p);
+}
+
+// What the API enforces on every password it ever stores (sign-up, invite,
+// reset, change) — the web forms add stricter rules for instant feedback,
+// but this is the real gate. Length, not composition rules: a long passphrase
+// beats "P@ssw0rd1!", so the bar is ten characters, not on a blocklist, and
+// not a trivial run like 1234567890.
 export const passwordSchema = z
   .string()
-  .min(10, 'Password must be at least 10 characters');
+  .min(10, 'Password must be at least 10 characters')
+  .max(128, 'Password must be 128 characters or fewer')
+  .refine((p) => p.trim().length > 0, 'Password cannot be only spaces')
+  .refine((p) => !isCommonPassword(p), 'That password is too easy to guess — choose something less common');
 
 export const resetPasswordSchema = z.object({
   token: z.string().min(1),
@@ -21,7 +73,7 @@ export const resetPasswordSchema = z.object({
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email(),
+  email: apiEmail,
 });
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 
@@ -54,7 +106,7 @@ export const registerSchoolSchema = z.object({
   schoolName: z.string().min(2, 'School name is required'),
   directorFirstName: z.string().min(1, 'First name is required'),
   directorLastName: z.string().min(1, 'Last name is required'),
-  email: z.string().email(),
+  email: apiEmail,
   password: passwordSchema,
   // Where the school is — the web app sends the visitor's detected country.
   country: countryCodeSchema.optional(),
@@ -131,7 +183,7 @@ export const updateRoleSchema = z.object({
 export type UpdateRoleInput = z.infer<typeof updateRoleSchema>;
 
 export const createInvitationSchema = z.object({
-  email: z.string().email(),
+  email: apiEmail,
   firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().min(1, 'Last name is required'),
   roleId: z.string().min(1),
@@ -291,7 +343,7 @@ export type LinkParentInput = z.infer<typeof linkParentSchema>;
 // `email` field is used as the default target — only overridden when
 // that field is empty or the admin wants to send the invite elsewhere.
 export const inviteParentSchema = z.object({
-  email: z.string().email('Enter a valid email').optional(),
+  email: apiEmail.optional(),
 });
 export type InviteParentInput = z.infer<typeof inviteParentSchema>;
 
@@ -622,3 +674,12 @@ export type RejectStaffAttendanceInput = z.infer<typeof rejectStaffAttendanceSch
 
 export const approveAllStaffAttendanceSchema = z.object({ date: attendanceDate });
 export type ApproveAllStaffAttendanceInput = z.infer<typeof approveAllStaffAttendanceSchema>;
+
+// --- Account security ---------------------------------------------------
+
+export const verifyEmailSchema = z.object({ token: z.string().min(1, 'This link is missing its token') });
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
+
+// Re-entering the password to prove it's still you before a sensitive action.
+export const reauthSchema = z.object({ password: z.string().min(1, 'Enter your password').max(256) });
+export type ReauthInput = z.infer<typeof reauthSchema>;

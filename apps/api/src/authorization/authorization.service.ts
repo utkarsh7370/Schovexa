@@ -39,6 +39,48 @@ export class AuthorizationService {
     return { scope: grant.scope, readOnly: grant.readOnly, action: permission.action };
   }
 
+  /**
+   * No privilege escalation: someone can hand out only what they hold
+   * themselves. Every grant must be one the actor's own role has, and a
+   * grant can't be wider than the actor's — a Principal who can invite staff
+   * still can't invite a Director, and an editor of roles can't give a role
+   * (their own included) a permission they lack.
+   */
+  async assertCanGrant(
+    actorRoleId: string,
+    grants: { permissionKey: string; scope: RolePermissionGrant['scope'] }[],
+  ): Promise<void> {
+    if (grants.length === 0) return;
+    const held = await this.prisma.rolePermission.findMany({
+      where: { roleId: actorRoleId },
+      include: { permission: true },
+    });
+    const heldByKey = new Map(held.map((h) => [h.permission.key, h.scope]));
+    // A key that isn't in the catalog at all is a validation error for the
+    // caller to report (400), not a missing privilege.
+    const known = new Set((await this.prisma.permission.findMany({ where: { key: { in: grants.map((g) => g.permissionKey) } }, select: { key: true } })).map((p) => p.key));
+    const tooMuch = grants.filter((g) => known.has(g.permissionKey)).filter((g) => {
+      const mine = heldByKey.get(g.permissionKey);
+      return !mine || (mine !== 'ALL_SCHOOL' && mine !== g.scope);
+    });
+    if (tooMuch.length > 0) {
+      throw new ForbiddenException({
+        code: 'FORBIDDEN',
+        message: 'You can only give others access you have yourself.',
+        details: tooMuch.map((g) => ({ field: g.permissionKey, message: 'You don’t hold this permission at this level.' })),
+      });
+    }
+  }
+
+  /** The same rule, for assigning an existing role to a person. */
+  async assertCanAssignRole(actorRoleId: string, targetRoleId: string): Promise<void> {
+    const grants = await this.prisma.rolePermission.findMany({ where: { roleId: targetRoleId }, include: { permission: true } });
+    await this.assertCanGrant(
+      actorRoleId,
+      grants.map((g) => ({ permissionKey: g.permission.key, scope: g.scope })),
+    );
+  }
+
   isMutationBlockedByReadOnly(grant: RolePermissionGrant): boolean {
     return grant.readOnly && !READ_VERBS.has(grant.action);
   }

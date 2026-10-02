@@ -8,6 +8,10 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { Sentry } from '../monitoring/sentry';
+import { AuditService } from '../audit/audit.service';
+import type { SessionContext } from '../auth/auth.service';
+import type { AuthContext } from '../authorization/authorization.types';
+import { requestMeta } from './request-meta.util';
 
 // Single place every thrown error passes through before reaching the
 // client — produces the error envelope from docs/api.md §3 and never
@@ -28,7 +32,9 @@ const DEFAULT_CODE_BY_STATUS: Record<number, string> = {
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger('ExceptionFilter');
 
-  catch(exception: unknown, host: ArgumentsHost) {
+  constructor(private readonly audit: AuditService) {}
+
+  async catch(exception: unknown, host: ArgumentsHost): Promise<void> {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
@@ -48,6 +54,25 @@ export class HttpExceptionFilter implements ExceptionFilter {
       if (status >= 500) {
         this.logger.error({ requestId, status, message: shaped.message, stack: (exception as Error).stack });
         Sentry.captureException(exception);
+      }
+
+      // Security activity: a signed-in person was refused. Worth a trail — a
+      // pattern of these is what probing for access looks like.
+      const authed = request as Request & { session?: SessionContext; authContext?: AuthContext };
+      if (status === HttpStatus.FORBIDDEN && authed.session) {
+        // Awaited so the entry exists by the time the client sees the 403.
+        await this.audit
+          .record({
+            schoolId: authed.authContext?.schoolId ?? null,
+            userId: authed.session.userId,
+            action: 'access.denied',
+            module: 'security',
+            resourceType: 'Route',
+            resourceId: `${request.method} ${request.path}`.slice(0, 200),
+            metadata: { code: shaped.code, method: request.method },
+            ...requestMeta(request),
+          })
+          .catch(() => undefined);
       }
 
       response.status(status).json({ error: shaped, requestId });

@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, PermissionScope } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { getDefaultRoleDefinitions } from './default-roles.data';
 
 export interface RoleGrantInput {
@@ -13,7 +14,10 @@ type Tx = Prisma.TransactionClient | PrismaService;
 
 @Injectable()
 export class RolesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   /**
    * Seeds the default role set for a newly registered school (docs/user-
@@ -58,7 +62,7 @@ export class RolesService {
     return this.prisma.permission.findMany({ orderBy: [{ module: 'asc' }, { action: 'asc' }] });
   }
 
-  async createRole(schoolId: string, name: string, grants: RoleGrantInput[]) {
+  async createRole(schoolId: string, name: string, grants: RoleGrantInput[], actorId?: string) {
     const existing = await this.prisma.role.findFirst({ where: { schoolId, name, deletedAt: null } });
     if (existing) {
       throw new ConflictException({ code: 'CONFLICT', message: 'A role with this name already exists.' });
@@ -66,10 +70,19 @@ export class RolesService {
 
     const role = await this.prisma.role.create({ data: { schoolId, name } });
     await this.applyGrants(role.id, grants);
+    await this.audit.record({
+      schoolId,
+      userId: actorId,
+      action: 'role.create',
+      module: 'role',
+      resourceType: 'Role',
+      resourceId: role.id,
+      metadata: { name, permissions: grants.map((g) => `${g.permissionKey}:${g.scope}`) },
+    });
     return this.getRoleWithPermissions(role.id);
   }
 
-  async updateRole(schoolId: string, roleId: string, name: string | undefined, grants: RoleGrantInput[] | undefined) {
+  async updateRole(schoolId: string, roleId: string, name: string | undefined, grants: RoleGrantInput[] | undefined, actorId?: string) {
     const role = await this.prisma.role.findFirst({ where: { id: roleId, schoolId, deletedAt: null } });
     if (!role) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Resource not found.' });
@@ -100,6 +113,15 @@ export class RolesService {
       await this.applyGrants(roleId, grants);
     }
 
+    await this.audit.record({
+      schoolId,
+      userId: actorId,
+      action: 'role.update',
+      module: 'role',
+      resourceType: 'Role',
+      resourceId: roleId,
+      metadata: { name: name ?? role.name, ...(grants ? { permissions: grants.map((g) => `${g.permissionKey}:${g.scope}`) } : {}) },
+    });
     return this.getRoleWithPermissions(roleId);
   }
 

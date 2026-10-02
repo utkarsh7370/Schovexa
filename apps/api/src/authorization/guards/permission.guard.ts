@@ -3,6 +3,9 @@ import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { AuthorizationService } from '../authorization.service';
 import { PERMISSION_METADATA_KEY } from '../decorators/require-permission.decorator';
+import { SENSITIVE_ACTION_KEY } from '../decorators/sensitive-action.decorator';
+import { REAUTH_WINDOW_MS, requireEmailVerification } from '../../auth/auth.constants';
+import type { SessionContext } from '../../auth/auth.service';
 import type { AuthContext } from '../authorization.types';
 
 // Steps 4-5 of the pipeline (docs/architecture.md §3): does this role
@@ -31,7 +34,7 @@ export class PermissionGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest<Request & { authContext?: AuthContext }>();
+    const request = context.switchToHttp().getRequest<Request & { authContext?: AuthContext; session?: SessionContext }>();
     const auth = request.authContext;
     if (!auth) {
       throw new ForbiddenException({ code: 'FORBIDDEN', message: 'No school context available.' });
@@ -47,6 +50,24 @@ export class PermissionGuard implements CanActivate {
         code: 'FORBIDDEN',
         message: 'You have read-only access for this permission.',
       });
+    }
+
+    // Sensitive actions: the permission alone isn't enough — see SensitiveAction.
+    if (this.reflector.get<boolean | undefined>(SENSITIVE_ACTION_KEY, context.getHandler())) {
+      const session = request.session;
+      if (requireEmailVerification() && !session?.emailVerified) {
+        throw new ForbiddenException({
+          code: 'EMAIL_NOT_VERIFIED',
+          message: 'Confirm your email address first — we’ve sent you a link. You can resend it from the banner at the top of the page.',
+        });
+      }
+      const fresh = session?.reauthenticatedAt && Date.now() - session.reauthenticatedAt.getTime() <= REAUTH_WINDOW_MS;
+      if (!fresh) {
+        throw new ForbiddenException({
+          code: 'REAUTH_REQUIRED',
+          message: 'For your security, enter your password to continue.',
+        });
+      }
     }
 
     auth.scope = grant.scope;

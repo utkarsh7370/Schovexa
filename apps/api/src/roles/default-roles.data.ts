@@ -37,7 +37,7 @@ export function getDefaultRoleDefinitions(catalog: Permission[]): DefaultRoleDef
   // notices, manage fees and so on. A school can adjust this on the Roles
   // page like any other role.
   // The Principal proposes academic years; only the Director approves them.
-  const PRINCIPAL_EXCLUDED = new Set(['role.create', 'role.update', 'school.update', 'user.disable', 'academicYear.approve']);
+  const PRINCIPAL_EXCLUDED = new Set(['role.create', 'role.update', 'school.update', 'user.disable', 'academicYear.approve', 'audit.view']);
   const principal: DefaultRoleDefinition = {
     name: 'Principal',
     grants: catalog

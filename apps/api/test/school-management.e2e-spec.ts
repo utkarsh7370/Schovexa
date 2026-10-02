@@ -328,12 +328,12 @@ describe('School Management (e2e)', () => {
       await agent()
         .post('/api/v1/auth/accept-invite')
         .set('Origin', WEB_ORIGIN)
-        .send({ token: invite.body.inviteToken, password: 'newstaff-pass-123' });
+        .send({ token: invite.body.inviteToken, password: 'fresh-start-pass-123' });
 
       const login = await agent()
         .post('/api/v1/auth/login')
         .set('Origin', WEB_ORIGIN)
-        .send({ email: 'newstaff@example.test', password: 'newstaff-pass-123' });
+        .send({ email: 'newstaff@example.test', password: 'fresh-start-pass-123' });
       expect(login.status).toBe(200);
     });
 

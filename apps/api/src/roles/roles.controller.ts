@@ -4,6 +4,7 @@ import { AuthGuard } from '../auth/guards/auth.guard';
 import { SchoolContextGuard } from '../authorization/guards/school-context.guard';
 import { PermissionGuard } from '../authorization/guards/permission.guard';
 import { RequirePermission } from '../authorization/decorators/require-permission.decorator';
+import { SensitiveAction } from '../authorization/decorators/sensitive-action.decorator';
 import { CurrentAuthContext } from '../authorization/decorators/current-auth-context.decorator';
 import { AuthorizationService } from '../authorization/authorization.service';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
@@ -33,18 +34,22 @@ export class RolesController {
 
   @Post('roles')
   @RequirePermission('role.create')
+  @SensitiveAction()
   async create(@Body(new ZodValidationPipe(createRoleSchema)) body: CreateRoleInput, @CurrentAuthContext() auth: AuthContext) {
-    return this.rolesService.createRole(auth.schoolId, body.name, body.permissions);
+    await this.authorizationService.assertCanGrant(auth.roleId, body.permissions);
+    return this.rolesService.createRole(auth.schoolId, body.name, body.permissions, auth.userId);
   }
 
   @Patch('roles/:id')
   @RequirePermission('role.update')
+  @SensitiveAction()
   async update(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updateRoleSchema)) body: UpdateRoleInput,
     @CurrentAuthContext() auth: AuthContext,
   ) {
     await this.authorizationService.authorizeResource(auth, 'Role', id);
-    return this.rolesService.updateRole(auth.schoolId, id, body.name, body.permissions);
+    if (body.permissions) await this.authorizationService.assertCanGrant(auth.roleId, body.permissions);
+    return this.rolesService.updateRole(auth.schoolId, id, body.name, body.permissions, auth.userId);
   }
 }

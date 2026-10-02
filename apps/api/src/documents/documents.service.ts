@@ -9,6 +9,17 @@ export const ALLOWED_DOCUMENT_MIME_TYPES = new Set([
 ]);
 export const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 
+// What the file's own first bytes say it is. The browser-supplied
+// Content-Type is just a label the uploader chose, so it is checked against
+// the content — a script renamed "report.pdf" is refused, and the type that
+// is stored (and later served) is the detected one, never the claimed one.
+export function sniffDocumentType(buffer: Buffer): 'application/pdf' | 'image/png' | 'image/jpeg' | null {
+  if (buffer.length >= 5 && buffer.subarray(0, 5).toString('latin1') === '%PDF-') return 'application/pdf';
+  if (buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png';
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'image/jpeg';
+  return null;
+}
+
 @Injectable()
 export class DocumentsService {
   constructor(
@@ -43,6 +54,14 @@ export class DocumentsService {
       throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'File is too large (max 10MB).' });
     }
 
+    const detected = sniffDocumentType(file.buffer);
+    if (!detected || detected !== file.mimetype) {
+      throw new BadRequestException({
+        code: 'VALIDATION_FAILED',
+        message: 'This file doesn’t look like a real PDF, JPEG or PNG. Check it opens on your computer, then try again.',
+      });
+    }
+
     const key = this.storage.buildKey(schoolId, ownerType, ownerId, file.originalname);
     await this.storage.putObject(key, file.buffer);
 
@@ -53,7 +72,7 @@ export class DocumentsService {
         ownerId,
         fileKey: key,
         fileName: file.originalname,
-        mimeType: file.mimetype,
+        mimeType: detected,
         sizeBytes: file.size,
         uploadedById,
       },

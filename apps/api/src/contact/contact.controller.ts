@@ -1,5 +1,5 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, Req, UseGuards } from '@nestjs/common';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Body, Controller, HttpCode, HttpStatus, Post, Req } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { contactMessageSchema } from '@schovexa/validation';
 import type { ContactMessageOutput } from '@schovexa/validation';
@@ -15,7 +15,6 @@ export class ContactController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 10 * 60 * 1000 } })
   async submit(@Body(new ZodValidationPipe(contactMessageSchema)) body: ContactMessageOutput, @Req() req: Request) {
     return this.contactService.submit(body, requestMeta(req));

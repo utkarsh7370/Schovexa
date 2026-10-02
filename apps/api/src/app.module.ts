@@ -1,7 +1,7 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_FILTER } from '@nestjs/core';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuditModule } from './audit/audit.module';
@@ -34,15 +34,27 @@ import { StaffAttendanceModule } from './staff-attendance/staff-attendance.modul
 import { HttpExceptionFilter } from './common/http-exception.filter';
 import { RequestIdMiddleware } from './common/request-id.middleware';
 import { OriginCheckMiddleware } from './common/origin-check.middleware';
+import { SecurityHeadersMiddleware } from './common/security-headers.middleware';
+import { RedisThrottlerStorage } from './common/redis-throttler.storage';
+import { AuditTrailInterceptor } from './audit/audit-trail.interceptor';
+import { AuditLogsModule } from './audit/audit-logs.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    // Registered once, globally, here — every guard that opts in via
-    // @UseGuards(ThrottlerGuard)/@UseGuards(LoginThrottlerGuard) shares
-    // this single storage instance. Registering it again in a feature
-    // module would split rate-limit counters across separate instances.
-    ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 100 }]),
+    // Registered once, globally, here — the single storage instance behind
+    // every rate limit. With REDIS_URL set the counters live in Redis and are
+    // shared by every API instance; without it (local development, tests)
+    // each process counts for itself.
+    //
+    // The default is the whole-API flood limit (per client address, per
+    // minute); sensitive routes tighten it with @Throttle. The guard that
+    // enforces it is registered once as APP_GUARD below — routes must NOT
+    // also list ThrottlerGuard themselves, or each request counts twice.
+    ThrottlerModule.forRoot({
+      throttlers: [{ name: 'default', ttl: 60_000, limit: Number(process.env.RATE_LIMIT_PER_MINUTE ?? 600) }],
+      storage: process.env.REDIS_URL && process.env.NODE_ENV !== 'test' ? new RedisThrottlerStorage(process.env.REDIS_URL) : undefined,
+    }),
     PrismaModule,
     AuditModule,
     AuthorizationModule,
@@ -70,15 +82,20 @@ import { OriginCheckMiddleware } from './common/origin-check.middleware';
     HolidaysModule,
     ReportsModule,
     ContactModule,
+    AuditLogsModule,
     ProfileModule,
     StaffAttendanceModule,
     // Further domain modules are added here one at a time as each is
     // implemented, per docs/modules.md's phase order.
   ],
-  providers: [{ provide: APP_FILTER, useClass: HttpExceptionFilter }],
+  providers: [
+    { provide: APP_FILTER, useClass: HttpExceptionFilter },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_INTERCEPTOR, useClass: AuditTrailInterceptor },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(RequestIdMiddleware, OriginCheckMiddleware).forRoutes('*');
+    consumer.apply(RequestIdMiddleware, SecurityHeadersMiddleware, OriginCheckMiddleware).forRoutes('*');
   }
 }

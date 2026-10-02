@@ -151,7 +151,7 @@ describe('Academic Management (e2e)', () => {
         directorCookie,
         'Teacher',
         'teacher-noperm@example.test',
-        'teacher-pass-123',
+        'classroom-pass-123',
       );
 
       const res = await agent()
@@ -201,7 +201,7 @@ describe('Academic Management (e2e)', () => {
         .set('Cookie', cookie)
         .send({ name: 'A' });
 
-      const { userId } = await inviteAndLogin(cookie, 'Teacher', 'clteacher@example.test', 'clteacher-pass-123');
+      const { userId } = await inviteAndLogin(cookie, 'Teacher', 'clteacher@example.test', 'clclassroom-pass-123');
       const teacher = await agent()
         .post('/api/v1/teachers')
         .set('Origin', WEB_ORIGIN)
@@ -272,7 +272,7 @@ describe('Academic Management (e2e)', () => {
   describe('Teachers', () => {
     it('creates a teacher profile from an active staff member', async () => {
       const { cookie } = await registerSchool('Teachers School', 'teachers1@example.test');
-      const { userId } = await inviteAndLogin(cookie, 'Teacher', 'newteacher@example.test', 'newteacher-pass-123');
+      const { userId } = await inviteAndLogin(cookie, 'Teacher', 'newteacher@example.test', 'newclassroom-pass-123');
 
       const res = await agent()
         .post('/api/v1/teachers')
@@ -293,7 +293,7 @@ describe('Academic Management (e2e)', () => {
         schoolA.cookie,
         'Teacher',
         'crossteacher@example.test',
-        'crossteacher-pass-123',
+        'crossclassroom-pass-123',
       );
 
       const res = await agent()
@@ -356,7 +356,7 @@ describe('Academic Management (e2e)', () => {
         schoolA.cookie,
         'Teacher',
         'teacherA@example.test',
-        'teacherA-pass-123',
+        'zebra-lantern-pass-9',
       );
       const teacherA = await agent()
         .post('/api/v1/teachers')

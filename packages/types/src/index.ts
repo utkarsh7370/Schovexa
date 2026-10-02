@@ -56,5 +56,8 @@ export interface CurrentUser {
   // Where the active school is (ISO 3166-1 alpha-2) — readable by every
   // role, since the header shows it to teachers and parents too.
   schoolCountry: string | null;
+  // Has this person proved they own their email address? Some sensitive
+  // actions (inviting staff, changing roles) wait until they have.
+  emailVerified: boolean;
   memberships: SchoolMembershipSummary[];
 }

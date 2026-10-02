@@ -33,7 +33,7 @@ export class SchoolsService {
    */
   async registerSchool(input: RegisterSchoolInput, meta: RequestMeta) {
     const existingUser = await this.prisma.user.findFirst({
-      where: { email: input.email, deletedAt: null },
+      where: { email: { equals: input.email, mode: 'insensitive' }, deletedAt: null },
     });
     if (existingUser) {
       throw new ConflictException({
@@ -41,6 +41,14 @@ export class SchoolsService {
         message: 'An account with this email already exists.',
       });
     }
+
+    // Self-registration exists for one person only: the owner of a new school.
+    // Everyone else is added by the school (see AuthService.createInvitation).
+    this.authService.assertPasswordAcceptable(input.password, {
+      email: input.email,
+      firstName: input.directorFirstName,
+      lastName: input.directorLastName,
+    });
 
     const slug = await this.generateUniqueSlug(input.schoolName);
     const passwordHash = await this.authService.hashPassword(input.password);
@@ -83,6 +91,10 @@ export class SchoolsService {
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
     });
+
+    // Prove they own the address they signed up with. (Some sensitive
+    // actions wait for this — see SensitiveAction.)
+    await this.authService.sendVerificationEmail(userId);
 
     // Auto-login + auto-select-school for a smooth signup -> dashboard
     // experience, reusing the already-tested Phase 3 session logic rather
