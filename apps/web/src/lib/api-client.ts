@@ -25,7 +25,17 @@ export class ApiError extends Error {
   }
 }
 
-async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+// Sensitive actions (inviting people, editing roles, disabling access…)
+// ask for the password again when the last sign-in is stale. The app
+// registers one handler — a dialog — and a request that was refused with
+// REAUTH_REQUIRED is retried once after the person confirms.
+type ReauthHandler = () => Promise<boolean>;
+let reauthHandler: ReauthHandler | null = null;
+export function setReauthHandler(handler: ReauthHandler | null) {
+  reauthHandler = handler;
+}
+
+async function apiRequest<T>(path: string, init?: RequestInit, retried = false): Promise<T> {
   // FormData (file uploads) must NOT get a manual Content-Type — fetch
   // sets the multipart boundary itself only when the header is absent.
   const isFormData = init?.body instanceof FormData;
@@ -36,7 +46,11 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!res.ok) {
-    throw await ApiError.fromResponse(res);
+    const error = await ApiError.fromResponse(res);
+    if (error.code === 'REAUTH_REQUIRED' && reauthHandler && !retried && !path.startsWith('/auth/')) {
+      if (await reauthHandler()) return apiRequest<T>(path, init, true);
+    }
+    throw error;
   }
 
   if (res.status === 204) return undefined as T;

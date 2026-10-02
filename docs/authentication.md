@@ -1,5 +1,7 @@
 # Schovexa — Authentication Design
 
+> **Binding security rules:** see [`security-rules.md`](security-rules.md). Where this design document and that file differ (password policy, sessions, lockout, verification), `security-rules.md` is current.
+
 Status: Step 3 design deliverable (authentication half). Implements the
 identity side of `docs/architecture.md` §5. No code yet — this document
 is the contract Phase (implementation Step 6, sub-phase "Authentication")
@@ -80,6 +82,12 @@ self-registration flow (Phase 2, tied to admissions) is a distinct,
 separately designed flow, not an extension of staff login.
 
 ## 4. Rate Limiting & Brute-Force Protection
+
+*Current behaviour:* 5 failed sign-ins per email per 15 minutes locks the
+email (30 per IP), whether or not the email exists, tracked in the
+`LoginAttempt` table; sessions last 7 days (90 with "Keep me signed in") at
+most; sensitive actions need a password confirmation within 10 minutes.
+Details and tests: [`security-rules.md`](security-rules.md) §3–§4.
 
 - `login`: rate-limited per IP and per email (e.g. 5 attempts / 15 min
   per email, exponential backoff or temporary lock after repeated
@@ -162,12 +170,16 @@ error.
 
 ## 8. Email Verification
 
-- Required before first login for self-serve flows (future); for
-  invite-based accounts, accepting the invite via the emailed link is
-  itself proof of email ownership, so a separate verification step is
-  not required for the invite path specifically.
-- Verification token: same single-use, hashed-at-rest pattern as reset
-  tokens.
+- Implemented. Registration emails a verification link (`EMAIL_VERIFICATION`
+  token: single-use, hashed at rest, 24 h). `POST /auth/verify-email`
+  consumes it; `POST /auth/resend-verification` sends a fresh one (retiring
+  earlier links; 1/minute and 5/hour per account).
+- Accepting an invitation, or completing a password reset from an emailed
+  link, also marks the email verified — both prove ownership of the inbox.
+- Whether an unverified email blocks sensitive actions is controlled by
+  `REQUIRE_EMAIL_VERIFICATION` (default: on in production, off elsewhere).
+  Everyday work is never blocked; the dashboard shows a banner with a
+  "Resend link" button until the address is confirmed.
 
 ## 9. Future-Ready, Not Built in MVP
 

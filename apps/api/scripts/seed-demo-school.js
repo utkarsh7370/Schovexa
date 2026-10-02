@@ -85,10 +85,10 @@ const CLASS_NAMES = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5'];
 const SECTION_NAMES = ['A', 'B'];
 const SUBJECT_NAMES = ['Mathematics', 'Science', 'English', 'Social Studies', 'Hindi', 'Computer Science'];
 
-const DIRECTOR_PASSWORD = 'Director@12345';
-const TEACHER_PASSWORD = 'Teacher@12345';
-const STAFF_PASSWORD = 'Staff@12345';
-const PARENT_PASSWORD = 'Parent@12345';
+const DIRECTOR_PASSWORD = 'Maple-Sunrise-Ledger-91';
+const TEACHER_PASSWORD = 'Cobalt-Meadow-Quartz-47';
+const STAFF_PASSWORD = 'Lantern-Orchid-Harbor-58';
+const PARENT_PASSWORD = 'Pebble-Violet-Anchor-26';
 
 async function main() {
   console.log('== Schovexa demo school seeder ==');

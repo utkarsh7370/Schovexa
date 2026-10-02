@@ -141,18 +141,31 @@ duplicate record. This matters most once payment gateway webhooks
 convention is established now so early endpoints (e.g. manually recorded
 MVP payments) are consistent with it.
 
+Two error codes are part of the contract for sensitive actions:
+`403 REAUTH_REQUIRED` (confirm the password via `/auth/reauth`, then
+retry) and `403 EMAIL_NOT_VERIFIED`. Rules: `docs/security-rules.md`.
+
 ## 7. Endpoint Reference (grows per module — current state only)
 
 | Method | Path | Auth | Notes |
 |---|---|---|---|
 | GET | `/api/v1/health` | None | Liveness + DB connectivity check, no internal detail |
-| POST | `/api/v1/auth/login` | None | Rate limited (IP+email); sets the session cookie |
+| POST | `/api/v1/auth/login` | None | Locks an email after 5 failures / 15 min (`429 TOO_MANY_ATTEMPTS`); `rememberMe` gives a 30-day cookie; sets the session cookie |
 | POST | `/api/v1/auth/logout` | Session | Idempotent; clears the session cookie |
 | GET | `/api/v1/auth/me` | Session | Current user + their school memberships |
 | POST | `/api/v1/auth/select-school` | Session | Re-verifies membership server-side before attaching it to the session |
 | POST | `/api/v1/auth/forgot-password` | None | Rate limited; always 200, generic body (no enumeration) |
 | POST | `/api/v1/auth/reset-password` | None | Single-use token; invalidates all other sessions on success |
 | POST | `/api/v1/auth/accept-invite` | None | Single-use token; activates an `INVITED` user |
+| POST | `/api/v1/auth/change-password` | Session | Needs the current password; signs out other devices; same password policy |
+| POST | `/api/v1/auth/reauth` | Session | Confirm the password for sensitive actions (valid 10 min); counts toward lockout |
+| GET | `/api/v1/auth/sessions` | Session | The signed-in devices (browser, OS, IP, last active) |
+| DELETE | `/api/v1/auth/sessions/:id` | Session | Sign one other device out (404 for anyone else's session) |
+| POST | `/api/v1/auth/sessions/revoke-others` | Session | Sign every other device out; returns `{ revoked }` |
+| GET | `/api/v1/auth/activity` | Session | The person's own security activity (sign-ins, failures, password changes) |
+| POST | `/api/v1/auth/verify-email` | None | Single-use emailed token |
+| POST | `/api/v1/auth/resend-verification` | Session | Limited to 1/min and 5/hour |
+| GET | `/api/v1/audit-logs` | Session + School + Permission | `audit.view` (Director); filters `q`, `module`, `userId`, `from`, `to`, paging; read-only |
 | GET | `/api/v1/students/:id` | Session + School + Permission | `student.view`; scope-checked against the specific student. Phase 4 demonstration endpoint only — see note below |
 
 "Session" means `AuthGuard` only (user-level validity). "Session +

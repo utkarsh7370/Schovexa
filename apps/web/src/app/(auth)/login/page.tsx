@@ -25,7 +25,7 @@ export default function LoginPage() {
   } = useForm<LoginFormInput, unknown, LoginFormOutput>({
     resolver: zodResolver(loginFormSchema),
     mode: 'onTouched',
-    defaultValues: { email: '', password: '' },
+    defaultValues: { email: '', password: '', rememberMe: false },
   });
 
   const onSubmit = async (data: LoginFormOutput) => {
@@ -80,7 +80,11 @@ export default function LoginPage() {
           {...register('password')}
         />
 
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between gap-3">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+            <input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue/30" {...register('rememberMe')} />
+            Keep me signed in
+          </label>
           <Link href="/forgot-password" className="text-sm font-semibold text-brand-blue hover:underline">
             Forgot password?
           </Link>
@@ -89,6 +93,9 @@ export default function LoginPage() {
         <Button type="submit" size="lg" loading={isSubmitting}>
           Log in <ArrowRight size={18} />
         </Button>
+        <p className="text-center text-xs text-slate-400">
+          Teachers, staff and parents don’t sign up here — your school sends you an invitation.
+        </p>
       </form>
 
       <p className="mt-7 text-center text-sm text-slate-500">

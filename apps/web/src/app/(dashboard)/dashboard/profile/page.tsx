@@ -7,6 +7,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { changePasswordSchema, updateProfileSchema, type ChangePasswordInput, type UpdateProfileInput } from '@schovexa/validation';
 import { Alert, Badge, Button, SelectField, Skeleton, StatCard, Tabs, TextAreaField, TextField, useToast } from '@schovexa/ui';
 import { CalendarDays, FileText, KeyRound, Lock, Mail, MapPin, Phone, Save, School, ShieldCheck, Undo2, User, UserRound, HeartPulse, CalendarCheck } from 'lucide-react';
+import { SESSIONS_QUERY_KEY, SECURITY_ACTIVITY_QUERY_KEY } from '../../../../hooks/useSecurity';
 import { MY_PROFILE_QUERY_KEY, useMyProfile, type PersonProfile } from '../../../../hooks/useProfile';
 import { CURRENT_USER_QUERY_KEY } from '../../../../hooks/useCurrentUser';
 import { api, ApiError } from '../../../../lib/api-client';
@@ -14,6 +15,7 @@ import { applyServerErrors } from '../../../../lib/forms';
 import { ProfileHero } from '../../../../components/profile-hero';
 import { SectionCard } from '../../../../components/section-card';
 import { PersonDocumentsPanel } from '../../../../components/person-documents-panel';
+import { DevicesPanel, SecurityActivityPanel } from '../../../../components/security-devices';
 
 type TabId = 'details' | 'documents' | 'security';
 
@@ -216,6 +218,7 @@ function DetailsForm({ profile }: { profile: PersonProfile }) {
 
 function SecurityPanel() {
   const toast = useToast();
+  const queryClient = useQueryClient();
   const [serverError, setServerError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState('');
   const [confirmError, setConfirmError] = useState<string | null>(null);
@@ -243,12 +246,16 @@ function SecurityPanel() {
       reset();
       setConfirm('');
       toast.show({ tone: 'success', title: 'Password updated', description: 'You’re still signed in here; other devices were signed out.' });
+      queryClient.invalidateQueries({ queryKey: SESSIONS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: SECURITY_ACTIVITY_QUERY_KEY });
     } catch (err) {
       setServerError(applyServerErrors(err, setError, { fallback: 'We could not change your password. Please try again.' }));
     }
   };
 
   return (
+    <div className="flex flex-col gap-6">
+    <DevicesPanel />
     <SectionCard icon={<KeyRound size={18} />} title="Change password" description="Choose a strong password you don’t use anywhere else.">
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex max-w-md flex-col gap-4">
         {serverError && <Alert variant="error">{serverError}</Alert>}
@@ -278,5 +285,7 @@ function SecurityPanel() {
         </div>
       </form>
     </SectionCard>
+    <SecurityActivityPanel />
+    </div>
   );
 }

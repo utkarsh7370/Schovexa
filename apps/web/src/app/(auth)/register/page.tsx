@@ -85,6 +85,9 @@ export default function RegisterSchoolPage() {
         title="Register your school"
         description="Create your school's workspace and your director account in one step. It takes about a minute."
       />
+      <p className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-500">
+        Only school owners register here. Teachers, staff, students and parents never create their own account — your school adds them and sends each person an invitation.
+      </p>
 
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="mt-7 flex flex-col gap-4">
         {serverError && <Alert variant="error">{serverError}</Alert>}

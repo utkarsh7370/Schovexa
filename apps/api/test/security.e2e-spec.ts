@@ -449,6 +449,8 @@ describe('Security (e2e)', () => {
       const blocked = await post(cookie, '/memberships/invitations', inviteBody(roleId));
       expect(blocked.status).toBe(403);
       expect(blocked.body.error.code).toBe('REAUTH_REQUIRED');
+      // A password prompt is a challenge, not a refusal — it is not logged as a denial.
+      expect(await prisma.auditLog.count({ where: { action: 'access.denied' } })).toBe(0);
 
       const wrong = await post(cookie, '/auth/reauth', { password: 'not-my-password-1' });
       expect(wrong.status).toBe(400);

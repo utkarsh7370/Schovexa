@@ -491,6 +491,7 @@ const confirmPasswordField = z.string({ required_error: 'Please confirm your pas
 export const loginFormSchema = z.object({
   email: emailField,
   password: z.string({ required_error: 'Password is required' }).min(1, 'Password is required'),
+  rememberMe: z.boolean().optional(),
 });
 export type LoginFormInput = z.input<typeof loginFormSchema>;
 export type LoginFormOutput = z.output<typeof loginFormSchema>;

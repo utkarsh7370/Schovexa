@@ -26,6 +26,11 @@ the full list and what each one does):
 | `STORAGE_ENDPOINT`, `STORAGE_BUCKET`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY`, `STORAGE_REGION` | recommended | leave blank and documents fall back to local disk, which does **not** survive a redeploy and isn't backed up — fine for a demo, not for real users |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | recommended | leave `SMTP_HOST` blank and these emails are only logged, not sent: invitations and password resets, the website Contact-form notification, academic-year approval requests to the Director, and "your child was marked absent" alerts to parents (the in-app notifications still work without it) |
 | `CONTACT_INBOX_EMAIL` | optional | where the website's Contact form is emailed (defaults to the founder's inbox). Messages are always saved in the `ContactMessage` table too |
+| `REQUIRE_EMAIL_VERIFICATION` | optional | defaults to **on** in production: sensitive actions (inviting people, changing roles, disabling access) wait until the person confirms their email. Needs working `SMTP_*` or nobody can confirm — set it to `false` until email is configured |
+| `REAUTH_WINDOW_MINUTES` | optional | how long a password confirmation stays valid for sensitive actions (default 10) |
+| `RATE_LIMIT_PER_MINUTE` | optional | requests per minute per IP across the API (default 600); tighter limits on login, register and reset always apply |
+| `REDIS_URL` | recommended | when set, rate-limit counters are shared across API instances; without it they are per-instance memory |
+| `TRUST_PROXY` | **yes, behind a proxy** | number of proxies in front of the API (usually `1`). Without it every request looks like it comes from the proxy: IP limits then throttle everyone together and the audit log records the wrong address |
 | `SENTRY_DSN` (API), `NEXT_PUBLIC_SENTRY_DSN` (web) | recommended | leave blank and errors are only logged locally, never reported anywhere — see "Error monitoring" below |
 
 You'll need to sign up for these yourself — this is the one part of

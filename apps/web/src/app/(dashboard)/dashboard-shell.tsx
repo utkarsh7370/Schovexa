@@ -27,6 +27,7 @@ import {
   BarChart3,
   Search,
   PartyPopper,
+  ScrollText,
 } from 'lucide-react';
 import { Avatar, LogoMark, Spinner } from '@schovexa/ui';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
@@ -38,6 +39,7 @@ import { canAccessRoute } from '../../lib/access';
 import { ForbiddenState } from '../../components/error-state';
 import { NotificationBell } from '../../components/notification-bell';
 import { CountryBadge } from '../../components/country-badge';
+import { EmailVerificationBanner } from '../../components/email-verification-banner';
 import { useEffect, useRef, useState } from 'react';
 
 interface NavItem {
@@ -88,6 +90,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/dashboard/roles', label: 'Roles', icon: ShieldCheck },
       { href: '/dashboard/settings', label: 'School Settings', icon: Settings },
+      { href: '/dashboard/audit-log', label: 'Audit Log', icon: ScrollText, permission: 'audit.view' },
     ],
   },
 ];
@@ -356,6 +359,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </header>
+
+        <EmailVerificationBanner me={me} />
 
         <main className="relative flex-1 bg-gradient-to-br from-slate-50 via-white to-sky-50/60 p-4 sm:p-6 lg:p-8">
           <div className="bg-grid pointer-events-none absolute inset-x-0 top-0 h-72 opacity-40 [mask-image:linear-gradient(to_bottom,black,transparent)]" aria-hidden="true" />

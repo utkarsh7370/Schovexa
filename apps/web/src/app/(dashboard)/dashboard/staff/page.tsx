@@ -108,20 +108,26 @@ export default function StaffPage() {
     setServerError(null);
     setInviteResult(null);
     try {
-      const result = await api.post<{ userId: string; inviteToken: string }>('/memberships/invitations', data);
+      const result = await api.post<{ userId: string; inviteToken: string | null; existingAccount: boolean }>('/memberships/invitations', data);
       await queryClient.invalidateQueries({ queryKey: MEMBERSHIPS_QUERY_KEY });
       // The invite is emailed when SMTP is configured; the link is also
       // shown so the admin can share it directly as a fallback. This
       // token must never be logged (docs/logging.md §4); it only ever
       // appears in this one response, to this one caller.
-      setInviteResult({
-        link: `${window.location.origin}/accept-invite?token=${result.inviteToken}`,
-        name: `${data.firstName} ${data.lastName}`,
-      });
+      // No token means the email already belongs to an active account: that
+      // person was simply added to this school and keeps their own password
+      // — there is no link to share, by design.
+      setInviteResult(
+        result.inviteToken
+          ? { link: `${window.location.origin}/accept-invite?token=${result.inviteToken}`, name: `${data.firstName} ${data.lastName}` }
+          : null,
+      );
       toast.show({
         tone: 'success',
-        title: 'Invitation sent',
-        description: `${data.firstName} ${data.lastName} will get an email to set up their account.`,
+        title: result.inviteToken ? 'Invitation sent' : 'Added to your school',
+        description: result.inviteToken
+          ? `${data.firstName} ${data.lastName} will get an email to set up their account.`
+          : `${data.firstName} ${data.lastName} already has an account, so they can log in with their existing password.`,
       });
       closeForm();
     } catch (err) {

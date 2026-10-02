@@ -59,7 +59,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
       // Security activity: a signed-in person was refused. Worth a trail — a
       // pattern of these is what probing for access looks like.
       const authed = request as Request & { session?: SessionContext; authContext?: AuthContext };
-      if (status === HttpStatus.FORBIDDEN && authed.session) {
+      // A "confirm your password" prompt is a challenge, not a refusal — it
+      // would only bury the real denials.
+      const challenge = shaped.code === 'REAUTH_REQUIRED' || shaped.code === 'EMAIL_NOT_VERIFIED';
+      if (status === HttpStatus.FORBIDDEN && authed.session && !challenge) {
         // Awaited so the entry exists by the time the client sees the 403.
         await this.audit
           .record({
