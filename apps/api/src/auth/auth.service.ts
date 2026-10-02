@@ -20,6 +20,8 @@ import {
   SESSION_TTL_MS,
 } from './auth.constants';
 import { describeDevice } from './device.util';
+import { appName, appUrl } from '../email/branding';
+import { escapeHtml } from '../common/html.util';
 import type { CurrentUser } from '@schovexa/types';
 
 export interface RequestMeta {
@@ -55,8 +57,7 @@ export class AuthService {
   ) {}
 
   private webUrl(path: string): string {
-    const origin = (process.env.WEB_ORIGIN ?? '').split(',')[0].trim() || 'http://localhost:3000';
-    return `${origin}${path}`;
+    return appUrl(path);
   }
 
   // --- Password hashing (docs/authentication.md §1) ---------------------
@@ -186,7 +187,7 @@ export class AuthService {
     if (everSignedIn > 0 && knownDevice === 0) {
       void this.email.send({
         to: user.email,
-        subject: 'New sign-in to your Schovexa account',
+        subject: `New sign-in to your ${appName()} account`,
         text: `Your account was just signed in to from ${device.label}${meta.ipAddress ? ` (${meta.ipAddress})` : ''}.\n\nIf this was you, there's nothing to do. If it wasn't, reset your password now and sign out other devices from My profile → Security.`,
         html: `<p>Your account was just signed in to from <strong>${device.label}</strong>${meta.ipAddress ? ` (${meta.ipAddress})` : ''}.</p><p>If this was you, there’s nothing to do. If it wasn’t, <a href="${this.webUrl('/forgot-password')}">reset your password</a> now and sign out other devices from <em>My profile → Security</em>.</p>`,
       });
@@ -356,7 +357,7 @@ export class AuthService {
     const link = this.webUrl(`/reset-password?token=${rawToken}`);
     void this.email.send({
       to: user.email,
-      subject: 'Reset your Schovexa password',
+      subject: `Reset your ${appName()} password`,
       text: `We received a request to reset your password. Reset it here: ${link}\n\nIf you didn't request this, you can ignore this email.`,
       html: `<p>We received a request to reset your password.</p><p><a href="${link}">Reset your password</a></p><p>If you didn't request this, you can ignore this email.</p>`,
     });
@@ -433,7 +434,7 @@ export class AuthService {
     });
     void this.email.send({
       to: user.email,
-      subject: 'Your Schovexa password was changed',
+      subject: `Your ${appName()} password was changed`,
       text: 'Your password was just changed and other devices were signed out. If this wasn’t you, reset your password immediately.',
       html: `<p>Your password was just changed and other devices were signed out.</p><p>If this wasn’t you, <a href="${this.webUrl('/forgot-password')}">reset your password</a> immediately.</p>`,
     });
@@ -599,9 +600,9 @@ export class AuthService {
     const link = this.webUrl(`/verify-email?token=${rawToken}`);
     void this.email.send({
       to: user.email,
-      subject: 'Confirm your email address for Schovexa',
-      text: `Welcome to Schovexa, ${user.firstName}! Confirm your email address here: ${link}\n\nThis link expires in 24 hours. If you didn't create a Schovexa account, you can ignore this email.`,
-      html: `<p>Welcome to Schovexa, ${user.firstName.replace(/[<>&]/g, '')}!</p><p><a href="${link}">Confirm your email address</a></p><p>This link expires in 24 hours. If you didn’t create a Schovexa account, you can ignore this email.</p>`,
+      subject: `Confirm your email address for ${appName()}`,
+      text: `Welcome to ${appName()}, ${user.firstName}! Confirm your email address here: ${link}\n\nThis link expires in 24 hours. If you didn't create a ${appName()} account, you can ignore this email.`,
+      html: `<p>Welcome to ${escapeHtml(appName())}, ${user.firstName.replace(/[<>&]/g, '')}!</p><p><a href="${link}">Confirm your email address</a></p><p>This link expires in 24 hours. If you didn’t create a ${escapeHtml(appName())} account, you can ignore this email.</p>`,
     });
     if (process.env.NODE_ENV === 'development' && !this.email.isConfigured) {
       // Local development has no mail server: show the link where a developer will look.
@@ -690,9 +691,9 @@ export class AuthService {
     if (existingAccount) {
       void this.email.send({
         to: user.email,
-        subject: `You've been added to ${school?.name ?? 'a school'} on Schovexa`,
-        text: `${school?.name ?? 'A school'} has added you to their Schovexa portal. Sign in with your existing account and choose the school to get started: ${this.webUrl('/login')}`,
-        html: `<p>${schoolName} has added you to their Schovexa portal.</p><p><a href="${this.webUrl('/login')}">Sign in</a> with your existing account and choose the school to get started.</p>`,
+        subject: `You've been added to ${school?.name ?? 'a school'} on ${appName()}`,
+        text: `${school?.name ?? 'A school'} has added you to their ${appName()} portal. Sign in with your existing account and choose the school to get started: ${this.webUrl('/login')}`,
+        html: `<p>${schoolName} has added you to their ${appName()} portal.</p><p><a href="${this.webUrl('/login')}">Sign in</a> with your existing account and choose the school to get started.</p>`,
       });
       return { rawToken: null, userId: user.id, existingAccount: true };
     }
@@ -701,9 +702,9 @@ export class AuthService {
     const link = this.webUrl(`/accept-invite?token=${rawToken}`);
     void this.email.send({
       to: input.email,
-      subject: `You're invited to ${school?.name ?? 'Schovexa'}`,
-      text: `${school?.name ?? 'A school'} has invited you to join their Schovexa portal. Set up your account here: ${link}\n\nThis link expires in 7 days.`,
-      html: `<p>${schoolName} has invited you to join their Schovexa portal.</p><p><a href="${link}">Set up your account</a></p><p>This link expires in 7 days.</p>`,
+      subject: `You're invited to ${school?.name ?? appName()}`,
+      text: `${school?.name ?? 'A school'} has invited you to join their ${appName()} portal. Set up your account here: ${link}\n\nThis link expires in 7 days.`,
+      html: `<p>${schoolName} has invited you to join their ${appName()} portal.</p><p><a href="${link}">Set up your account</a></p><p>This link expires in 7 days.</p>`,
     });
 
     return { rawToken, userId: user.id, existingAccount: false };

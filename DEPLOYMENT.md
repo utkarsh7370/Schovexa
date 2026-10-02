@@ -24,7 +24,10 @@ the full list and what each one does):
 | `WEB_ORIGIN` | yes | your web app's real origin, e.g. `https://app.yourschool.com` — used for CORS and the origin-check CSRF mitigation, and as the base for invite/reset links |
 | `NEXT_PUBLIC_API_URL` | yes | your API's real URL, e.g. `https://api.yourschool.com/api/v1` — baked into the web build at build time |
 | `STORAGE_ENDPOINT`, `STORAGE_BUCKET`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY`, `STORAGE_REGION` | recommended | leave blank and documents fall back to local disk, which does **not** survive a redeploy and isn't backed up — fine for a demo, not for real users |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | recommended | leave `SMTP_HOST` blank and these emails are only logged, not sent: invitations and password resets, the website Contact-form notification, academic-year approval requests to the Director, and "your child was marked absent" alerts to parents (the in-app notifications still work without it) |
+| `EMAIL_PROVIDER` + `SMTP_USER` + `SMTP_PASSWORD` | recommended | **the whole email setup in three lines.** `EMAIL_PROVIDER` is one of `gmail`, `outlook`, `zoho`, `brevo`, `sendgrid`, `mailgun`, `resend`, `postmark`, `ses` (it fills in the server, port and TLS). Or skip it and set `SMTP_HOST` (+ `SMTP_PORT`, `SMTP_SECURE`) or a single `SMTP_URL`. With none of these, emails are only logged, not sent: invitations and password resets, email verification, the Contact-form notification, academic-year approval requests, "new sign-in" and "your child was marked absent" alerts (in-app notifications still work) |
+| `EMAIL_FROM_NAME`, `EMAIL_FROM_ADDRESS`, `EMAIL_REPLY_TO`, `EMAIL_BCC`, `EMAIL_SUBJECT_PREFIX` | optional | who mail comes from, where replies go, a secret copy on every message, and a subject prefix. `EMAIL_FROM_ADDRESS` defaults to `SMTP_USER` when that is an address (Gmail requires this) |
+| `APP_NAME`, `APP_URL`, `SUPPORT_EMAIL` | optional | the product name and web address used *inside* emails (defaults: "Schovexa" and the first `WEB_ORIGIN`) and the help contact |
+| `EMAIL_ENABLED`, `EMAIL_REDIRECT_ALL_TO`, `EMAIL_VERIFY_ON_START` | optional | `EMAIL_ENABLED=false` switches email off without deleting settings; `EMAIL_REDIRECT_ALL_TO=you@…` sends everything to one inbox (use on staging); the startup check logs whether the mail server accepted the login |
 | `CONTACT_INBOX_EMAIL` | optional | where the website's Contact form is emailed (defaults to the founder's inbox). Messages are always saved in the `ContactMessage` table too |
 | `REQUIRE_EMAIL_VERIFICATION` | optional | defaults to **on** in production: sensitive actions (inviting people, changing roles, disabling access) wait until the person confirms their email. Needs working `SMTP_*` or nobody can confirm — set it to `false` until email is configured |
 | `REAUTH_WINDOW_MINUTES` | optional | how long a password confirmation stays valid for sensitive actions (default 10) |
@@ -32,6 +35,11 @@ the full list and what each one does):
 | `REDIS_URL` | recommended | when set, rate-limit counters are shared across API instances; without it they are per-instance memory |
 | `TRUST_PROXY` | **yes, behind a proxy** | number of proxies in front of the API (usually `1`). Without it every request looks like it comes from the proxy: IP limits then throttle everyone together and the audit log records the wrong address |
 | `SENTRY_DSN` (API), `NEXT_PUBLIC_SENTRY_DSN` (web) | recommended | leave blank and errors are only logged locally, never reported anywhere — see "Error monitoring" below |
+
+After setting the email variables, check them with
+`npm run email:test -w @schovexa/api -- you@example.com` — it prints what email will
+do (no secrets), tests the login, and sends you a real message. The API also logs the
+same summary every time it starts.
 
 You'll need to sign up for these yourself — this is the one part of
 "go live" that isn't just code:

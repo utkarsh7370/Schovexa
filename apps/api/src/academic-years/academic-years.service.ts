@@ -1,3 +1,4 @@
+import { appName } from '../email/branding';
 import { SchoolSettingsService } from '../school-settings/school-settings.service';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { AcademicYear, AcademicYearReviewAction, AcademicYearStatus, Prisma } from '@prisma/client';
@@ -340,7 +341,7 @@ export class AcademicYearsService {
     for (const approver of approvers) {
       void this.email.send({
         to: approver.email,
-        subject: `[Schovexa] ${title}`,
+        subject: `[${appName()}] ${title}`,
         text: `${body}\n\nOpen Academic Years in your dashboard to decide.`,
         html: `<p>${body.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c] as string)}</p><p>Open <strong>Academic Years</strong> in your dashboard to decide.</p>`,
       });

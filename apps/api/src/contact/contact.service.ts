@@ -1,3 +1,4 @@
+import { appName, contactInbox } from '../email/branding';
 import { Injectable, Logger } from '@nestjs/common';
 import { createHash } from 'crypto';
 import type { ContactMessageOutput } from '@schovexa/validation';
@@ -60,7 +61,7 @@ export class ContactService {
     ];
 
     const text = [
-      `New message from the Schovexa contact form`,
+      `New message from the ${appName()} contact form`,
       '',
       ...rows.map(([k, v]) => `${k}: ${v}`),
       '',
@@ -70,7 +71,7 @@ export class ContactService {
     const html = `
       <div style="font-family:Segoe UI,Arial,sans-serif;max-width:560px;margin:0 auto;color:#0b1b3a">
         <h2 style="margin:0 0 4px">New contact message</h2>
-        <p style="margin:0 0 16px;color:#64748b">Received through the Schovexa website</p>
+        <p style="margin:0 0 16px;color:#64748b">Received through the ${escapeHtml(appName())} website</p>
         <table style="width:100%;border-collapse:collapse;font-size:14px">
           ${rows
             .map(
@@ -84,8 +85,8 @@ export class ContactService {
       </div>`;
 
     const sent = await this.email.send({
-      to: process.env.CONTACT_INBOX_EMAIL || DEFAULT_INBOX,
-      subject: oneLine(`[Schovexa] ${topic} — ${input.name}`).slice(0, 150),
+      to: contactInbox(DEFAULT_INBOX),
+      subject: oneLine(`[${appName()}] ${topic} — ${input.name}`).slice(0, 150),
       text,
       html,
       replyTo: input.email,

@@ -12,6 +12,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
+    "email:test": "ts-node --transpile-only scripts/send-test-email.ts",
     "seed": "ts-node --transpile-only prisma/seed.ts",
     "seed:dev-demo": "ts-node --transpile-only prisma/seed-dev-demo.ts",
     "test": "jest",
