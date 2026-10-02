@@ -599,6 +599,35 @@ describe('Security (e2e)', () => {
       expect((await agent().post('/api/v1/auth/login').send({ email: 'a@example.test', password: 'x' })).status).toBe(403); // no Origin at all
     });
 
+    it('refuses a sixth signup in an hour from one address (the normal limit)', async () => {
+      const signups = async (tag: string, count: number) => {
+        const statuses: number[] = [];
+        for (let i = 0; i < count; i += 1) statuses.push((await register(`Relax ${tag} ${i}`, `relax-${tag}-${i}@example.test`)).res.status);
+        return statuses;
+      };
+      // Registration allows 5 an hour per address; the 6th is refused.
+      expect((await signups('normal', 6)).slice(5)).toEqual([429]);
+    });
+
+    it('DEV_RELAX_RATE_LIMITS multiplies the limits in development, and is ignored in production', async () => {
+      const original = { relax: process.env.DEV_RELAX_RATE_LIMITS, node: process.env.NODE_ENV };
+      try {
+        process.env.DEV_RELAX_RATE_LIMITS = 'true';
+        process.env.NODE_ENV = 'development';
+        const dev: number[] = [];
+        for (let i = 0; i < 7; i += 1) dev.push((await register(`Dev ${i}`, `dev-relax-${i}@example.test`)).res.status);
+        expect(dev.every((s) => s === 201)).toBe(true);
+
+        // The same switch on a production server changes nothing: seven signups are already counted.
+        process.env.NODE_ENV = 'production';
+        expect((await register('Prod', 'prod-relax@example.test')).res.status).toBe(429);
+      } finally {
+        process.env.DEV_RELAX_RATE_LIMITS = original.relax;
+        process.env.NODE_ENV = original.node;
+        if (original.relax === undefined) delete process.env.DEV_RELAX_RATE_LIMITS;
+      }
+    });
+
     it('validates input: unknown fields are ignored and malformed ones refused', async () => {
       expect((await post(null, '/auth/login', { email: 'not-an-email', password: 'x' })).status).toBe(400);
       expect((await post(null, '/auth/login', { email: 'a@example.test' })).status).toBe(400);

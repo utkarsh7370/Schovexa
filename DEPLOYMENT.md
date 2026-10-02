@@ -32,6 +32,7 @@ the full list and what each one does):
 | `REQUIRE_EMAIL_VERIFICATION` | optional | defaults to **on** in production: sensitive actions (inviting people, changing roles, disabling access) wait until the person confirms their email. Needs working `SMTP_*` or nobody can confirm — set it to `false` until email is configured |
 | `REAUTH_WINDOW_MINUTES` | optional | how long a password confirmation stays valid for sensitive actions (default 10) |
 | `RATE_LIMIT_PER_MINUTE` | optional | requests per minute per IP across the API (default 600); tighter limits on login, register and reset always apply |
+| `DEV_RELAX_RATE_LIMITS` | development only | `true` multiplies request limits ×100 so the demo seeder can run repeatedly; **ignored when `NODE_ENV=production`**. Don't set it on a live server |
 | `REDIS_URL` | recommended | when set, rate-limit counters are shared across API instances; without it they are per-instance memory |
 | `TRUST_PROXY` | **yes, behind a proxy** | number of proxies in front of the API (usually `1`). Without it every request looks like it comes from the proxy: IP limits then throttle everyone together and the audit log records the wrong address |
 | `SENTRY_DSN` (API), `NEXT_PUBLIC_SENTRY_DSN` (web) | recommended | leave blank and errors are only logged locally, never reported anywhere — see "Error monitoring" below |

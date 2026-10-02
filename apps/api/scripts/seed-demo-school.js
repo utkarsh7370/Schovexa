@@ -8,6 +8,9 @@
 //   cd apps/api
 //   node scripts/seed-demo-school.js
 //
+// If the API answers "rate limited" (several runs close together), start it
+// with DEV_RELAX_RATE_LIMITS=true — see the message the seeder prints.
+//
 // Requires the API server already running (npm run dev, or node
 // dist/main.js) and reachable at API_URL below.
 //
@@ -54,6 +57,13 @@ function makeSession() {
         const err = new Error(`${method} ${path} -> ${res.status}: ${JSON.stringify(data)}`);
         err.status = res.status;
         err.data = data;
+        if (res.status === 429) {
+          err.message =
+            'The API\'s rate limit stopped the seeder (it registers a school and accepts ~15 invitations from one address).\n' +
+            '  Fix, for development only: stop the API, then start it with the limit relaxed and run this again:\n' +
+            '      DEV_RELAX_RATE_LIMITS=true npm run dev          (Windows PowerShell:  $env:DEV_RELAX_RATE_LIMITS=\'true\'; npm run dev)\n' +
+            '  Or wait about 15 minutes (1 hour if it was the first step) and try again.';
+        }
         throw err;
       }
       return data;
@@ -94,13 +104,28 @@ async function main() {
   console.log('== Schovexa demo school seeder ==');
   console.log(`API: ${API_URL}  (Origin header: ${WEB_ORIGIN})\n`);
 
+  // The seeder talks to the running API over HTTP (it doesn't touch the
+  // database directly), so check the API is up before doing anything.
+  try {
+    const health = await fetch(`${API_URL}/health`);
+    if (!health.ok) throw new Error(`health check answered ${health.status}`);
+  } catch (err) {
+    console.error(`Can't reach the API at ${API_URL}  (${err.cause?.code ?? err.message}).\n`);
+    console.error('The seeder sends its data through the running API, so start that first:');
+    console.error('  1. In another terminal:   cd apps/api && npm run dev');
+    console.error('  2. Wait for the line:     Nest application successfully started');
+    console.error('  3. Then run this again:   node scripts/seed-demo-school.js');
+    console.error('(If your API runs somewhere else:  API_URL=http://host:port/api/v1 node scripts/seed-demo-school.js)\n');
+    process.exit(1);
+  }
+
   const director = makeSession();
   const credentials = [];
 
   // 1. School + Director ----------------------------------------------------
   const schoolName = `Sunrise Public School${SUFFIX ? ` ${SUFFIX}` : ''}`;
   const directorEmail = `director${SUFFIX}@demo.school`;
-  console.log(`[1/12] Registering "${schoolName}"...`);
+  console.log(`[1/14] Registering "${schoolName}"...`);
   let reg;
   try {
     reg = await director.call('POST', '/schools/register', {
@@ -136,15 +161,57 @@ async function main() {
   const [yy, mm] = todayIso.split('-').map(Number);
   const startYear = mm >= 4 ? yy : yy - 1;
   const yearName = `${startYear}-${String(startYear + 1).slice(2)}`;
-  console.log(`[2/12] Academic year ${yearName}...`);
+  console.log(`[2/14] Academic year ${yearName}...`);
   const ay = await director.call('POST', '/academic-years', {
     name: yearName,
     startDate: `${startYear}-04-01`,
     endDate: `${startYear + 1}-03-31`,
   });
 
-  // 3. Classes + sections -------------------------------------------------------
-  console.log('[3/12] Classes and sections...');
+  // 3. School profile + rules ------------------------------------------------
+  // Everything under Settings: who the school is, its day and week, and the
+  // attendance / fee / notification / document rules. Done before fees and
+  // attendance so receipts carry the prefix and the rules apply from the start.
+  console.log('[3/14] School profile, timings and rules...');
+  await director.call('PATCH', '/schools/me', {
+    motto: 'Learn, lead, serve',
+    description: 'A friendly K–5 school where every child is known by name. Small classes, strong basics, and a lot of curiosity.',
+    schoolCode: 'SPS-1998',
+    board: 'CBSE',
+    schoolType: 'Primary',
+    establishedYear: 1998,
+    affiliationNo: '2730123',
+    address: '12 Hill Road, Koregaon Park',
+    city: 'Pune',
+    state: 'Maharashtra',
+    postalCode: '411001',
+    contactEmail: `office${SUFFIX}@demo.school`,
+    contactPhone: '+91 98765 43210',
+    alternatePhone: '+91 98765 43211',
+    website: 'https://www.sunrise-demo.school',
+  });
+  await director.call('PATCH', '/school-settings', {
+    schoolStartTime: '08:00',
+    schoolEndTime: '14:30',
+    breakStartTime: '11:00',
+    breakEndTime: '11:30',
+    workingDays: [1, 2, 3, 4, 5, 6],
+    offSaturdays: [2, 4],
+    attendanceEditWindowDays: 1,
+    attendanceMinPercent: 75,
+    receiptPrefix: 'SPS/',
+    allowPartialPayments: true,
+    lateFeePerDayMinor: 5000, // ₹50 a day
+    lateFeeGraceDays: 3,
+    passPercent: 40,
+    documentMaxSizeMb: 10,
+    documentCategories: ['ID proof', 'Birth certificate', 'Transfer certificate', 'Address proof', 'Medical record', 'Vaccination record', 'Report card', 'Other'],
+    requiredStudentDocuments: ['Birth certificate', 'ID proof'],
+  });
+  console.log('   Profile, Mon–Sat week (2nd & 4th Saturday off), 08:00–14:30 with a break, ₹50/day late fee, receipts SPS/…');
+
+  // 4. Classes + sections -------------------------------------------------------
+  console.log('[4/14] Classes and sections...');
   const classes = [];
   const sections = []; // { id, name, classId, className }
   for (let i = 0; i < CLASS_NAMES.length; i++) {
@@ -157,15 +224,15 @@ async function main() {
   }
   console.log(`   ${classes.length} classes, ${sections.length} sections`);
 
-  // 4. Subjects -----------------------------------------------------------------
-  console.log('[4/12] Subjects...');
+  // 5. Subjects -----------------------------------------------------------------
+  console.log('[5/14] Subjects...');
   const subjects = [];
   for (const name of SUBJECT_NAMES) {
     subjects.push(await director.call('POST', '/subjects', { name }));
   }
 
-  // 5. Teachers (10) — invite, accept, profile, class-teacher, 2 subjects each --
-  console.log('[5/12] Teachers (10)...');
+  // 6. Teachers (10) — invite, accept, profile, class-teacher, 2 subjects each --
+  console.log('[6/14] Teachers (10)...');
   const teachers = [];
   for (let i = 0; i < 10; i++) {
     const [first, last] = TEACHER_NAMES[i];
@@ -192,8 +259,8 @@ async function main() {
   }
   console.log(`   ${teachers.length} teachers — each is class teacher of one section and teaches 2 subjects there`);
 
-  // 6. Other staff roles ----------------------------------------------------------
-  console.log('[6/12] Additional staff (Accountant, Receptionist)...');
+  // 7. Other staff roles ----------------------------------------------------------
+  console.log('[7/14] Additional staff (Accountant, Receptionist)...');
   const staffDefs = [
     { role: 'Accountant', first: 'Meera', last: 'Iyer' },
     { role: 'Receptionist', first: 'Karan', last: 'Bhatt' },
@@ -210,8 +277,8 @@ async function main() {
     credentials.push({ role: s.role, name: `${s.first} ${s.last}`, email, password: STAFF_PASSWORD });
   }
 
-  // 7. Students (3 per section = 30) -----------------------------------------------
-  console.log('[7/12] Students (30)...');
+  // 8. Students (3 per section = 30) -----------------------------------------------
+  console.log('[8/14] Students (30)...');
   const students = [];
   let admNo = 1;
   for (const section of sections) {
@@ -232,8 +299,87 @@ async function main() {
   }
   console.log(`   ${students.length} students admitted, 3 per section`);
 
-  // 8. Parents — link some students, invite a few to the portal --------------------
-  console.log('[8/12] Parents...');
+  // 9. Structure: terms, grading, holidays, departments, houses and clubs ---------
+  console.log('[9/14] Terms, grading, holidays, departments, houses and clubs...');
+
+  await director.call('POST', `/academic-years/${ay.id}/terms`, { name: 'Term 1', startDate: `${startYear}-04-01`, endDate: `${startYear}-09-30` });
+  await director.call('POST', `/academic-years/${ay.id}/terms`, { name: 'Term 2', startDate: `${startYear}-10-01`, endDate: `${startYear + 1}-03-31` });
+
+  await director.call('PUT', '/grading', {
+    passPercent: 40,
+    bands: [
+      { label: 'A+', minPercent: 90, gradePoint: 10, remark: 'Outstanding' },
+      { label: 'A', minPercent: 80, gradePoint: 9, remark: 'Excellent' },
+      { label: 'B+', minPercent: 70, gradePoint: 8, remark: 'Very good' },
+      { label: 'B', minPercent: 60, gradePoint: 7, remark: 'Good' },
+      { label: 'C', minPercent: 50, gradePoint: 6, remark: 'Satisfactory' },
+      { label: 'D', minPercent: 40, gradePoint: 5, remark: 'Pass' },
+      { label: 'F', minPercent: 0, gradePoint: 0, remark: 'Needs improvement' },
+    ],
+  });
+
+  const holidays = [
+    { name: 'Independence Day', type: 'NATIONAL', startDate: `${startYear}-08-15`, endDate: `${startYear}-08-15` },
+    { name: 'Gandhi Jayanti', type: 'NATIONAL', startDate: `${startYear}-10-02`, endDate: `${startYear}-10-02` },
+    { name: 'Diwali break', type: 'FESTIVAL', startDate: `${startYear}-11-08`, endDate: `${startYear}-11-12` },
+    { name: 'Winter vacation', type: 'VACATION', startDate: `${startYear}-12-25`, endDate: `${startYear + 1}-01-02` },
+    { name: 'Republic Day', type: 'NATIONAL', startDate: `${startYear + 1}-01-26`, endDate: `${startYear + 1}-01-26` },
+    { name: 'Annual Day', type: 'SCHOOL', startDate: `${startYear + 1}-02-14`, endDate: `${startYear + 1}-02-14` },
+  ];
+  for (const h of holidays) await director.call('POST', '/holidays', h);
+
+  // Departments — each subject belongs to one; teachers are spread across them,
+  // and the first teacher in each department is its head.
+  const departmentPlan = [
+    { name: 'Science & Mathematics', code: 'SCM', subjects: ['Mathematics', 'Science'] },
+    { name: 'Languages', code: 'LNG', subjects: ['English', 'Hindi'] },
+    { name: 'Humanities & Computing', code: 'HUC', subjects: ['Social Studies', 'Computer Science'] },
+  ];
+  const departments = [];
+  for (const plan of departmentPlan) {
+    const dept = await director.call('POST', '/departments', { name: plan.name, code: plan.code, description: `${plan.subjects.join(' and ')}` });
+    departments.push(dept);
+    for (const name of plan.subjects) {
+      const subject = subjects.find((x) => x.name === name);
+      if (subject) await director.call('PATCH', `/subjects/${subject.id}`, { departmentId: dept.id });
+    }
+  }
+  for (let i = 0; i < teachers.length; i++) {
+    await director.call('PATCH', `/teachers/${teachers[i].id}`, { departmentId: departments[i % departments.length].id });
+  }
+  for (let d = 0; d < departments.length; d++) {
+    await director.call('PATCH', `/departments/${departments[d].id}`, { headTeacherId: teachers[d].id });
+  }
+
+  // Houses (a student is in exactly one) and clubs (any number).
+  const houseDefs = [
+    { name: 'Red House', color: '#dc2626', motto: 'Courage' },
+    { name: 'Blue House', color: '#2563eb', motto: 'Wisdom' },
+    { name: 'Green House', color: '#16a34a', motto: 'Growth' },
+    { name: 'Yellow House', color: '#eab308', motto: 'Energy' },
+  ];
+  const houses = [];
+  for (let i = 0; i < houseDefs.length; i++) {
+    houses.push(await director.call('POST', '/groups', { ...houseDefs[i], kind: 'HOUSE', leaderTeacherId: teachers[i].id }));
+  }
+  for (let h = 0; h < houses.length; h++) {
+    const ids = students.filter((_, idx) => idx % houses.length === h).map((x) => x.id);
+    await director.call('POST', `/groups/${houses[h].id}/members`, { studentIds: ids });
+  }
+  const clubs = [
+    { name: 'Chess Club', kind: 'CLUB', color: '#7c3aed', motto: 'Think ahead' },
+    { name: 'Science Club', kind: 'CLUB', color: '#0891b2', motto: 'Ask why' },
+    { name: 'Football Team', kind: 'SPORTS', color: '#ea580c', motto: 'Play fair' },
+  ];
+  for (let c = 0; c < clubs.length; c++) {
+    const club = await director.call('POST', '/groups', { ...clubs[c], leaderTeacherId: teachers[4 + c].id });
+    const ids = students.filter((_, idx) => idx % (c + 3) === 0).map((x) => x.id);
+    await director.call('POST', `/groups/${club.id}/members`, { studentIds: ids });
+  }
+  console.log(`   2 terms, 7 grades, ${holidays.length} holidays, ${departments.length} departments, ${houses.length} houses, ${clubs.length} clubs/teams`);
+
+  // 10. Parents — link some students, invite a few to the portal --------------------
+  console.log('[10/14] Parents...');
   const linkPlan = [[0, 1], [2, 3]]; // two sibling pairs sharing one parent
   for (let i = 4; i < 20; i++) linkPlan.push([i]); // remaining 16 get one parent each
   const invitePortalAt = new Set([0, 1, 2]); // first 3 parent groups get a real portal login
@@ -265,10 +411,10 @@ async function main() {
   }
   console.log(`   ${linkPlan.length} parents created and linked, ${parentPortalCount} given a portal login`);
 
-  // 9. Attendance — mark 2 days, then correct a few records -----------------------
+  // 11. Attendance — mark 2 days, then correct a few records -----------------------
   // The API only allows marking/changing attendance on the day itself (in
   // the school's time zone), so the demo can only seed today.
-  console.log("[9/12] Attendance (today only — past days are locked by the API, with a few corrections)...");
+  console.log("[11/14] Attendance (today only — past days are locked by the API, with a few corrections)...");
   // New schools default to Asia/Kolkata, and "today" must be that zone's today.
   const dates = [new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date())];
   const todaysFirstRecordBySection = [];
@@ -276,7 +422,8 @@ async function main() {
   // on a day off. If the demo is seeded on one (a Sunday, a holiday), allow it
   // so there is still something to look at.
   const todayInfo = await director.call('GET', '/attendance/today');
-  if (!todayInfo.schoolDay.working) {
+  const openedClosedDay = !todayInfo.schoolDay.working;
+  if (openedClosedDay) {
     await director.call('PATCH', '/school-settings', { attendanceOnNonWorkingDays: true });
     console.log(`   (${todayInfo.schoolDay.message} Allowed attendance on closed days so the demo has data.)`);
   }
@@ -301,10 +448,12 @@ async function main() {
     });
     corrected++;
   }
+  // Put the rule back: the demo should behave like a real school from here on.
+  if (openedClosedDay) await director.call('PATCH', '/school-settings', { attendanceOnNonWorkingDays: false });
   console.log(`   Marked today's attendance across ${sections.length} sections, corrected ${corrected} record(s)`);
 
-  // 10. Notices — one of each audience type ---------------------------------------
-  console.log('[10/12] Notices (one of each audience type)...');
+  // 12. Notices — one of each audience type ---------------------------------------
+  console.log('[12/14] Notices (one of each audience type)...');
   async function createAndPublish(payload) {
     const notice = await director.call('POST', '/notices', payload);
     await director.call('POST', `/notices/${notice.id}/publish`);
@@ -335,8 +484,8 @@ async function main() {
     audienceRefId: teachers[0].userId,
   });
 
-  // 11. Fee categories + one structure per frequency type --------------------------
-  console.log('[11/12] Fee structures (one per frequency type)...');
+  // 13. Fee categories + one structure per frequency type --------------------------
+  console.log('[13/14] Fee structures (one per frequency type)...');
   const tuitionCat = await director.call('POST', '/fee-categories', { name: 'Tuition Fee' });
   const admissionCat = await director.call('POST', '/fee-categories', { name: 'Admission Fee' });
   const examCat = await director.call('POST', '/fee-categories', { name: 'Examination Fee' });
@@ -373,8 +522,8 @@ async function main() {
   }
   console.log('   Tuition -> Grade 1 only; Admission/Examination/Annual Day -> every student');
 
-  // 12. Record some payments so there's a real due amount to look at ---------------
-  console.log('[12/12] Recording some payments (so there is a real due amount)...');
+  // 14. Record some payments so there's a real due amount to look at ---------------
+  console.log('[14/14] Recording some payments (so there is a real due amount)...');
   let paidFull = 0;
   let paidPartial = 0;
   for (let i = 0; i < 12; i++) {
@@ -423,6 +572,8 @@ async function main() {
     }
   }
   console.log('\n(Teachers 4-10 share the same password as Teacher 1-3 above.)');
+  console.log('Also set up: school profile & logo-ready settings, Mon–Sat week with 2nd/4th Saturday off, 2 terms, grading scale,');
+  console.log('6 holidays, 3 departments (with heads), 4 houses, 3 clubs/teams, fee rules (SPS/ receipts, ₹50/day late fee).');
   console.log('=======================================\n');
 }
 
