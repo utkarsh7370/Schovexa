@@ -215,6 +215,9 @@ model User {
   emergencyContactName  String?
   emergencyContactPhone String?
   bio                   String?
+  // Which non-essential messages this person wants (security emails always go out).
+  notifyByEmail  Boolean @default(true)
+  notifyInApp    Boolean @default(true)
   status          UserStatus @default(INVITED)
   emailVerifiedAt DateTime?
   lastLoginAt     DateTime?
@@ -360,6 +363,9 @@ model School {
   departments       Department[]
   studentGroups     StudentGroup[]
   gradeBands        GradeBand[]
+  refundRequests    RefundRequest[]
+  concessions       Concession[]
+  feeReminders      FeeReminder[]
 }
 
 model SchoolMembership {
@@ -606,6 +612,8 @@ model Student {
   dateOfBirth DateTime?
   gender      String?
   sectionId   String?
+  // Storage key of the student's photo (served through the API, never a public URL).
+  photoKey    String?
   status      StudentStatus @default(ENROLLED)
   schoolDay   StudentSchoolDay @default(FULL_DAY)
   createdAt   DateTime      @default(now())
@@ -619,6 +627,8 @@ model Student {
   attendance Attendance[]
   fees       StudentFee[]
   groups     StudentGroupMember[]
+  refunds    RefundRequest[]
+  concessions Concession[]
   // Documents owned by a student are queried via Document.ownerType/
   // ownerId (polymorphic — see Document model), not a Prisma relation.
 
@@ -734,6 +744,9 @@ model StudentFee {
   studentId      String
   feeStructureId String
   amountDueMinor Int
+  // Total of the discounts, scholarships and concessions applied to this fee.
+  // What the family owes is amountDueMinor − discountMinor.
+  discountMinor  Int              @default(0)
   dueDate        DateTime?
   status         StudentFeeStatus @default(PENDING)
   createdAt      DateTime         @default(now())
@@ -744,6 +757,9 @@ model StudentFee {
   student      Student      @relation(fields: [studentId], references: [id])
   feeStructure FeeStructure @relation(fields: [feeStructureId], references: [id])
   payments     Payment[]
+  refunds      RefundRequest[]
+  concessions  Concession[]
+  reminders    FeeReminder[]
 
   @@index([schoolId])
   @@index([studentId])
@@ -757,12 +773,21 @@ model Payment {
   method        PaymentMethod
   collectedById String
   paidAt        DateTime      @default(now())
+  // Who handed the money over, a note, and the school's own voucher / receipt-book number.
+  receivedFrom  String?
+  note          String?
+  reference     String?
+  // Set when the payment was corrected after it was recorded (the old values live in the audit log).
+  correctedAt      DateTime?
+  correctedById    String?
+  correctionReason String?
   createdAt     DateTime      @default(now())
   deletedAt     DateTime?
 
   school     School     @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   studentFee StudentFee @relation(fields: [studentFeeId], references: [id])
   receipt    Receipt?
+  refunds    RefundRequest[]
 
   @@index([schoolId])
   @@index([studentFeeId])
@@ -774,6 +799,9 @@ model Receipt {
   paymentId String   @unique // Payment is never deleted, so this 1:1 is always live — plain unique correct
   receiptNo String
   issuedAt  DateTime @default(now())
+  // How many times it was printed / downloaded again after the first copy.
+  reprintCount  Int       @default(0)
+  lastPrintedAt DateTime?
 
   school  School  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   payment Payment @relation(fields: [paymentId], references: [id])
@@ -1093,6 +1121,14 @@ model SchoolSettings {
   lateFeePerDayMinor   Int     @default(0)
   lateFeeGraceDays     Int     @default(0)
 
+  // Finance controls
+  // The most an accountant may discount a single fee by without approval (percent of the fee).
+  maxDiscountPercent Int @default(5)
+  // How long after recording a payment it can still be corrected (days) — Principal and Director aren't limited.
+  paymentCorrectionWindowDays Int @default(2)
+  // Tell the family when a payment is recorded (in-app, and email when it is set up).
+  notifyPaymentReceipt Boolean @default(true)
+
   // Grading
   passPercent Int @default(40)
 
@@ -1193,4 +1229,115 @@ model GradeBand {
 
   @@unique([schoolId, minPercent])
   @@unique([schoolId, label])
+}
+
+enum RefundStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  PROCESSED
+}
+
+// Money going back to a family. Segregation of duties: the accountant requests,
+// the Principal or Director approves, then the accountant processes it.
+model RefundRequest {
+  id            String       @id @default(cuid())
+  schoolId      String
+  paymentId     String
+  studentFeeId  String
+  studentId     String
+  amountMinor   Int
+  reason        String
+  status        RefundStatus @default(REQUESTED)
+  method        PaymentMethod @default(CASH)
+  requestedById String
+  decidedById   String?
+  decidedAt     DateTime?
+  decisionNote  String?
+  processedById String?
+  processedAt   DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  school     School     @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  payment    Payment    @relation(fields: [paymentId], references: [id])
+  studentFee StudentFee @relation(fields: [studentFeeId], references: [id])
+  student    Student    @relation(fields: [studentId], references: [id])
+
+  @@index([schoolId, status])
+  @@index([paymentId])
+  @@index([studentFeeId])
+}
+
+enum ConcessionKind {
+  DISCOUNT
+  SCHOLARSHIP
+  CONCESSION
+}
+
+enum ConcessionStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  APPLIED
+}
+
+// A reduction of one student's fee. Small discounts (within the school's limit)
+// are applied straight away; anything larger is requested, approved by the
+// Principal or Director, then applied.
+model Concession {
+  id            String           @id @default(cuid())
+  schoolId      String
+  studentId     String
+  studentFeeId  String
+  kind          ConcessionKind   @default(DISCOUNT)
+  name          String
+  amountMinor   Int
+  reason        String
+  status        ConcessionStatus @default(REQUESTED)
+  requestedById String
+  decidedById   String?
+  decidedAt     DateTime?
+  decisionNote  String?
+  appliedById   String?
+  appliedAt     DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  school     School     @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  student    Student    @relation(fields: [studentId], references: [id])
+  studentFee StudentFee @relation(fields: [studentFeeId], references: [id])
+
+  @@index([schoolId, status])
+  @@index([studentFeeId])
+  @@index([studentId])
+}
+
+enum FeeReminderKind {
+  PAYMENT_CONFIRMATION
+  RECEIPT
+  DUE
+  OUTSTANDING
+  OVERDUE
+}
+
+// One attempt to tell a family about a fee — sent, failed or skipped, and why.
+// Also what stops the same reminder going out twice in a day.
+model FeeReminder {
+  id           String              @id @default(cuid())
+  schoolId     String
+  studentFeeId String
+  parentId     String?
+  kind         FeeReminderKind
+  channel      NotificationChannel
+  status       AbsenceAlertStatus
+  detail       String?
+  sentById     String?
+  createdAt    DateTime            @default(now())
+
+  school     School     @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  studentFee StudentFee @relation(fields: [studentFeeId], references: [id])
+
+  @@index([schoolId, createdAt])
+  @@index([studentFeeId, kind, createdAt])
 }

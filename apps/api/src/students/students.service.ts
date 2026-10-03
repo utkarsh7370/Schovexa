@@ -3,6 +3,16 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { CreateStudentInput, LinkParentInput, UpdateStudentInput } from '@schovexa/validation';
 import type { AuthContext } from '../authorization/authorization.types';
+import { StorageService } from '../storage/storage.service';
+import { sniffDocumentType } from '../documents/documents.service';
+
+export const MAX_PHOTO_SIZE_BYTES = 2 * 1024 * 1024;
+
+/** A student row as the API returns it: the storage key never leaves the server, only the URL to fetch the photo through. */
+export function withPhotoUrl<T extends { id: string; photoKey?: string | null }>(student: T): Omit<T, 'photoKey'> & { photoUrl: string | null } {
+  const { photoKey, ...rest } = student;
+  return { ...rest, photoUrl: photoKey ? `/students/${student.id}/photo` : null };
+}
 
 export const DEFAULT_PAGE_SIZE = 12;
 export const MAX_PAGE_SIZE = 100;
@@ -22,7 +32,10 @@ export interface StudentListFilters {
 
 @Injectable()
 export class StudentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {}
 
   // A single resourceId (e.g. GET /students/:id) is scope-checked by
   // AuthorizationService.authorizeResource() in the controller — but a
@@ -62,7 +75,7 @@ export class StudentsService {
     const orderBy: Prisma.StudentOrderByWithRelationInput[] = [{ admissionNo: 'asc' }, { id: 'asc' }];
 
     if (!paged) {
-      return this.prisma.student.findMany({ where, orderBy, include });
+      return (await this.prisma.student.findMany({ where, orderBy, include })).map(withPhotoUrl);
     }
 
     const pageSize = filters.pageSize ?? DEFAULT_PAGE_SIZE;
@@ -71,7 +84,7 @@ export class StudentsService {
       this.prisma.student.count({ where }),
       this.prisma.student.findMany({ where, orderBy, include, skip: (page - 1) * pageSize, take: pageSize }),
     ]);
-    return { items, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+    return { items: items.map(withPhotoUrl), total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
   }
 
   private emptyPage(filters: StudentListFilters) {
@@ -204,7 +217,7 @@ export class StudentsService {
     if (!student) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Resource not found.' });
     }
-    return student;
+    return withPhotoUrl(student);
   }
 
   async update(schoolId: string, studentId: string, input: UpdateStudentInput) {
@@ -222,7 +235,7 @@ export class StudentsService {
     if (input.status !== undefined) data.status = input.status;
     if (input.schoolDay !== undefined) data.schoolDay = input.schoolDay;
 
-    return this.prisma.student.update({ where: { id: studentId }, data });
+    return withPhotoUrl(await this.prisma.student.update({ where: { id: studentId }, data }));
   }
 
   async remove(schoolId: string, studentId: string) {
@@ -274,5 +287,41 @@ export class StudentsService {
       throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Unknown section.' });
     }
     return section.id;
+  }
+
+  /** Sets (or replaces) the student's photo. Checked by content, not by the label the browser sent. */
+  async setPhoto(schoolId: string, studentId: string, file: Express.Multer.File | undefined) {
+    const student = await this.prisma.student.findFirst({ where: { id: studentId, schoolId, deletedAt: null } });
+    if (!student) throw new NotFoundException({ code: 'NOT_FOUND', message: 'Resource not found.' });
+    if (!file) throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Choose a photo to upload.' });
+    if (file.size > MAX_PHOTO_SIZE_BYTES) throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'The photo must be under 2 MB.' });
+    const type = sniffDocumentType(file.buffer);
+    if (type !== 'image/png' && type !== 'image/jpeg') {
+      throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'The photo must be a JPEG or PNG image.' });
+    }
+    const key = this.storage.buildKey(schoolId, 'StudentPhoto', studentId, type === 'image/png' ? 'photo.png' : 'photo.jpg');
+    await this.storage.putObject(key, file.buffer);
+    await this.prisma.student.update({ where: { id: studentId }, data: { photoKey: key } });
+    if (student.photoKey) await this.storage.deleteObject(student.photoKey).catch(() => undefined);
+    return { photoUrl: `/students/${studentId}/photo` };
+  }
+
+  async getPhoto(schoolId: string, studentId: string) {
+    const student = await this.prisma.student.findFirst({ where: { id: studentId, schoolId, deletedAt: null }, select: { photoKey: true } });
+    if (!student?.photoKey) throw new NotFoundException({ code: 'NOT_FOUND', message: 'Resource not found.' });
+    return {
+      contentType: student.photoKey.endsWith('.png') ? 'image/png' : 'image/jpeg',
+      stream: await this.storage.getObjectStream(student.photoKey),
+    };
+  }
+
+  async removePhoto(schoolId: string, studentId: string) {
+    const student = await this.prisma.student.findFirst({ where: { id: studentId, schoolId, deletedAt: null } });
+    if (!student) throw new NotFoundException({ code: 'NOT_FOUND', message: 'Resource not found.' });
+    if (student.photoKey) {
+      await this.prisma.student.update({ where: { id: studentId }, data: { photoKey: null } });
+      await this.storage.deleteObject(student.photoKey).catch(() => undefined);
+    }
+    return { photoUrl: null };
   }
 }

@@ -427,8 +427,12 @@ export type UpdateStudentFeeInput = z.infer<typeof updateStudentFeeSchema>;
 
 export const recordPaymentSchema = z.object({
   amountMinor: z.coerce.number().int().positive('Amount must be greater than zero'),
-  method: paymentMethodSchema,
+  // Which methods a school accepts is set on the server (PAYMENT_METHODS); today that is cash only.
+  method: paymentMethodSchema.default('CASH'),
   paidAt: z.union([z.literal(''), z.string()]).optional(),
+  receivedFrom: z.string().trim().max(100, 'Keep the name under 100 characters').optional(),
+  note: z.string().trim().max(300, 'Keep the note under 300 characters').optional(),
+  reference: z.string().trim().max(60, 'Keep the reference under 60 characters').optional(),
 });
 export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;
 
@@ -662,6 +666,9 @@ export const updateProfileSchema = z.object({
   emergencyContactName: z.string().trim().max(100, 'Keep the name under 100 characters').optional().or(z.literal('')),
   emergencyContactPhone: phoneField('phone number'),
   bio: z.string().trim().max(500, 'Keep it under 500 characters').optional().or(z.literal('')),
+  // Which non-essential messages they want. Security emails are always sent.
+  notifyByEmail: z.boolean().optional(),
+  notifyInApp: z.boolean().optional(),
 });
 export type UpdateProfileInput = z.input<typeof updateProfileSchema>;
 
@@ -734,6 +741,9 @@ export const updateSchoolSettingsSchema = z
     lateFeePerDayMinor: z.number().int().min(0).max(10_000_000).optional(),
     lateFeeGraceDays: z.number().int().min(0, 'Use 0 or more days').max(365).optional(),
     passPercent: z.number().int().min(1, 'Use 1–100').max(100, 'Use 1–100').optional(),
+    maxDiscountPercent: z.number().int().min(0, 'Use 0–100').max(100, 'Use 0–100').optional(),
+    paymentCorrectionWindowDays: z.number().int().min(0, 'Use 0 or more days').max(365, 'At most 365 days').optional(),
+    notifyPaymentReceipt: z.boolean().optional(),
     notifyAbsenceEmail: z.boolean().optional(),
     notifyYearApprovalEmail: z.boolean().optional(),
     notifyStaffAttendanceDecisions: z.boolean().optional(),
@@ -844,3 +854,86 @@ export const DEFAULT_GRADE_BANDS = [
   { label: 'D', minPercent: 40, gradePoint: 5, remark: 'Pass' },
   { label: 'F', minPercent: 0, gradePoint: 0, remark: 'Needs improvement' },
 ] as const;
+
+// --- Accountant: payments, refunds, concessions, reminders -------------------
+
+const isoDateTime = z.union([z.literal(''), z.string()]).optional();
+
+/** Correcting a recorded payment — a reason is always required, and the old values are kept in the audit log. */
+export const correctPaymentSchema = z
+  .object({
+    amountMinor: z.coerce.number().int().positive('Amount must be greater than zero').optional(),
+    paidAt: isoDateTime,
+    receivedFrom: z.string().trim().max(100).optional(),
+    note: z.string().trim().max(300).optional(),
+    reference: z.string().trim().max(60).optional(),
+    reason: z.string().trim().min(5, 'Say why the payment is being corrected (at least 5 characters)').max(300, 'Keep the reason under 300 characters'),
+  })
+  .refine((v) => v.amountMinor !== undefined || v.paidAt !== undefined || v.receivedFrom !== undefined || v.note !== undefined || v.reference !== undefined, {
+    message: 'Change at least one thing about the payment.',
+    path: ['amountMinor'],
+  });
+export type CorrectPaymentInput = z.infer<typeof correctPaymentSchema>;
+
+export const createRefundSchema = z.object({
+  paymentId: z.string().min(1, 'Choose the payment to refund'),
+  amountMinor: z.coerce.number().int().positive('Amount must be greater than zero'),
+  reason: z.string().trim().min(5, 'Say why the refund is needed (at least 5 characters)').max(300, 'Keep the reason under 300 characters'),
+});
+export type CreateRefundInput = z.infer<typeof createRefundSchema>;
+
+export const decideRefundSchema = z.object({
+  note: z.string().trim().max(300, 'Keep the note under 300 characters').optional(),
+});
+export type DecideRefundInput = z.infer<typeof decideRefundSchema>;
+
+export const rejectRefundSchema = z.object({
+  note: z.string().trim().min(3, 'Say why it is being rejected').max(300, 'Keep the note under 300 characters'),
+});
+export type RejectRefundInput = z.infer<typeof rejectRefundSchema>;
+
+export const CONCESSION_KINDS = ['DISCOUNT', 'SCHOLARSHIP', 'CONCESSION'] as const;
+export type ConcessionKindValue = (typeof CONCESSION_KINDS)[number];
+
+export const createConcessionSchema = z.object({
+  studentFeeId: z.string().min(1, 'Choose the fee'),
+  kind: z.enum(CONCESSION_KINDS).default('DISCOUNT'),
+  name: z.string().trim().min(2, 'Give it a name, like “Sibling discount”').max(80, 'Keep the name under 80 characters'),
+  amountMinor: z.coerce.number().int().positive('Amount must be greater than zero'),
+  reason: z.string().trim().min(5, 'Say why (at least 5 characters)').max(300, 'Keep the reason under 300 characters'),
+});
+export type CreateConcessionInput = z.input<typeof createConcessionSchema>;
+
+export const FEE_REMINDER_KINDS = ['DUE', 'OUTSTANDING', 'OVERDUE'] as const;
+export const sendFeeRemindersSchema = z
+  .object({
+    kind: z.enum(FEE_REMINDER_KINDS),
+    studentFeeIds: z.array(z.string().min(1)).min(1).max(500).optional(),
+    classId: z.string().optional(),
+    sectionId: z.string().optional(),
+    academicYearId: z.string().optional(),
+  })
+  .refine((v) => v.studentFeeIds || v.classId || v.sectionId || v.academicYearId, {
+    message: 'Choose which fees to remind about: pick some, or a class, section or year.',
+    path: ['studentFeeIds'],
+  });
+export type SendFeeRemindersInput = z.infer<typeof sendFeeRemindersSchema>;
+
+export const FINANCE_REPORT_KINDS = [
+  'daily-collection',
+  'monthly-collection',
+  'by-class',
+  'by-section',
+  'outstanding',
+  'overdue',
+  'payment-method',
+  'cash-collection',
+  'online-payments',
+  'failed-payments',
+  'refunds',
+  'concessions',
+  'scholarships',
+  'summary',
+  'transactions',
+] as const;
+export type FinanceReportKind = (typeof FINANCE_REPORT_KINDS)[number];

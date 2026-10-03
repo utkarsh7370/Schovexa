@@ -1,4 +1,7 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, Res, StreamableFile, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import type { Response } from 'express';
 import { createStudentSchema, linkParentSchema, updateStudentSchema } from '@schovexa/validation';
 import type { CreateStudentInput, LinkParentInput, UpdateStudentInput } from '@schovexa/validation';
 import { AuthGuard } from '../auth/guards/auth.guard';
@@ -8,7 +11,7 @@ import { RequirePermission } from '../authorization/decorators/require-permissio
 import { CurrentAuthContext } from '../authorization/decorators/current-auth-context.decorator';
 import { AuthorizationService } from '../authorization/authorization.service';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
-import { MAX_PAGE_SIZE, StudentsService, type StudentListFilters } from './students.service';
+import { MAX_PAGE_SIZE, MAX_PHOTO_SIZE_BYTES, StudentsService, type StudentListFilters } from './students.service';
 import type { AuthContext } from '../authorization/authorization.types';
 
 const STUDENT_STATUSES = ['ENROLLED', 'TRANSFERRED', 'GRADUATED', 'WITHDRAWN'];
@@ -116,5 +119,29 @@ export class StudentsController {
   ) {
     await this.authorizationService.authorizeResource(auth, 'Student', id);
     return this.studentsService.unlinkParent(auth.schoolId, id, parentId);
+  }
+
+  @Post(':id/photo')
+  @RequirePermission('student.update')
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: MAX_PHOTO_SIZE_BYTES } }))
+  async setPhoto(@Param('id') id: string, @UploadedFile() file: Express.Multer.File, @CurrentAuthContext() auth: AuthContext) {
+    await this.authorizationService.authorizeResource(auth, 'Student', id);
+    return this.studentsService.setPhoto(auth.schoolId, id, file);
+  }
+
+  @Delete(':id/photo')
+  @RequirePermission('student.update')
+  async removePhoto(@Param('id') id: string, @CurrentAuthContext() auth: AuthContext) {
+    await this.authorizationService.authorizeResource(auth, 'Student', id);
+    return this.studentsService.removePhoto(auth.schoolId, id);
+  }
+
+  @Get(':id/photo')
+  @RequirePermission('student.view')
+  async photo(@Param('id') id: string, @CurrentAuthContext() auth: AuthContext, @Res({ passthrough: true }) res: Response): Promise<StreamableFile> {
+    await this.authorizationService.authorizeResource(auth, 'Student', id);
+    const { contentType, stream } = await this.studentsService.getPhoto(auth.schoolId, id);
+    res.set({ 'Content-Type': contentType, 'Cache-Control': 'private, max-age=300', 'X-Content-Type-Options': 'nosniff' });
+    return new StreamableFile(stream);
   }
 }

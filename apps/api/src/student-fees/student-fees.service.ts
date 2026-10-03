@@ -5,8 +5,17 @@ import type { AssignFeeToStudentInput, RecordPaymentInput, UpdateStudentFeeInput
 import type { AuthContext } from '../authorization/authorization.types';
 import { SchoolSettingsService } from '../school-settings/school-settings.service';
 import { dateOnlyToIso, todayInTimezone } from '../common/dates.util';
+import { AuditService } from '../audit/audit.service';
+import { FeeNotifierService } from '../finance/fee-notifier.service';
+import { feeMoney, recomputeFeeStatus } from '../finance/fee-math';
+import { formatMoney } from '../finance/money';
+import { enabledPaymentMethods, PAYMENT_METHOD_LABELS } from '../finance/payment-methods';
 
-const FEE_INCLUDE = { feeStructure: { include: { feeCategory: true } }, payments: true } as const;
+const FEE_INCLUDE = {
+  feeStructure: { include: { feeCategory: true } },
+  payments: { where: { deletedAt: null } },
+  refunds: { where: { status: 'PROCESSED' as const } },
+} as const;
 type FeeWithRelations = Prisma.StudentFeeGetPayload<{ include: typeof FEE_INCLUDE }>;
 interface FeeRules {
   today: string;
@@ -19,6 +28,8 @@ export class StudentFeesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly settings: SchoolSettingsService,
+    private readonly audit: AuditService,
+    private readonly notifier: FeeNotifierService,
   ) {}
 
   // The school's late-fee rule and its own "today", read once per request.
@@ -91,15 +102,15 @@ export class StudentFeesService {
       throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'This fee has been waived.' });
     }
 
-    const fee = await this.prisma.studentFee.update({
+    await this.prisma.studentFee.update({
       where: { id: studentFeeId },
       data: {
         ...(input.amountDueMinor !== undefined ? { amountDueMinor: input.amountDueMinor } : {}),
         ...(input.dueDate !== undefined ? { dueDate: input.dueDate ? new Date(input.dueDate) : null } : {}),
       },
-      include: FEE_INCLUDE,
     });
-    return this.toDto(fee, await this.feeRules(schoolId));
+    await recomputeFeeStatus(this.prisma, studentFeeId);
+    return this.toDto(await this.prisma.studentFee.findUniqueOrThrow({ where: { id: studentFeeId }, include: FEE_INCLUDE }), await this.feeRules(schoolId));
   }
 
   // "Process a fee refund" (fee.refund, docs/permissions.md) maps to
@@ -126,8 +137,8 @@ export class StudentFeesService {
     });
   }
 
-  async recordPayment(schoolId: string, studentFeeId: string, collectedById: string, input: RecordPaymentInput) {
-    const studentFee = await this.findForAuth(schoolId, studentFeeId);
+  async recordPayment(schoolId: string, studentFeeId: string, collectedById: string, input: RecordPaymentInput, meta: { ipAddress?: string | null; userAgent?: string | null } = {}) {
+    const studentFee = await this.prisma.studentFee.findFirstOrThrow({ where: { id: studentFeeId, schoolId, deletedAt: null }, include: FEE_INCLUDE });
     if (studentFee.status === StudentFeeStatus.WAIVED) {
       throw new BadRequestException({
         code: 'VALIDATION_FAILED',
@@ -135,17 +146,35 @@ export class StudentFeesService {
       });
     }
 
+    // Only the payment methods this deployment has switched on (today: cash).
+    const methods = enabledPaymentMethods();
+    if (!methods.includes(input.method)) {
+      throw new BadRequestException({
+        code: 'PAYMENT_METHOD_NOT_ENABLED',
+        message: `${PAYMENT_METHOD_LABELS[input.method] ?? input.method} payments aren’t accepted here. Accepted: ${methods.map((m) => PAYMENT_METHOD_LABELS[m] ?? m).join(', ')}.`,
+        details: [{ field: 'method', message: 'This payment method isn’t switched on.' }],
+      });
+    }
+
+    const money = feeMoney(studentFee);
+    if (money.balanceMinor === 0) {
+      throw new BadRequestException({ code: 'NOTHING_OWED', message: 'There is nothing outstanding on this fee.' });
+    }
+    if (input.amountMinor > money.balanceMinor) {
+      throw new BadRequestException({
+        code: 'AMOUNT_EXCEEDS_BALANCE',
+        message: `That is more than the outstanding balance (${formatMoney(money.balanceMinor)}).`,
+        details: [{ field: 'amountMinor', message: `At most ${formatMoney(money.balanceMinor)}.` }],
+      });
+    }
+
     const settings = await this.settings.get(schoolId);
-    if (!settings.allowPartialPayments) {
-      const paid = await this.prisma.payment.aggregate({ where: { studentFeeId, deletedAt: null }, _sum: { amountMinor: true } });
-      const balance = Math.max(studentFee.amountDueMinor - (paid._sum.amountMinor ?? 0), 0);
-      if (input.amountMinor !== balance) {
-        throw new BadRequestException({
-          code: 'PARTIAL_PAYMENT_NOT_ALLOWED',
-          message: 'This school only accepts full payment of a fee. Record the whole outstanding balance.',
-          details: [{ field: 'amountMinor', message: 'Pay the full outstanding balance.' }],
-        });
-      }
+    if (!settings.allowPartialPayments && input.amountMinor !== money.balanceMinor) {
+      throw new BadRequestException({
+        code: 'PARTIAL_PAYMENT_NOT_ALLOWED',
+        message: 'This school only accepts full payment of a fee. Record the whole outstanding balance.',
+        details: [{ field: 'amountMinor', message: 'Pay the full outstanding balance.' }],
+      });
     }
 
     // Receipt numbers are a simple per-school sequential count, not a
@@ -156,7 +185,7 @@ export class StudentFeesService {
     const MAX_ATTEMPTS = 3;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
-        return await this.prisma.$transaction(async (tx) => {
+        const recorded = await this.prisma.$transaction(async (tx) => {
           const payment = await tx.payment.create({
             data: {
               schoolId,
@@ -165,21 +194,34 @@ export class StudentFeesService {
               method: input.method,
               collectedById,
               paidAt: input.paidAt ? new Date(input.paidAt) : new Date(),
+              receivedFrom: input.receivedFrom || null,
+              note: input.note || null,
+              reference: input.reference || null,
             },
           });
 
           const receiptCount = await tx.receipt.count({ where: { schoolId } });
           const receiptNo = `${settings.receiptPrefix}${String(receiptCount + 1).padStart(6, '0')}`;
           await tx.receipt.create({ data: { schoolId, paymentId: payment.id, receiptNo } });
-
-          const allPayments = await tx.payment.findMany({ where: { studentFeeId, deletedAt: null } });
-          const totalPaidMinor = allPayments.reduce((sum, p) => sum + p.amountMinor, 0);
-          const status =
-            totalPaidMinor >= studentFee.amountDueMinor ? StudentFeeStatus.PAID : StudentFeeStatus.PARTIALLY_PAID;
-          await tx.studentFee.update({ where: { id: studentFeeId }, data: { status } });
+          await recomputeFeeStatus(tx, studentFeeId);
 
           return tx.payment.findUniqueOrThrow({ where: { id: payment.id }, include: { receipt: true } });
         });
+
+        await this.audit.record({
+          schoolId,
+          userId: collectedById,
+          action: 'payment.recorded',
+          module: 'payment',
+          resourceType: 'Payment',
+          resourceId: recorded.id,
+          metadata: { amountMinor: recorded.amountMinor, method: recorded.method, receiptNo: recorded.receipt?.receiptNo ?? null, studentId: studentFee.studentId, studentFeeId },
+          ipAddress: meta.ipAddress ?? null,
+          userAgent: meta.userAgent ?? null,
+        });
+        // Tell the family (in-app, and by email when set up). Never blocks or fails the payment.
+        void this.notifier.paymentNotice(recorded.id, 'PAYMENT_CONFIRMATION', collectedById);
+        return recorded;
       } catch (err) {
         const isReceiptCollision = err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
         if (isReceiptCollision && attempt < MAX_ATTEMPTS) continue;
@@ -250,24 +292,28 @@ export class StudentFeesService {
   }
 
   private toDto(fee: FeeWithRelations, rules: FeeRules) {
-    const paidMinor = fee.payments.reduce((sum, p) => sum + p.amountMinor, 0);
-    const balanceMinor = Math.max(fee.amountDueMinor - paidMinor, 0);
-    // Late fee is shown, not added: it never changes what was billed or paid.
+    const money = feeMoney(fee);
+    const balanceMinor = money.balanceMinor;
+    // Late fee is shown, not added: it never changes the amount billed or paid.
     // It accrues per day once the grace period after the due date has passed.
-    let daysLate = 0;
+    let daysOverdue = 0;
     if (fee.dueDate && balanceMinor > 0 && fee.status !== StudentFeeStatus.WAIVED && fee.status !== StudentFeeStatus.PAID) {
-      const overdue = Math.round((new Date(rules.today).getTime() - new Date(dateOnlyToIso(fee.dueDate)).getTime()) / 86_400_000);
-      daysLate = Math.max(0, overdue - rules.graceDays);
+      daysOverdue = Math.max(0, Math.round((new Date(rules.today).getTime() - new Date(dateOnlyToIso(fee.dueDate)).getTime()) / 86_400_000));
     }
+    const daysLate = Math.max(0, daysOverdue - rules.graceDays);
     return {
       id: fee.id,
       studentId: fee.studentId,
       feeStructureId: fee.feeStructureId,
       amountDueMinor: fee.amountDueMinor,
+      discountMinor: fee.discountMinor,
+      netDueMinor: money.netDueMinor,
       dueDate: fee.dueDate,
       status: fee.status,
-      paidMinor,
+      paidMinor: money.paidMinor,
+      refundedMinor: money.refundedMinor,
       balanceMinor,
+      overdue: daysOverdue > 0,
       daysLate,
       lateFeeMinor: daysLate * rules.perDayMinor,
       feeCategory: { id: fee.feeStructure.feeCategory.id, name: fee.feeStructure.feeCategory.name },

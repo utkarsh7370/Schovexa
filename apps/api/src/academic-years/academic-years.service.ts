@@ -338,7 +338,7 @@ export class AcademicYearsService {
     await this.notifications.notify({ schoolId: auth.schoolId, userIds: approvers.map((u) => u.id), title, body, link: PAGE });
     // The in-app notice above always goes out; the email is the school's choice.
     if (!(await this.settings.get(auth.schoolId)).notifyYearApprovalEmail) return;
-    for (const approver of approvers) {
+    for (const approver of approvers.filter((a) => a.notifyByEmail)) {
       void this.email.send({
         to: approver.email,
         subject: `[${appName()}] ${title}`,

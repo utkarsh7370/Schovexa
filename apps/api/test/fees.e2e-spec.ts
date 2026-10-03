@@ -277,7 +277,7 @@ describe('Fees (e2e)', () => {
         .post(`/api/v1/student-fees/${studentFeeId}/payments`)
         .set('Origin', WEB_ORIGIN)
         .set('Cookie', cookie)
-        .send({ amountMinor: 200000, method: 'ONLINE' });
+        .send({ amountMinor: 200000, method: 'CASH' });
 
       const fees = await agent().get(`/api/v1/students/${studentId}/fees`).set('Cookie', cookie);
       const fee = fees.body.find((f: { id: string }) => f.id === studentFeeId);

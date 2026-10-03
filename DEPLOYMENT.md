@@ -31,6 +31,7 @@ the full list and what each one does):
 | `CONTACT_INBOX_EMAIL` | optional | where the website's Contact form is emailed (defaults to the founder's inbox). Messages are always saved in the `ContactMessage` table too |
 | `REQUIRE_EMAIL_VERIFICATION` | optional | defaults to **on** in production: sensitive actions (inviting people, changing roles, disabling access) wait until the person confirms their email. Needs working `SMTP_*` or nobody can confirm — set it to `false` until email is configured |
 | `REAUTH_WINDOW_MINUTES` | optional | how long a password confirmation stays valid for sensitive actions (default 10) |
+| `PAYMENT_METHODS` | optional | which ways of paying the school accepts, comma-separated: `CASH`, `CHEQUE`, `BANK_TRANSFER`. Defaults to **`CASH`** only — there is no payment gateway, and the API refuses any other method (`PAYMENT_METHOD_NOT_ENABLED`) until you add it here |
 | `RATE_LIMIT_PER_MINUTE` | optional | requests per minute per IP across the API (default 600); tighter limits on login, register and reset always apply |
 | `DEV_RELAX_RATE_LIMITS` | development only | `true` multiplies request limits ×100 so the demo seeder can run repeatedly; **ignored when `NODE_ENV=production`**. Don't set it on a live server |
 | `REDIS_URL` | recommended | when set, rate-limit counters are shared across API instances; without it they are per-instance memory |

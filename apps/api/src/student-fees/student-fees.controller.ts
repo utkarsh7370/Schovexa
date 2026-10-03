@@ -1,4 +1,6 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import type { Request } from 'express';
+import { requestMeta } from '../common/request-meta.util';
 import { assignFeeToStudentSchema, recordPaymentSchema, updateStudentFeeSchema } from '@schovexa/validation';
 import type { AssignFeeToStudentInput, RecordPaymentInput, UpdateStudentFeeInput } from '@schovexa/validation';
 import { AuthGuard } from '../auth/guards/auth.guard';
@@ -71,10 +73,11 @@ export class StudentFeesController {
     @Param('id') id: string,
     @Body(new ZodValidationPipe(recordPaymentSchema)) body: RecordPaymentInput,
     @CurrentAuthContext() auth: AuthContext,
+    @Req() req: Request,
   ) {
     const fee = await this.studentFeesService.findForAuth(auth.schoolId, id);
     await this.authorizationService.authorizeResource(auth, 'Student', fee.studentId);
-    return this.studentFeesService.recordPayment(auth.schoolId, id, auth.userId, body);
+    return this.studentFeesService.recordPayment(auth.schoolId, id, auth.userId, body, requestMeta(req));
   }
 
   @Get('fees/outstanding')

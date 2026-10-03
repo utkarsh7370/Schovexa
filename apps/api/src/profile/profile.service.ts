@@ -22,6 +22,8 @@ export function toProfileUser(user: User) {
     emergencyContactName: user.emergencyContactName,
     emergencyContactPhone: user.emergencyContactPhone,
     bio: user.bio,
+    notifyByEmail: user.notifyByEmail,
+    notifyInApp: user.notifyInApp,
     status: user.status,
     lastLoginAt: user.lastLoginAt,
   };
@@ -136,6 +138,8 @@ export class ProfileService {
         emergencyContactName: nullable(input.emergencyContactName),
         emergencyContactPhone: nullable(input.emergencyContactPhone),
         bio: nullable(input.bio),
+        ...(input.notifyByEmail !== undefined ? { notifyByEmail: input.notifyByEmail } : {}),
+        ...(input.notifyInApp !== undefined ? { notifyInApp: input.notifyInApp } : {}),
       },
     });
     await this.audit.record({

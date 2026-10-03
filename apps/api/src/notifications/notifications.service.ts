@@ -20,7 +20,11 @@ export class NotificationsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async notify(input: NotifyInput): Promise<void> {
-    const userIds = [...new Set(input.userIds)];
+    const wanted = [...new Set(input.userIds)];
+    if (wanted.length === 0) return;
+    // People can switch off in-app messages in their profile preferences.
+    const optedIn = await this.prisma.user.findMany({ where: { id: { in: wanted }, notifyInApp: true }, select: { id: true } });
+    const userIds = optedIn.map((u) => u.id);
     if (userIds.length === 0) return;
     await this.prisma.notification.createMany({
       data: userIds.map((userId) => ({
@@ -35,7 +39,7 @@ export class NotificationsService {
   }
 
   /** Active members of the school whose role grants `permissionKey` (e.g. who may approve a year). */
-  async usersWithPermission(schoolId: string, permissionKey: string): Promise<{ id: string; email: string; firstName: string }[]> {
+  async usersWithPermission(schoolId: string, permissionKey: string): Promise<{ id: string; email: string; firstName: string; notifyByEmail: boolean }[]> {
     const memberships = await this.prisma.schoolMembership.findMany({
       where: {
         schoolId,
@@ -45,7 +49,9 @@ export class NotificationsService {
       },
       include: { user: true },
     });
-    return memberships.filter((m) => m.user.status === 'ACTIVE').map((m) => ({ id: m.user.id, email: m.user.email, firstName: m.user.firstName }));
+    return memberships
+      .filter((m) => m.user.status === 'ACTIVE')
+      .map((m) => ({ id: m.user.id, email: m.user.email, firstName: m.user.firstName, notifyByEmail: m.user.notifyByEmail }));
   }
 
   async listMine(schoolId: string, userId: string, limit = 30) {

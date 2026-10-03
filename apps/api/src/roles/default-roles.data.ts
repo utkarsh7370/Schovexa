@@ -61,22 +61,37 @@ export function getDefaultRoleDefinitions(catalog: Permission[]): DefaultRoleDef
     ].filter((grant): grant is DefaultRoleGrant => !!grant),
   };
 
+  // The Accountant has full operational access to finance and limited,
+  // read-only access to student information — and no administrative authority
+  // outside finance. Deliberately NOT granted: student.view (the finance student
+  // lookup shows only what money work needs), fee.refund (writing a fee off),
+  // refund.approve / discount.approve / payment.correctAny (those belong to the
+  // Principal and Director — the accountant requests, someone else approves).
+  const accountantKeys = [
+    'fee.view',
+    'fee.create',
+    'fee.collect',
+    'finance.dashboard',
+    'finance.student',
+    'finance.audit',
+    'payment.correct',
+    'receipt.view',
+    'refund.view',
+    'refund.request',
+    'refund.process',
+    'discount.view',
+    'discount.request',
+    'discount.apply',
+    'financeReport.view',
+    'financeReport.export',
+    'feeNotice.send',
+    'notice.view',
+    'staffAttendance.mark',
+    'holiday.view',
+  ];
   const accountant: DefaultRoleDefinition = {
     name: 'Accountant',
-    grants: [
-      byKey('fee.view') && { permissionKey: 'fee.view', scope: 'ALL_SCHOOL' as PermissionScope },
-      byKey('fee.create') && { permissionKey: 'fee.create', scope: 'ALL_SCHOOL' as PermissionScope },
-      byKey('fee.collect') && { permissionKey: 'fee.collect', scope: 'ALL_SCHOOL' as PermissionScope },
-      byKey('fee.refund') && { permissionKey: 'fee.refund', scope: 'ALL_SCHOOL' as PermissionScope },
-      byKey('student.view') && {
-        permissionKey: 'student.view',
-        scope: 'ALL_SCHOOL' as PermissionScope,
-        readOnly: true,
-      },
-      byKey('notice.view') && { permissionKey: 'notice.view', scope: 'ALL_SCHOOL' as PermissionScope },
-      byKey('staffAttendance.mark') && { permissionKey: 'staffAttendance.mark', scope: 'SELF' as PermissionScope },
-      byKey('holiday.view') && { permissionKey: 'holiday.view', scope: 'ALL_SCHOOL' as PermissionScope },
-    ].filter((grant): grant is DefaultRoleGrant => !!grant),
+    grants: accountantKeys.filter((key) => byKey(key)).map((permissionKey) => ({ permissionKey, scope: (permissionKey === 'staffAttendance.mark' ? 'SELF' : 'ALL_SCHOOL') as PermissionScope })),
   };
 
   const receptionist: DefaultRoleDefinition = {
@@ -109,6 +124,7 @@ export function getDefaultRoleDefinitions(catalog: Permission[]): DefaultRoleDef
       byKey('student.view') && { permissionKey: 'student.view', scope: 'OWN_CHILDREN' as PermissionScope },
       byKey('attendance.view') && { permissionKey: 'attendance.view', scope: 'OWN_CHILDREN' as PermissionScope },
       byKey('fee.view') && { permissionKey: 'fee.view', scope: 'OWN_CHILDREN' as PermissionScope },
+      byKey('receipt.view') && { permissionKey: 'receipt.view', scope: 'OWN_CHILDREN' as PermissionScope },
       byKey('notice.view') && { permissionKey: 'notice.view', scope: 'ALL_SCHOOL' as PermissionScope },
       byKey('holiday.view') && { permissionKey: 'holiday.view', scope: 'ALL_SCHOOL' as PermissionScope },
     ].filter((grant): grant is DefaultRoleGrant => !!grant),

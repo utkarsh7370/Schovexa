@@ -44,3 +44,30 @@ export function hmToMinutes(hm: string): number {
   const [h, m] = hm.split(':').map(Number);
   return h * 60 + m;
 }
+
+/** Minutes the zone is ahead of UTC at a given instant (Kolkata → 330). */
+function zoneOffsetMinutes(timeZone: string, at: Date): number {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(at);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  const asUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
+  return Math.round((asUtc - at.getTime()) / 60_000);
+}
+
+/**
+ * The real start and end instants of one calendar day *in the school's time zone*.
+ * "Today's collection" means the school's today — 11:30 pm in Kolkata is still today
+ * there even though it is already tomorrow in UTC.
+ */
+export function localDayRange(timeZone: string | null | undefined, iso: string): { start: Date; end: Date } {
+  const zone = timeZone || FALLBACK_TIMEZONE;
+  const [y, m, d] = iso.split('-').map(Number);
+  const guess = new Date(Date.UTC(y, m - 1, d));
+  let offset: number;
+  try {
+    offset = zoneOffsetMinutes(zone, guess);
+  } catch {
+    offset = zoneOffsetMinutes(FALLBACK_TIMEZONE, guess);
+  }
+  const start = new Date(guess.getTime() - offset * 60_000);
+  return { start, end: new Date(start.getTime() + 24 * 60 * 60_000 - 1) };
+}

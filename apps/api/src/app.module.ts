@@ -37,6 +37,10 @@ import { ContactModule } from './contact/contact.module';
 import { ProfileModule } from './profile/profile.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { StaffAttendanceModule } from './staff-attendance/staff-attendance.module';
+import { FinanceModule } from './finance/finance.module';
+import { PaymentsModule } from './payments/payments.module';
+import { RefundsModule } from './refunds/refunds.module';
+import { ConcessionsModule } from './concessions/concessions.module';
 import { HttpExceptionFilter } from './common/http-exception.filter';
 import { RequestIdMiddleware } from './common/request-id.middleware';
 import { OriginCheckMiddleware } from './common/origin-check.middleware';
@@ -96,6 +100,10 @@ import { AuditLogsModule } from './audit/audit-logs.module';
     AuditLogsModule,
     ProfileModule,
     StaffAttendanceModule,
+    FinanceModule,
+    PaymentsModule,
+    RefundsModule,
+    ConcessionsModule,
     // Further domain modules are added here one at a time as each is
     // implemented, per docs/modules.md's phase order.
   ],

@@ -42,6 +42,7 @@ services:
       STORAGE_SECRET_ACCESS_KEY: ${STORAGE_SECRET_ACCESS_KEY:-}
       STORAGE_REGION: ${STORAGE_REGION:-}
       # Email: every setting is passed straight through; see .env.example.
+      PAYMENT_METHODS: ${PAYMENT_METHODS:-CASH}
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
       SMTP_URL: ${SMTP_URL:-}
       SMTP_HOST: ${SMTP_HOST:-}

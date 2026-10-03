@@ -109,6 +109,37 @@ export const permissionCatalog: PermissionSeed[] = [
   ...perms('audit', {
     view: 'View the audit log',
   }),
+  ...perms('finance', {
+    dashboard: 'View the finance dashboard',
+    student: 'Look up a student’s name, class, parents’ contact and fees (nothing academic)',
+    audit: 'View the finance activity log',
+  }),
+  ...perms('payment', {
+    correct: 'Correct a recently recorded payment',
+    correctAny: 'Correct a payment at any time',
+  }),
+  ...perms('receipt', {
+    view: 'View, download, print and reprint receipts',
+  }),
+  ...perms('refund', {
+    view: 'View refund requests',
+    request: 'Request a refund',
+    approve: 'Approve or reject a refund request',
+    process: 'Pay out an approved refund',
+  }),
+  ...perms('discount', {
+    view: 'View discounts, scholarships and concessions',
+    request: 'Request a discount, scholarship or concession',
+    apply: 'Apply a small discount or an approved concession',
+    approve: 'Approve or reject a concession request',
+  }),
+  ...perms('financeReport', {
+    view: 'View finance reports',
+    export: 'Export finance data (CSV, Excel, PDF)',
+  }),
+  ...perms('feeNotice', {
+    send: 'Send fee reminders to families',
+  }),
   ...perms('department', {
     view: 'View departments',
     create: 'Create a department',
