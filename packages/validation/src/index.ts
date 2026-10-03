@@ -325,6 +325,7 @@ export const createStudentSchema = z.object({
   lastName: z.string().min(1, 'Last name is required'),
   dateOfBirth: z.union([z.literal(''), z.string()]).optional(),
   gender: z.string().optional(),
+  rollNo: z.string().trim().max(20, 'Keep the roll number under 20 characters').optional(),
   sectionId: z.union([z.literal(''), z.string()]).optional(),
   schoolDay: studentSchoolDaySchema.optional(),
 });
@@ -335,6 +336,7 @@ export const updateStudentSchema = z.object({
   lastName: z.string().min(1).optional(),
   dateOfBirth: z.union([z.literal(''), z.string()]).optional(),
   gender: z.string().optional(),
+  rollNo: z.string().trim().max(20, 'Keep the roll number under 20 characters').optional(),
   sectionId: z.union([z.literal(''), z.string()]).optional(),
   status: studentStatusSchema.optional(),
   schoolDay: studentSchoolDaySchema.optional(),
@@ -366,7 +368,8 @@ export type InviteParentInput = z.infer<typeof inviteParentSchema>;
 
 // --- Attendance (docs/modules.md Phase 8) -----------------------------------
 
-const attendanceStatusSchema = z.enum(['PRESENT', 'ABSENT', 'LATE', 'EXCUSED']);
+export const ATTENDANCE_STATUSES = ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED', 'HALF_DAY'] as const;
+const attendanceStatusSchema = z.enum(ATTENDANCE_STATUSES);
 
 export const markAttendanceSchema = z.object({
   sectionId: z.string().min(1, 'Section is required'),
@@ -446,6 +449,8 @@ export const createNoticeSchema = z
     body: z.string().min(1, 'Body is required'),
     audienceType: noticeAudienceSchema,
     audienceRefId: z.string().optional(),
+    // Leave a date here and the notice publishes itself then (it must be in the future).
+    scheduledFor: z.string().datetime({ offset: true, message: 'Use a valid date and time' }).optional(),
   })
   .refine((data) => data.audienceType === 'ALL_SCHOOL' || !!data.audienceRefId, {
     message: 'A target is required for this audience.',
@@ -744,6 +749,10 @@ export const updateSchoolSettingsSchema = z
     maxDiscountPercent: z.number().int().min(0, 'Use 0–100').max(100, 'Use 0–100').optional(),
     paymentCorrectionWindowDays: z.number().int().min(0, 'Use 0 or more days').max(365, 'At most 365 days').optional(),
     notifyPaymentReceipt: z.boolean().optional(),
+    teachersSeeParentContact: z.boolean().optional(),
+    shareRemarksWithParents: z.boolean().optional(),
+    teacherDocumentCategories: z.array(z.string().trim().min(1).max(40)).max(30).optional(),
+    leaveAllowances: z.object({ CASUAL: z.number().min(0).max(365), SICK: z.number().min(0).max(365), EARNED: z.number().min(0).max(365) }).optional(),
     notifyAbsenceEmail: z.boolean().optional(),
     notifyYearApprovalEmail: z.boolean().optional(),
     notifyStaffAttendanceDecisions: z.boolean().optional(),
@@ -937,3 +946,218 @@ export const FINANCE_REPORT_KINDS = [
   'transactions',
 ] as const;
 export type FinanceReportKind = (typeof FINANCE_REPORT_KINDS)[number];
+
+// --- Teaching: attendance corrections, timetable, coursework, exams, content, remarks, messages, leave, events ---
+
+const isoDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a date like 2026-10-01');
+const idField = (label: string) => z.string().min(1, `Choose ${label}`);
+const teachText = (max: number) => z.string().trim().max(max, `Keep it under ${max} characters`).optional().or(z.literal(''));
+
+export const requestAttendanceCorrectionSchema = z.object({
+  studentId: idField('a student'),
+  sectionId: idField('a section'),
+  date: isoDay,
+  toStatus: attendanceStatusSchema,
+  remarks: teachText(200),
+  reason: z.string().trim().min(5, 'Say why it needs correcting (at least 5 characters)').max(300, 'Keep the reason under 300 characters'),
+});
+export type RequestAttendanceCorrectionInput = z.infer<typeof requestAttendanceCorrectionSchema>;
+
+export const decideNoteSchema = z.object({ note: teachText(300) });
+export const rejectNoteSchema = z.object({ note: z.string().trim().min(3, 'Say why').max(300, 'Keep the note under 300 characters') });
+export type DecideNoteInput = z.infer<typeof decideNoteSchema>;
+export type RejectNoteInput = z.infer<typeof rejectNoteSchema>;
+
+const timetableFields = {
+  sectionId: idField('a section'),
+  subjectId: idField('a subject'),
+  teacherId: idField('a teacher'),
+  dayOfWeek: z.coerce.number().int().min(1).max(7),
+  period: z.coerce.number().int().min(1, 'Periods start at 1').max(15),
+  startTime: timeOfDay('start time'),
+  endTime: timeOfDay('end time'),
+  room: teachText(40),
+};
+export const createTimetableSlotSchema = z.object(timetableFields).refine((v) => v.endTime > v.startTime, { path: ['endTime'], message: 'A lesson must end after it starts' });
+export const updateTimetableSlotSchema = z.object(timetableFields).partial();
+export const createSubstitutionSchema = z.object({
+  slotId: idField('a lesson'),
+  date: isoDay,
+  substituteTeacherId: idField('a substitute teacher'),
+  reason: teachText(200),
+});
+export type CreateTimetableSlotInput = z.infer<typeof createTimetableSlotSchema>;
+export type UpdateTimetableSlotInput = z.infer<typeof updateTimetableSlotSchema>;
+export type CreateSubstitutionInput = z.infer<typeof createSubstitutionSchema>;
+
+export const COURSEWORK_KINDS = ['HOMEWORK', 'ASSIGNMENT'] as const;
+export const PRIORITIES = ['LOW', 'NORMAL', 'HIGH'] as const;
+export const SUBMISSION_STATUSES = ['PENDING', 'SUBMITTED', 'REVIEWED', 'RESUBMIT'] as const;
+
+export const createCourseworkSchema = z.object({
+  kind: z.enum(COURSEWORK_KINDS),
+  sectionIds: z.array(z.string().min(1)).min(1, 'Choose at least one section').max(12, 'At most 12 sections at once'),
+  subjectId: idField('a subject'),
+  title: z.string().trim().min(2, 'Give it a title').max(120, 'Keep the title under 120 characters'),
+  description: teachText(2000),
+  dueDate: isoDay,
+  priority: z.enum(PRIORITIES).default('NORMAL'),
+  maxMarks: z.coerce.number().int().min(1, 'Marks must be at least 1').max(1000).optional(),
+  studentIds: z.array(z.string().min(1)).max(200).optional(),
+});
+export type CreateCourseworkInput = z.input<typeof createCourseworkSchema>;
+
+export const updateCourseworkSchema = z.object({
+  title: z.string().trim().min(2).max(120).optional(),
+  description: teachText(2000),
+  dueDate: isoDay.optional(),
+  priority: z.enum(PRIORITIES).optional(),
+  maxMarks: z.coerce.number().int().min(1).max(1000).nullable().optional(),
+  status: z.enum(['ACTIVE', 'CANCELLED', 'ARCHIVED']).optional(),
+});
+export type UpdateCourseworkInput = z.infer<typeof updateCourseworkSchema>;
+
+export const saveSubmissionsSchema = z.object({
+  records: z
+    .array(
+      z.object({
+        studentId: idField('a student'),
+        status: z.enum(SUBMISSION_STATUSES),
+        marks: z.coerce.number().min(0).max(1000).nullable().optional(),
+        feedback: teachText(500),
+      }),
+    )
+    .min(1, 'Nothing to save')
+    .max(300),
+});
+export type SaveSubmissionsInput = z.infer<typeof saveSubmissionsSchema>;
+
+export const createExamSchema = z
+  .object({
+    name: z.string().trim().min(2, 'Give the exam a name').max(80),
+    academicYearId: idField('an academic year'),
+    startDate: isoDay,
+    endDate: isoDay,
+  })
+  .refine((v) => v.endDate >= v.startDate, { path: ['endDate'], message: 'The exam can’t end before it starts' });
+export type CreateExamInput = z.infer<typeof createExamSchema>;
+
+export const createExamPaperSchema = z.object({
+  sectionId: idField('a section'),
+  subjectId: idField('a subject'),
+  date: isoDay.optional(),
+  startTime: timeOfDay('start time').optional(),
+  endTime: timeOfDay('end time').optional(),
+  room: teachText(40),
+  maxMarks: z.coerce.number().int().min(1).max(1000).default(100),
+});
+export type CreateExamPaperInput = z.input<typeof createExamPaperSchema>;
+
+export const saveMarksSchema = z.object({
+  records: z
+    .array(
+      z.object({
+        studentId: idField('a student'),
+        marks: z.coerce.number().min(0, 'Marks can’t be negative').nullable().optional(),
+        absent: z.boolean().optional(),
+        remark: teachText(200),
+      }),
+    )
+    .min(1, 'Nothing to save')
+    .max(300),
+});
+export type SaveMarksInput = z.infer<typeof saveMarksSchema>;
+
+export const markCorrectionSchema = z.object({ reason: z.string().trim().min(5, 'Say why (at least 5 characters)').max(300) });
+export type MarkCorrectionInput = z.infer<typeof markCorrectionSchema>;
+
+export const CONTENT_KINDS = ['NOTE', 'PDF', 'VIDEO', 'LINK', 'WORKSHEET', 'PRACTICE'] as const;
+const safeUrl = z
+  .string()
+  .trim()
+  .url('Enter a full web address, like https://…')
+  .refine((u) => /^https?:\/\//i.test(u), 'Only http and https links are allowed');
+export const createContentSchema = z.object({
+  sectionIds: z.array(z.string().min(1)).min(1, 'Choose at least one section').max(12),
+  subjectId: idField('a subject'),
+  kind: z.enum(CONTENT_KINDS),
+  title: z.string().trim().min(2, 'Give it a title').max(120),
+  description: teachText(2000),
+  url: safeUrl.optional().or(z.literal('')),
+  publish: z.boolean().optional(),
+});
+export type CreateContentInput = z.infer<typeof createContentSchema>;
+export const updateContentSchema = z.object({
+  title: z.string().trim().min(2).max(120).optional(),
+  description: teachText(2000),
+  url: safeUrl.optional().or(z.literal('')),
+  kind: z.enum(CONTENT_KINDS).optional(),
+  status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
+});
+export type UpdateContentInput = z.infer<typeof updateContentSchema>;
+
+export const REMARK_KINDS = ['ACADEMIC', 'BEHAVIOUR', 'STRENGTH', 'WEAK_AREA', 'PARTICIPATION', 'HOMEWORK', 'OBSERVATION', 'RECOMMENDATION'] as const;
+export const createRemarkSchema = z.object({
+  studentId: idField('a student'),
+  subjectId: z.string().optional(),
+  kind: z.enum(REMARK_KINDS).default('OBSERVATION'),
+  body: z.string().trim().min(3, 'Write the remark').max(1000, 'Keep it under 1000 characters'),
+  visibleToParents: z.boolean().optional(),
+});
+export type CreateRemarkInput = z.input<typeof createRemarkSchema>;
+export const updateRemarkSchema = z.object({
+  kind: z.enum(REMARK_KINDS).optional(),
+  body: z.string().trim().min(3).max(1000).optional(),
+  visibleToParents: z.boolean().optional(),
+});
+export type UpdateRemarkInput = z.infer<typeof updateRemarkSchema>;
+
+export const MESSAGE_KINDS = ['ANNOUNCEMENT', 'HOMEWORK', 'ASSIGNMENT', 'FEEDBACK', 'STUDENT'] as const;
+export const sendMessageSchema = z
+  .object({
+    kind: z.enum(MESSAGE_KINDS),
+    studentId: z.string().optional(),
+    sectionId: z.string().optional(),
+    subjectId: z.string().optional(),
+    subject: z.string().trim().min(2, 'Add a subject line').max(120),
+    body: z.string().trim().min(2, 'Write a message').max(2000, 'Keep it under 2000 characters'),
+  })
+  .refine((v) => !!v.studentId || !!v.sectionId, { path: ['sectionId'], message: 'Choose a student or a class' });
+export type SendMessageInput = z.infer<typeof sendMessageSchema>;
+export const parentQuerySchema = z.object({
+  studentId: idField('a child'),
+  teacherUserId: z.string().optional(),
+  subject: z.string().trim().min(2, 'Add a subject line').max(120),
+  body: z.string().trim().min(2, 'Write your question').max(2000),
+});
+export type ParentQueryInput = z.infer<typeof parentQuerySchema>;
+export const replyMessageSchema = z.object({ body: z.string().trim().min(2, 'Write a reply').max(2000) });
+export type ReplyMessageInput = z.infer<typeof replyMessageSchema>;
+
+export const LEAVE_KINDS = ['CASUAL', 'SICK', 'EARNED', 'UNPAID', 'OTHER'] as const;
+export const applyLeaveSchema = z
+  .object({
+    kind: z.enum(LEAVE_KINDS),
+    startDate: isoDay,
+    endDate: isoDay,
+    halfDay: z.boolean().optional(),
+    reason: z.string().trim().min(5, 'Give a reason (at least 5 characters)').max(500),
+  })
+  .refine((v) => v.endDate >= v.startDate, { path: ['endDate'], message: 'The last day can’t be before the first' })
+  .refine((v) => !v.halfDay || v.startDate === v.endDate, { path: ['halfDay'], message: 'A half day is a single day' });
+export type ApplyLeaveInput = z.infer<typeof applyLeaveSchema>;
+
+export const EVENT_KINDS = ['EVENT', 'MEETING', 'PARENT_TEACHER'] as const;
+export const createEventSchema = z
+  .object({
+    kind: z.enum(EVENT_KINDS).default('EVENT'),
+    title: z.string().trim().min(2, 'Give it a title').max(120),
+    startDate: isoDay,
+    endDate: isoDay.optional(),
+    startTime: timeOfDay('start time').optional().or(z.literal('')),
+    endTime: timeOfDay('end time').optional().or(z.literal('')),
+    location: teachText(100),
+    description: teachText(1000),
+  })
+  .refine((v) => !v.endDate || v.endDate >= v.startDate, { path: ['endDate'], message: 'It can’t end before it starts' });
+export type CreateEventInput = z.input<typeof createEventSchema>;

@@ -44,9 +44,10 @@ export class DocumentsService {
     };
   }
 
-  async listForOwner(schoolId: string, ownerType: string, ownerId: string) {
+  /** `categories` limits the list to those categories (case-insensitive) — for roles that may open only some documents. */
+  async listForOwner(schoolId: string, ownerType: string, ownerId: string, categories?: string[]) {
     return this.prisma.document.findMany({
-      where: { schoolId, ownerType, ownerId, deletedAt: null },
+      where: { schoolId, ownerType, ownerId, deletedAt: null, ...(categories ? { OR: categories.map((c) => ({ category: { equals: c, mode: 'insensitive' as const } })) } : {}) },
       orderBy: { createdAt: 'desc' },
     });
   }

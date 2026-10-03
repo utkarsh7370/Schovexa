@@ -82,6 +82,7 @@ describe('School Management (e2e)', () => {
 
       const roles = await agent().get('/api/v1/roles').set('Cookie', cookie);
       expect(roles.body.map((r: { name: string }) => r.name).sort()).toEqual([
+        'Academic Coordinator',
         'Accountant',
         'Director',
         'Parent',

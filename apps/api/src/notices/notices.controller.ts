@@ -18,7 +18,7 @@ export class NoticesController {
   @Get('notices')
   @RequirePermission('notice.view')
   async list(@CurrentAuthContext() auth: AuthContext) {
-    return this.noticesService.list(auth.schoolId, auth.userId, auth.roleId);
+    return this.noticesService.list(auth);
   }
 
   @Post('notices')
@@ -27,20 +27,20 @@ export class NoticesController {
     @Body(new ZodValidationPipe(createNoticeSchema)) body: CreateNoticeInput,
     @CurrentAuthContext() auth: AuthContext,
   ) {
-    return this.noticesService.create(auth.schoolId, auth.userId, body);
+    return this.noticesService.create(auth, body);
   }
 
   @Post('notices/:id/publish')
   @HttpCode(HttpStatus.OK)
   @RequirePermission('notice.publish')
   async publish(@Param('id') id: string, @CurrentAuthContext() auth: AuthContext) {
-    return this.noticesService.publish(auth.schoolId, id);
+    return this.noticesService.publish(auth, id);
   }
 
   @Post('notices/:id/read')
   @HttpCode(HttpStatus.OK)
   @RequirePermission('notice.view')
   async markRead(@Param('id') id: string, @CurrentAuthContext() auth: AuthContext) {
-    return this.noticesService.markRead(auth.schoolId, auth.userId, id);
+    return this.noticesService.markRead(auth, id);
   }
 }

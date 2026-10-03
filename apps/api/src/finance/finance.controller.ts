@@ -17,7 +17,8 @@ import { StudentsService } from '../students/students.service';
 import { describeDevice } from '../auth/device.util';
 import { schoolDateRange } from './date-range';
 import { FinanceReportsService } from './finance-reports.service';
-import type { ExportFormat, ReportFilters } from './finance-reports.service';
+import type { ExportFormat } from '../common/tabular-report';
+import type { ReportFilters } from './finance-reports.service';
 import { FinanceService } from './finance.service';
 
 const FINANCE_AUDIT_MODULES = ['payment', 'refund', 'discount', 'fee', 'receipt', 'finance'];

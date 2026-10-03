@@ -13,6 +13,7 @@ import { AuthorizationService } from '../authorization/authorization.service';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { MAX_PAGE_SIZE, MAX_PHOTO_SIZE_BYTES, StudentsService, type StudentListFilters } from './students.service';
 import type { AuthContext } from '../authorization/authorization.types';
+import { SchoolSettingsService } from '../school-settings/school-settings.service';
 
 const STUDENT_STATUSES = ['ENROLLED', 'TRANSFERRED', 'GRADUATED', 'WITHDRAWN'];
 const SCHOOL_DAYS = ['FULL_DAY', 'FIRST_HALF', 'SECOND_HALF'];
@@ -57,6 +58,7 @@ export class StudentsController {
   constructor(
     private readonly studentsService: StudentsService,
     private readonly authorizationService: AuthorizationService,
+    private readonly settings: SchoolSettingsService,
   ) {}
 
   @Get()
@@ -78,7 +80,10 @@ export class StudentsController {
   @RequirePermission('student.view')
   async findOne(@Param('id') id: string, @CurrentAuthContext() auth: AuthContext) {
     await this.authorizationService.authorizeResource(auth, 'Student', id);
-    return this.studentsService.findOne(auth.schoolId, id);
+    // A teacher sees the parents' names, but their phone and email only if the school allows it.
+    const teacherView = auth.scope === 'OWN_STUDENTS' || auth.scope === 'OWN_CLASS' || auth.scope === 'OWN_SUBJECT';
+    const parentContact = !teacherView || (await this.settings.get(auth.schoolId)).teachersSeeParentContact;
+    return this.studentsService.findOne(auth.schoolId, id, { parentContact });
   }
 
   @Patch(':id')

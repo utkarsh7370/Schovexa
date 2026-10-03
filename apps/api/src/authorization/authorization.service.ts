@@ -252,7 +252,8 @@ export class AuthorizationService {
 
   // -- OWN_STUDENTS: student's section is one this teacher owns -----------
 
-  private async checkOwnStudents(auth: AuthContext, resourceType: ResourceType, resourceId: string) {
+  private async checkOwnStudents(auth: AuthContext, resourceType: ResourceType, resourceId: string): Promise<boolean> {
+    if (resourceType === 'Document') return this.checkOwnStudentDocument(auth, resourceId);
     if (resourceType !== 'Student') return false;
 
     const teacherProfile = await this.prisma.teacher.findFirst({
@@ -266,6 +267,16 @@ export class AuthorizationService {
     if (!student || !student.sectionId) return false;
 
     return this.teacherOwnsSection(teacherProfile.id, student.sectionId);
+  }
+
+  // A student's document, for the teacher of that student — and only in a category the school lets teachers open.
+  private async checkOwnStudentDocument(auth: AuthContext, documentId: string): Promise<boolean> {
+    const doc = await this.prisma.document.findFirst({ where: { id: documentId, schoolId: auth.schoolId, ownerType: 'Student', deletedAt: null } });
+    if (!doc || !doc.category) return false;
+    const settings = await this.prisma.schoolSettings.findUnique({ where: { schoolId: auth.schoolId }, select: { teacherDocumentCategories: true } });
+    const category = doc.category.toLowerCase();
+    if (!(settings?.teacherDocumentCategories ?? []).some((c) => c.toLowerCase() === category)) return false;
+    return this.checkOwnStudents(auth, 'Student', doc.ownerId);
   }
 
   // -- OWN_CLASS: resolved via TeacherAssignment / Section.classTeacherId --

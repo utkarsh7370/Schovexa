@@ -1,4 +1,5 @@
 import { Global, Module } from '@nestjs/common';
+import { PhotoStorageService } from './photo-storage.service';
 import { StorageService } from './storage.service';
 
 // @Global() because Documents is the only consumer today but any future
@@ -6,7 +7,7 @@ import { StorageService } from './storage.service';
 // single storage seam — matching AuthorizationModule's existing pattern.
 @Global()
 @Module({
-  providers: [StorageService],
-  exports: [StorageService],
+  providers: [StorageService, PhotoStorageService],
+  exports: [StorageService, PhotoStorageService],
 })
 export class StorageModule {}

@@ -4,6 +4,7 @@ import type { UpdateProfileInput } from '@schovexa/validation';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { dateOnlyToIso } from '../common/dates.util';
+import { PhotoStorageService } from '../storage/photo-storage.service';
 
 const nullable = (value: string | undefined) => (value === undefined ? undefined : value.trim() === '' ? null : value.trim());
 
@@ -24,6 +25,7 @@ export function toProfileUser(user: User) {
     bio: user.bio,
     notifyByEmail: user.notifyByEmail,
     notifyInApp: user.notifyInApp,
+    photoUrl: user.photoKey ? '/me/photo' : null,
     status: user.status,
     lastLoginAt: user.lastLoginAt,
   };
@@ -43,6 +45,7 @@ export class ProfileService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly photos: PhotoStorageService,
   ) {}
 
   private async teacherDetail(schoolId: string, where: { userId: string } | { id: string }) {
@@ -152,6 +155,30 @@ export class ProfileService {
       ...meta,
     });
     return this.buildProfile(schoolId, membershipId);
+  }
+
+  // -- Own photo -------------------------------------------------------------
+
+  async setOwnPhoto(userId: string, schoolId: string, file: Express.Multer.File | undefined) {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const key = await this.photos.save(schoolId, 'UserPhoto', userId, file, user.photoKey);
+    await this.prisma.user.update({ where: { id: userId }, data: { photoKey: key } });
+    return { photoUrl: '/me/photo' };
+  }
+
+  async ownPhoto(userId: string) {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { photoKey: true } });
+    if (!user.photoKey) throw new NotFoundException({ code: 'NOT_FOUND', message: 'Resource not found.' });
+    return this.photos.open(user.photoKey);
+  }
+
+  async removeOwnPhoto(userId: string) {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (user.photoKey) {
+      await this.prisma.user.update({ where: { id: userId }, data: { photoKey: null } });
+      await this.photos.remove(user.photoKey);
+    }
+    return { photoUrl: null };
   }
 
   // -- Documents -----------------------------------------------------------

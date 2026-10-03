@@ -21,6 +21,7 @@ import { RequirePermission } from '../authorization/decorators/require-permissio
 import { CurrentAuthContext } from '../authorization/decorators/current-auth-context.decorator';
 import { AuthorizationService } from '../authorization/authorization.service';
 import { DocumentsService, MAX_DOCUMENT_SIZE_BYTES } from './documents.service';
+import { SchoolSettingsService } from '../school-settings/school-settings.service';
 import type { AuthContext } from '../authorization/authorization.types';
 
 // Documents are never served from a public/unauthenticated URL — every
@@ -33,13 +34,18 @@ export class DocumentsController {
   constructor(
     private readonly documentsService: DocumentsService,
     private readonly authorizationService: AuthorizationService,
+    private readonly settings: SchoolSettingsService,
   ) {}
 
   @Get('students/:studentId/documents')
   @RequirePermission('document.view')
   async listForStudent(@Param('studentId') studentId: string, @CurrentAuthContext() auth: AuthContext) {
     await this.authorizationService.authorizeResource(auth, 'Student', studentId);
-    return this.documentsService.listForOwner(auth.schoolId, 'Student', studentId);
+    // A teacher opens only the document categories the school has made available to teachers (none by default).
+    const restricted = auth.scope !== 'ALL_SCHOOL';
+    const categories = restricted ? (await this.settings.get(auth.schoolId)).teacherDocumentCategories : undefined;
+    if (restricted && categories && categories.length === 0) return [];
+    return this.documentsService.listForOwner(auth.schoolId, 'Student', studentId, categories);
   }
 
   @Post('students/:studentId/documents')

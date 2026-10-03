@@ -165,12 +165,13 @@ export class AttendanceService {
 
     return students.map((student) => {
       const studentRecords = recordsByStudent.get(student.id) ?? [];
-      const counts = { present: 0, absent: 0, late: 0, excused: 0 };
+      const counts = { present: 0, absent: 0, late: 0, excused: 0, halfDay: 0 };
       for (const record of studentRecords) {
         if (record.status === 'PRESENT') counts.present += 1;
         else if (record.status === 'ABSENT') counts.absent += 1;
         else if (record.status === 'LATE') counts.late += 1;
         else if (record.status === 'EXCUSED') counts.excused += 1;
+        else if (record.status === 'HALF_DAY') counts.halfDay += 1;
       }
       return {
         studentId: student.id,
@@ -214,6 +215,28 @@ export class AttendanceService {
   }
 
   /**
+   * Puts an APPROVED correction onto the record. This is the only way a locked day changes: an
+   * administrator decided it, so the edit window doesn't apply — but the parents are told exactly as
+   * for any other change in attendance.
+   */
+  async applyApprovedCorrection(
+    schoolId: string,
+    c: { studentId: string; sectionId: string; date: Date; toStatus: MarkAttendanceInput['records'][number]['status']; remarks: string | null },
+    decidedById: string,
+  ) {
+    const existing = await this.prisma.attendance.findUnique({ where: { studentId_date: { studentId: c.studentId, date: c.date } } });
+    await this.prisma.attendance.upsert({
+      where: { studentId_date: { studentId: c.studentId, date: c.date } },
+      create: { schoolId, studentId: c.studentId, sectionId: c.sectionId, date: c.date, status: c.toStatus, remarks: c.remarks, markedById: decidedById },
+      update: { status: c.toStatus, remarks: c.remarks ?? existing?.remarks ?? null, markedById: decidedById, sectionId: c.sectionId },
+    });
+    const day = dateOnlyToIso(c.date);
+    if (c.toStatus === 'ABSENT') await this.absenceAlerts.notifyAbsent(schoolId, [c.studentId], day);
+    else if (existing?.status === 'ABSENT') await this.absenceAlerts.notifyCorrection(schoolId, [c.studentId], day);
+    return existing?.status ?? null;
+  }
+
+  /**
    * The school's current calendar date — what the UI treats as "today" — plus
    * how far back attendance can still be changed (the school's edit window)
    * and whether today is a teaching day.
@@ -231,6 +254,17 @@ export class AttendanceService {
       editWindowDays: settings.attendanceEditWindowDays,
       schoolDay: { working: status.working, reason: status.reason, message: status.working ? '' : describeDayOff(status) },
     };
+  }
+
+  /** Is this date past the point where attendance can be edited directly? (Then a correction request is the way.) */
+  async isLocked(schoolId: string, dateIso: string): Promise<boolean> {
+    try {
+      await this.assertEditableDate(schoolId, dateIso);
+      return false;
+    } catch (err) {
+      if (err instanceof BadRequestException) return true;
+      throw err;
+    }
   }
 
   // Attendance is a same-day record by default: it can be marked or changed

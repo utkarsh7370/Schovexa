@@ -75,6 +75,7 @@ enum AttendanceStatus {
   ABSENT
   LATE
   EXCUSED
+  HALF_DAY
 }
 
 enum FeeFrequency {
@@ -202,41 +203,43 @@ enum AuthTokenPurpose {
 // ---------------------------------------------------------------------
 
 model User {
-  id              String    @id @default(cuid())
-  email           String // F1: uniqueness enforced by partial index (deletedAt IS NULL)
-  passwordHash    String
-  firstName       String
-  lastName        String
-  phone           String?
+  id                    String     @id @default(cuid())
+  email                 String // F1: uniqueness enforced by partial index (deletedAt IS NULL)
+  passwordHash          String
+  firstName             String
+  lastName              String
+  phone                 String?
   // Profile details a person fills in themselves ("My profile").
-  dateOfBirth           DateTime? @db.Date
+  dateOfBirth           DateTime?  @db.Date
   gender                String?
   address               String?
   emergencyContactName  String?
   emergencyContactPhone String?
   bio                   String?
   // Which non-essential messages this person wants (security emails always go out).
-  notifyByEmail  Boolean @default(true)
-  notifyInApp    Boolean @default(true)
-  status          UserStatus @default(INVITED)
-  emailVerifiedAt DateTime?
-  lastLoginAt     DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  deletedAt       DateTime?
+  notifyByEmail         Boolean    @default(true)
+  notifyInApp           Boolean    @default(true)
+  // Storage key of the person's own profile photo (served through the API, never a public URL).
+  photoKey              String?
+  status                UserStatus @default(INVITED)
+  emailVerifiedAt       DateTime?
+  lastLoginAt           DateTime?
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+  deletedAt             DateTime?
 
-  memberships SchoolMembership[]
-  teacher     Teacher[]
-  parent      Parent[]
-  student     Student[]
-  auditLogs   AuditLog[]
-  notices     Notice[]           @relation("NoticePublisher")
-  notifications Notification[]
-  noticeReads NoticeRead[]
+  memberships       SchoolMembership[]
+  teacher           Teacher[]
+  parent            Parent[]
+  student           Student[]
+  auditLogs         AuditLog[]
+  notices           Notice[]           @relation("NoticePublisher")
+  notifications     Notification[]
+  noticeReads       NoticeRead[]
   documentsUploaded Document[]
   staffAttendance   StaffAttendance[]
-  sessions    Session[]
-  authTokens  AuthToken[]
+  sessions          Session[]
+  authTokens        AuthToken[]
 
   @@index([email])
 }
@@ -292,80 +295,94 @@ model AuthToken {
 }
 
 model School {
-  id           String       @id @default(cuid())
-  name         String
-  slug         String       @unique
-  logoUrl      String?
+  id                     String       @id @default(cuid())
+  name                   String
+  slug                   String       @unique
+  logoUrl                String?
   // The logo file's storage key (the file itself is served by the API).
-  logoKey      String?
+  logoKey                String?
   // Profile — what the school says about itself.
-  motto         String?
-  description   String?
-  schoolCode    String?
-  board         String?
-  schoolType    String?
-  establishedYear Int?
-  affiliationNo String?
+  motto                  String?
+  description            String?
+  schoolCode             String?
+  board                  String?
+  schoolType             String?
+  establishedYear        Int?
+  affiliationNo          String?
   // Contact + address (address is line 1; the country is below).
-  address      String?
-  city         String?
-  state        String?
-  postalCode   String?
-  contactEmail String?
-  contactPhone String?
-  alternatePhone String?
-  website      String?
-  timezone     String       @default("Asia/Kolkata")
+  address                String?
+  city                   String?
+  state                  String?
+  postalCode             String?
+  contactEmail           String?
+  contactPhone           String?
+  alternatePhone         String?
+  website                String?
+  timezone               String       @default("Asia/Kolkata")
   // ISO 3166-1 alpha-2 — where the school is. Shown in the dashboard header.
-  country      String       @default("IN")
-  currency     String       @default("INR")
-  dateFormat   String       @default("DD/MM/YYYY")
+  country                String       @default("IN")
+  currency               String       @default("INR")
+  dateFormat             String       @default("DD/MM/YYYY")
   // When staff are expected to punch in and out (24-hour HH:mm, in the
   // school's own time zone). Punching in later than the in-time plus the
   // grace period counts as late.
-  staffPunchInTime      String @default("09:00")
-  staffPunchOutTime     String @default("16:00")
-  staffLateGraceMinutes Int    @default(10)
+  staffPunchInTime       String       @default("09:00")
+  staffPunchOutTime      String       @default("16:00")
+  staffLateGraceMinutes  Int          @default(10)
   // Tell a student's parents when the student is marked absent.
-  notifyParentsOnAbsence Boolean @default(true)
-  status       SchoolStatus @default(ACTIVE)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  deletedAt    DateTime?
+  notifyParentsOnAbsence Boolean      @default(true)
+  status                 SchoolStatus @default(ACTIVE)
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+  deletedAt              DateTime?
 
-  memberships       SchoolMembership[]
-  roles             Role[]
-  academicYears     AcademicYear[]
-  classes           Class[]
-  sections          Section[]
-  subjects          Subject[]
-  teachers          Teacher[]
-  teacherAssignments TeacherAssignment[]
-  students          Student[]
-  parents           Parent[]
-  studentParents    StudentParent[]
-  attendance        Attendance[]
-  feeCategories     FeeCategory[]
-  feeStructures     FeeStructure[]
-  studentFees       StudentFee[]
-  payments          Payment[]
-  receipts          Receipt[]
-  notices           Notice[]
-  notifications     Notification[]
-  noticeReads       NoticeRead[]
-  holidays          Holiday[]
-  staffAttendance   StaffAttendance[]
-  documents         Document[]
-  auditLogs         AuditLog[]
-  subscription      Subscription?
-  settings          SchoolSettings?
-  academicTerms     AcademicTerm[]
-  departments       Department[]
-  studentGroups     StudentGroup[]
-  gradeBands        GradeBand[]
-  refundRequests    RefundRequest[]
-  concessions       Concession[]
-  feeReminders      FeeReminder[]
+  memberships            SchoolMembership[]
+  roles                  Role[]
+  academicYears          AcademicYear[]
+  classes                Class[]
+  sections               Section[]
+  subjects               Subject[]
+  teachers               Teacher[]
+  teacherAssignments     TeacherAssignment[]
+  students               Student[]
+  parents                Parent[]
+  studentParents         StudentParent[]
+  attendance             Attendance[]
+  feeCategories          FeeCategory[]
+  feeStructures          FeeStructure[]
+  studentFees            StudentFee[]
+  payments               Payment[]
+  receipts               Receipt[]
+  notices                Notice[]
+  notifications          Notification[]
+  noticeReads            NoticeRead[]
+  holidays               Holiday[]
+  staffAttendance        StaffAttendance[]
+  documents              Document[]
+  auditLogs              AuditLog[]
+  subscription           Subscription?
+  settings               SchoolSettings?
+  academicTerms          AcademicTerm[]
+  departments            Department[]
+  studentGroups          StudentGroup[]
+  gradeBands             GradeBand[]
+  refundRequests         RefundRequest[]
+  concessions            Concession[]
+  feeReminders           FeeReminder[]
+  timetableSlots         TimetableSlot[]
+  timetableSubstitutions TimetableSubstitution[]
+  courseworks            Coursework[]
+  courseworkSubmissions  CourseworkSubmission[]
+  exams                  Exam[]
+  examPapers             ExamPaper[]
+  marks                  Mark[]
+  markCorrections        MarkCorrection[]
+  attendanceCorrections  AttendanceCorrection[]
+  learningContents       LearningContent[]
+  studentRemarks         StudentRemark[]
+  messages               Message[]
+  leaveRequests          LeaveRequest[]
+  schoolEvents           SchoolEvent[]
 }
 
 model SchoolMembership {
@@ -460,11 +477,11 @@ model AcademicYear {
   updatedAt    DateTime           @updatedAt
   deletedAt    DateTime?
 
-  school  School  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
-  classes Class[]
+  school        School               @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  classes       Class[]
   feeStructures FeeStructure[]
-  reviews AcademicYearReview[]
-  terms   AcademicTerm[]
+  reviews       AcademicYearReview[]
+  terms         AcademicTerm[]
 
   @@index([schoolId, name]) // F1: uniqueness enforced by partial index
   @@index([schoolId])
@@ -499,9 +516,9 @@ model Class {
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
 
-  school       School       @relation(fields: [schoolId], references: [id], onDelete: Restrict)
-  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
-  sections     Section[]
+  school        School         @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  academicYear  AcademicYear   @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  sections      Section[]
   feeStructures FeeStructure[]
 
   @@index([academicYearId, name]) // F1: uniqueness enforced by partial index
@@ -518,30 +535,39 @@ model Section {
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
 
-  school       School              @relation(fields: [schoolId], references: [id], onDelete: Restrict)
-  class        Class               @relation(fields: [classId], references: [id], onDelete: Restrict)
-  classTeacher Teacher?            @relation("ClassTeacherOf", fields: [classTeacherId], references: [id])
-  students     Student[]
-  assignments  TeacherAssignment[]
-  attendance   Attendance[]
+  school                School                 @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  class                 Class                  @relation(fields: [classId], references: [id], onDelete: Restrict)
+  classTeacher          Teacher?               @relation("ClassTeacherOf", fields: [classTeacherId], references: [id])
+  students              Student[]
+  assignments           TeacherAssignment[]
+  attendance            Attendance[]
+  timetableSlots        TimetableSlot[]
+  courseworks           Coursework[]
+  examPapers            ExamPaper[]
+  learningContents      LearningContent[]
+  attendanceCorrections AttendanceCorrection[]
 
   @@index([classId, name]) // F1: uniqueness enforced by partial index
   @@index([schoolId])
 }
 
 model Subject {
-  id        String    @id @default(cuid())
-  schoolId  String
-  name      String
-  code      String?
+  id           String    @id @default(cuid())
+  schoolId     String
+  name         String
+  code         String?
   departmentId String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
 
-  school      School              @relation(fields: [schoolId], references: [id], onDelete: Restrict)
-  department  Department?         @relation(fields: [departmentId], references: [id])
-  assignments TeacherAssignment[]
+  school           School              @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  department       Department?         @relation(fields: [departmentId], references: [id])
+  assignments      TeacherAssignment[]
+  timetableSlots   TimetableSlot[]
+  courseworks      Coursework[]
+  examPapers       ExamPaper[]
+  learningContents LearningContent[]
 
   @@index([schoolId, name]) // F1: uniqueness enforced by partial index
   @@index([schoolId])
@@ -559,13 +585,15 @@ model Teacher {
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
 
-  school         School              @relation(fields: [schoolId], references: [id], onDelete: Restrict)
-  department     Department?         @relation("DepartmentMembers", fields: [departmentId], references: [id])
-  headOfDepartments Department[]     @relation("DepartmentHead")
-  ledGroups      StudentGroup[]
-  user           User                @relation(fields: [userId], references: [id])
-  assignments    TeacherAssignment[]
-  classTeacherOf Section[]           @relation("ClassTeacherOf")
+  school            School                  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  department        Department?             @relation("DepartmentMembers", fields: [departmentId], references: [id])
+  headOfDepartments Department[]            @relation("DepartmentHead")
+  ledGroups         StudentGroup[]
+  user              User                    @relation(fields: [userId], references: [id])
+  assignments       TeacherAssignment[]
+  classTeacherOf    Section[]               @relation("ClassTeacherOf")
+  timetableSlots    TimetableSlot[]
+  substitutions     TimetableSubstitution[]
 
   @@index([schoolId, userId]) // F1: uniqueness enforced by partial index
   @@index([schoolId])
@@ -597,7 +625,7 @@ model TeacherAssignment {
 // ---------------------------------------------------------------------
 
 model Student {
-  id          String        @id @default(cuid())
+  id          String           @id @default(cuid())
   schoolId    String
   // Nullable: not every student has a portal login (especially younger
   // students) — a Student record can exist purely as an administrative
@@ -614,23 +642,29 @@ model Student {
   sectionId   String?
   // Storage key of the student's photo (served through the API, never a public URL).
   photoKey    String?
-  status      StudentStatus @default(ENROLLED)
+  // The number on the class register (a school's own numbering, so text).
+  rollNo      String?
+  status      StudentStatus    @default(ENROLLED)
   schoolDay   StudentSchoolDay @default(FULL_DAY)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
   deletedAt   DateTime?
 
-  school     School          @relation(fields: [schoolId], references: [id], onDelete: Restrict)
-  user       User?           @relation(fields: [userId], references: [id])
-  section    Section?        @relation(fields: [sectionId], references: [id])
-  parents    StudentParent[]
-  attendance Attendance[]
-  fees       StudentFee[]
-  groups     StudentGroupMember[]
-  refunds    RefundRequest[]
-  concessions Concession[]
+  school                School                 @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  user                  User?                  @relation(fields: [userId], references: [id])
+  section               Section?               @relation(fields: [sectionId], references: [id])
+  parents               StudentParent[]
+  attendance            Attendance[]
+  fees                  StudentFee[]
+  groups                StudentGroupMember[]
+  refunds               RefundRequest[]
+  concessions           Concession[]
   // Documents owned by a student are queried via Document.ownerType/
   // ownerId (polymorphic — see Document model), not a Prisma relation.
+  courseworkSubmissions CourseworkSubmission[]
+  marks                 Mark[]
+  attendanceCorrections AttendanceCorrection[]
+  remarks               StudentRemark[]
 
   @@index([schoolId, admissionNo]) // F1: uniqueness enforced by partial index
   @@index([schoolId, userId]) // F1: uniqueness (one active student profile per user per school) enforced by partial index
@@ -753,9 +787,9 @@ model StudentFee {
   updatedAt      DateTime         @updatedAt
   deletedAt      DateTime?
 
-  school       School       @relation(fields: [schoolId], references: [id], onDelete: Restrict)
-  student      Student      @relation(fields: [studentId], references: [id])
-  feeStructure FeeStructure @relation(fields: [feeStructureId], references: [id])
+  school       School          @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  student      Student         @relation(fields: [studentId], references: [id])
+  feeStructure FeeStructure    @relation(fields: [feeStructureId], references: [id])
   payments     Payment[]
   refunds      RefundRequest[]
   concessions  Concession[]
@@ -766,26 +800,26 @@ model StudentFee {
 }
 
 model Payment {
-  id            String        @id @default(cuid())
-  schoolId      String
-  studentFeeId  String
-  amountMinor   Int
-  method        PaymentMethod
-  collectedById String
-  paidAt        DateTime      @default(now())
+  id               String        @id @default(cuid())
+  schoolId         String
+  studentFeeId     String
+  amountMinor      Int
+  method           PaymentMethod
+  collectedById    String
+  paidAt           DateTime      @default(now())
   // Who handed the money over, a note, and the school's own voucher / receipt-book number.
-  receivedFrom  String?
-  note          String?
-  reference     String?
+  receivedFrom     String?
+  note             String?
+  reference        String?
   // Set when the payment was corrected after it was recorded (the old values live in the audit log).
   correctedAt      DateTime?
   correctedById    String?
   correctionReason String?
-  createdAt     DateTime      @default(now())
-  deletedAt     DateTime?
+  createdAt        DateTime      @default(now())
+  deletedAt        DateTime?
 
-  school     School     @relation(fields: [schoolId], references: [id], onDelete: Restrict)
-  studentFee StudentFee @relation(fields: [studentFeeId], references: [id])
+  school     School          @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  studentFee StudentFee      @relation(fields: [studentFeeId], references: [id])
   receipt    Receipt?
   refunds    RefundRequest[]
 
@@ -794,11 +828,11 @@ model Payment {
 }
 
 model Receipt {
-  id        String   @id @default(cuid())
-  schoolId  String
-  paymentId String   @unique // Payment is never deleted, so this 1:1 is always live — plain unique correct
-  receiptNo String
-  issuedAt  DateTime @default(now())
+  id            String    @id @default(cuid())
+  schoolId      String
+  paymentId     String    @unique // Payment is never deleted, so this 1:1 is always live — plain unique correct
+  receiptNo     String
+  issuedAt      DateTime  @default(now())
   // How many times it was printed / downloaded again after the first copy.
   reprintCount  Int       @default(0)
   lastPrintedAt DateTime?
@@ -815,7 +849,7 @@ model Receipt {
 // ---------------------------------------------------------------------
 
 model Notice {
-  id            String    @id @default(cuid())
+  id            String         @id @default(cuid())
   schoolId      String
   title         String
   body          String
@@ -823,7 +857,9 @@ model Notice {
   audienceRefId String?
   publishedById String
   publishedAt   DateTime?
-  createdAt     DateTime  @default(now())
+  // When set (and not yet published), the notice goes out by itself at this time.
+  scheduledFor  DateTime?
+  createdAt     DateTime       @default(now())
   deletedAt     DateTime?
 
   school        School         @relation(fields: [schoolId], references: [id], onDelete: Restrict)
@@ -1043,16 +1079,16 @@ model StaffAttendance {
 // to tell the parent and how it went. The unique key is also what stops the
 // same parent being told twice if attendance is saved again.
 model AbsenceAlert {
-  id        String             @id @default(cuid())
+  id        String              @id @default(cuid())
   schoolId  String
   studentId String
   parentId  String
-  date      DateTime           @db.Date
-  kind      AbsenceAlertKind   @default(ABSENT)
+  date      DateTime            @db.Date
+  kind      AbsenceAlertKind    @default(ABSENT)
   channel   NotificationChannel
   status    AbsenceAlertStatus
   detail    String?
-  createdAt DateTime           @default(now())
+  createdAt DateTime            @default(now())
 
   @@unique([studentId, date, parentId, channel, kind])
   @@index([schoolId, date])
@@ -1123,14 +1159,24 @@ model SchoolSettings {
 
   // Finance controls
   // The most an accountant may discount a single fee by without approval (percent of the fee).
-  maxDiscountPercent Int @default(5)
+  maxDiscountPercent          Int     @default(5)
   // How long after recording a payment it can still be corrected (days) — Principal and Director aren't limited.
-  paymentCorrectionWindowDays Int @default(2)
+  paymentCorrectionWindowDays Int     @default(2)
   // Tell the family when a payment is recorded (in-app, and email when it is set up).
-  notifyPaymentReceipt Boolean @default(true)
+  notifyPaymentReceipt        Boolean @default(true)
 
   // Grading
   passPercent Int @default(40)
+
+  // Teaching policy
+  // Whether a teacher sees the parent's phone and email (the parent's name is always shown).
+  teachersSeeParentContact  Boolean  @default(false)
+  // Whether a teacher's remarks about a student are visible to the student's parents by default.
+  shareRemarksWithParents   Boolean  @default(false)
+  // Which of a student's document categories a teacher may open (none by default).
+  teacherDocumentCategories String[] @default([])
+  // Days of paid leave per type per year, e.g. {"CASUAL":12,"SICK":10,"EARNED":15}.
+  leaveAllowances           Json     @default("{\"CASUAL\":12,\"SICK\":10,\"EARNED\":15}")
 
   // Notifications (absence alerts to parents are School.notifyParentsOnAbsence)
   notifyAbsenceEmail             Boolean @default(true)
@@ -1241,14 +1287,14 @@ enum RefundStatus {
 // Money going back to a family. Segregation of duties: the accountant requests,
 // the Principal or Director approves, then the accountant processes it.
 model RefundRequest {
-  id            String       @id @default(cuid())
+  id            String        @id @default(cuid())
   schoolId      String
   paymentId     String
   studentFeeId  String
   studentId     String
   amountMinor   Int
   reason        String
-  status        RefundStatus @default(REQUESTED)
+  status        RefundStatus  @default(REQUESTED)
   method        PaymentMethod @default(CASH)
   requestedById String
   decidedById   String?
@@ -1256,8 +1302,8 @@ model RefundRequest {
   decisionNote  String?
   processedById String?
   processedAt   DateTime?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   school     School     @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   payment    Payment    @relation(fields: [paymentId], references: [id])
@@ -1340,4 +1386,445 @@ model FeeReminder {
 
   @@index([schoolId, createdAt])
   @@index([studentFeeId, kind, createdAt])
+}
+
+// ---------------------------------------------------------------------
+// Teaching: timetable, coursework, exams & marks, content, remarks,
+// messages, leave, events. Every row is school-scoped; what a teacher
+// may see or change is decided by their TeacherAssignment (see
+// src/teaching/teaching-scope.service.ts), never by a client-sent id.
+// ---------------------------------------------------------------------
+
+enum CorrectionStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+}
+
+// A student's attendance for a day that is already locked: the teacher asks,
+// an administrator decides, and only then does the record change.
+model AttendanceCorrection {
+  id            String            @id @default(cuid())
+  schoolId      String
+  studentId     String
+  sectionId     String
+  date          DateTime          @db.Date
+  fromStatus    AttendanceStatus?
+  toStatus      AttendanceStatus
+  remarks       String?
+  reason        String
+  status        CorrectionStatus  @default(REQUESTED)
+  requestedById String
+  decidedById   String?
+  decidedAt     DateTime?
+  decisionNote  String?
+  createdAt     DateTime          @default(now())
+
+  school  School  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  student Student @relation(fields: [studentId], references: [id])
+  section Section @relation(fields: [sectionId], references: [id])
+
+  @@index([schoolId, status])
+  @@index([sectionId, date])
+}
+
+// The master timetable: one subject, taught by one teacher, to one section, in one period of one weekday.
+model TimetableSlot {
+  id        String   @id @default(cuid())
+  schoolId  String
+  sectionId String
+  subjectId String
+  teacherId String
+  dayOfWeek Int // ISO: 1 = Monday … 7 = Sunday
+  period    Int
+  startTime String // HH:mm
+  endTime   String
+  room      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school        School                  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  section       Section                 @relation(fields: [sectionId], references: [id])
+  subject       Subject                 @relation(fields: [subjectId], references: [id])
+  teacher       Teacher                 @relation(fields: [teacherId], references: [id])
+  substitutions TimetableSubstitution[]
+
+  // A class has one lesson per period, and a teacher can be in one place at a time.
+  @@unique([sectionId, dayOfWeek, period])
+  @@unique([teacherId, dayOfWeek, period])
+  @@index([schoolId])
+}
+
+model TimetableSubstitution {
+  id                  String   @id @default(cuid())
+  schoolId            String
+  slotId              String
+  date                DateTime @db.Date
+  substituteTeacherId String
+  reason              String?
+  createdById         String
+  createdAt           DateTime @default(now())
+
+  school            School        @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  slot              TimetableSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  substituteTeacher Teacher       @relation(fields: [substituteTeacherId], references: [id])
+
+  @@unique([slotId, date])
+  @@index([schoolId, date])
+  @@index([substituteTeacherId, date])
+}
+
+enum CourseworkKind {
+  HOMEWORK
+  ASSIGNMENT
+}
+
+enum CourseworkStatus {
+  ACTIVE
+  CANCELLED
+  ARCHIVED
+}
+
+enum Priority {
+  LOW
+  NORMAL
+  HIGH
+}
+
+enum SubmissionStatus {
+  PENDING
+  SUBMITTED
+  REVIEWED
+  RESUBMIT
+}
+
+// Homework and assignments are one thing with two faces: work set for a section in a
+// subject, due on a date, handed in by students. An assignment also carries marks.
+model Coursework {
+  id          String           @id @default(cuid())
+  schoolId    String
+  kind        CourseworkKind
+  sectionId   String
+  subjectId   String
+  title       String
+  description String?
+  dueDate     DateTime         @db.Date
+  priority    Priority         @default(NORMAL)
+  maxMarks    Int?
+  // Empty = the whole section; otherwise only these students.
+  studentIds  String[]         @default([])
+  status      CourseworkStatus @default(ACTIVE)
+  createdById String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  school      School                 @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  section     Section                @relation(fields: [sectionId], references: [id])
+  subject     Subject                @relation(fields: [subjectId], references: [id])
+  submissions CourseworkSubmission[]
+
+  @@index([schoolId, kind, dueDate])
+  @@index([sectionId, dueDate])
+}
+
+model CourseworkSubmission {
+  id           String           @id @default(cuid())
+  schoolId     String
+  courseworkId String
+  studentId    String
+  status       SubmissionStatus @default(PENDING)
+  submittedAt  DateTime?
+  marks        Float?
+  feedback     String?
+  reviewedAt   DateTime?
+  reviewedById String?
+  updatedAt    DateTime         @updatedAt
+
+  school     School     @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  coursework Coursework @relation(fields: [courseworkId], references: [id], onDelete: Cascade)
+  student    Student    @relation(fields: [studentId], references: [id])
+
+  @@unique([courseworkId, studentId])
+  @@index([schoolId])
+}
+
+enum MarksStatus {
+  DRAFT
+  SUBMITTED
+  REVIEWED
+  APPROVED
+  PUBLISHED
+  CORRECTION
+}
+
+model Exam {
+  id             String    @id @default(cuid())
+  schoolId       String
+  academicYearId String
+  name           String
+  startDate      DateTime  @db.Date
+  endDate        DateTime  @db.Date
+  createdById    String
+  createdAt      DateTime  @default(now())
+  deletedAt      DateTime?
+
+  school School      @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  papers ExamPaper[]
+
+  @@index([schoolId, startDate])
+}
+
+// One exam, for one section, in one subject — the unit a teacher enters marks for,
+// and the unit that moves through submit → review → approve → publish.
+model ExamPaper {
+  id            String      @id @default(cuid())
+  schoolId      String
+  examId        String
+  sectionId     String
+  subjectId     String
+  date          DateTime?   @db.Date
+  startTime     String?
+  endTime       String?
+  room          String?
+  maxMarks      Int         @default(100)
+  status        MarksStatus @default(DRAFT)
+  submittedAt   DateTime?
+  submittedById String?
+  reviewedAt    DateTime?
+  reviewedById  String?
+  approvedAt    DateTime?
+  approvedById  String?
+  publishedAt   DateTime?
+  returnNote    String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  school      School           @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  exam        Exam             @relation(fields: [examId], references: [id], onDelete: Cascade)
+  section     Section          @relation(fields: [sectionId], references: [id])
+  subject     Subject          @relation(fields: [subjectId], references: [id])
+  marks       Mark[]
+  corrections MarkCorrection[]
+
+  @@unique([examId, sectionId, subjectId])
+  @@index([schoolId, status])
+  @@index([sectionId, date])
+}
+
+model Mark {
+  id          String   @id @default(cuid())
+  schoolId    String
+  paperId     String
+  studentId   String
+  marks       Float?
+  absent      Boolean  @default(false)
+  remark      String?
+  updatedById String
+  updatedAt   DateTime @updatedAt
+
+  school  School    @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  paper   ExamPaper @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  student Student   @relation(fields: [studentId], references: [id])
+
+  @@unique([paperId, studentId])
+  @@index([schoolId])
+}
+
+// After marks are submitted they can't change silently: the teacher asks, an approver
+// reopens the paper, and every later change is written to the audit log.
+model MarkCorrection {
+  id            String           @id @default(cuid())
+  schoolId      String
+  paperId       String
+  reason        String
+  status        CorrectionStatus @default(REQUESTED)
+  requestedById String
+  decidedById   String?
+  decidedAt     DateTime?
+  decisionNote  String?
+  createdAt     DateTime         @default(now())
+
+  school School    @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  paper  ExamPaper @relation(fields: [paperId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, status])
+}
+
+enum ContentKind {
+  NOTE
+  PDF
+  VIDEO
+  LINK
+  WORKSHEET
+  PRACTICE
+}
+
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model LearningContent {
+  id          String        @id @default(cuid())
+  schoolId    String
+  sectionId   String
+  subjectId   String
+  kind        ContentKind
+  title       String
+  description String?
+  url         String?
+  status      ContentStatus @default(DRAFT)
+  publishedAt DateTime?
+  createdById String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  school  School  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  section Section @relation(fields: [sectionId], references: [id])
+  subject Subject @relation(fields: [subjectId], references: [id])
+
+  @@index([schoolId, status])
+  @@index([sectionId, subjectId])
+}
+
+enum RemarkKind {
+  ACADEMIC
+  BEHAVIOUR
+  STRENGTH
+  WEAK_AREA
+  PARTICIPATION
+  HOMEWORK
+  OBSERVATION
+  RECOMMENDATION
+}
+
+model StudentRemark {
+  id               String     @id @default(cuid())
+  schoolId         String
+  studentId        String
+  subjectId        String?
+  kind             RemarkKind @default(OBSERVATION)
+  body             String
+  visibleToParents Boolean    @default(false)
+  createdById      String
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  deletedAt        DateTime?
+
+  school  School  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@index([studentId, createdAt])
+  @@index([schoolId])
+}
+
+enum MessageKind {
+  ANNOUNCEMENT
+  HOMEWORK
+  ASSIGNMENT
+  FEEDBACK
+  STUDENT
+  QUERY
+  REPLY
+}
+
+// Teacher ↔ parent messages. One row per message; MessageRecipient gives each person
+// their own inbox entry (class-sized audiences only — school-wide goes through Notices).
+model Message {
+  id        String      @id @default(cuid())
+  schoolId  String
+  kind      MessageKind
+  senderId  String
+  studentId String?
+  sectionId String?
+  subjectId String?
+  subject   String
+  body      String
+  replyToId String?
+  threadId  String?
+  createdAt DateTime    @default(now())
+
+  school     School             @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  recipients MessageRecipient[]
+
+  @@index([schoolId, createdAt])
+  @@index([threadId])
+  @@index([senderId])
+}
+
+model MessageRecipient {
+  id        String    @id @default(cuid())
+  messageId String
+  userId    String
+  readAt    DateTime?
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([userId, readAt])
+}
+
+enum LeaveKind {
+  CASUAL
+  SICK
+  EARNED
+  UNPAID
+  OTHER
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model LeaveRequest {
+  id           String      @id @default(cuid())
+  schoolId     String
+  userId       String
+  kind         LeaveKind
+  startDate    DateTime    @db.Date
+  endDate      DateTime    @db.Date
+  halfDay      Boolean     @default(false)
+  // Teaching days actually covered (weekly offs and holidays don't count).
+  days         Float
+  reason       String
+  status       LeaveStatus @default(PENDING)
+  decidedById  String?
+  decidedAt    DateTime?
+  decisionNote String?
+  createdAt    DateTime    @default(now())
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, status])
+  @@index([userId, startDate])
+}
+
+enum EventKind {
+  EVENT
+  MEETING
+  PARENT_TEACHER
+}
+
+model SchoolEvent {
+  id          String    @id @default(cuid())
+  schoolId    String
+  kind        EventKind @default(EVENT)
+  title       String
+  startDate   DateTime  @db.Date
+  endDate     DateTime  @db.Date
+  startTime   String?
+  endTime     String?
+  location    String?
+  description String?
+  createdById String
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, startDate])
 }

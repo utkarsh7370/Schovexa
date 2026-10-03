@@ -38,6 +38,16 @@ import { ProfileModule } from './profile/profile.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { StaffAttendanceModule } from './staff-attendance/staff-attendance.module';
 import { FinanceModule } from './finance/finance.module';
+import { TeachingCoreModule } from './teaching/teaching-core.module';
+import { TimetableModule } from './timetable/timetable.module';
+import { CourseworkModule } from './coursework/coursework.module';
+import { ContentModule } from './content/content.module';
+import { ExamsModule } from './exams/exams.module';
+import { RemarksModule } from './remarks/remarks.module';
+import { MessagesModule } from './messages/messages.module';
+import { LeaveModule } from './leave/leave.module';
+import { EventsModule } from './events/events.module';
+import { TeachingModule } from './teaching/teaching.module';
 import { PaymentsModule } from './payments/payments.module';
 import { RefundsModule } from './refunds/refunds.module';
 import { ConcessionsModule } from './concessions/concessions.module';
@@ -100,6 +110,16 @@ import { AuditLogsModule } from './audit/audit-logs.module';
     AuditLogsModule,
     ProfileModule,
     StaffAttendanceModule,
+    TeachingCoreModule,
+    TimetableModule,
+    CourseworkModule,
+    ContentModule,
+    ExamsModule,
+    RemarksModule,
+    MessagesModule,
+    LeaveModule,
+    EventsModule,
+    TeachingModule,
     FinanceModule,
     PaymentsModule,
     RefundsModule,

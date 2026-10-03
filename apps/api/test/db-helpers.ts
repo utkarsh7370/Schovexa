@@ -11,6 +11,21 @@ import { PrismaClient } from '@prisma/client';
 // function, extended as each new module's tests add tables, avoids that
 // entire class of bug.
 export async function resetTestData(prisma: PrismaClient): Promise<void> {
+  await prisma.messageRecipient.deleteMany();
+  await prisma.message.deleteMany();
+  await prisma.studentRemark.deleteMany();
+  await prisma.leaveRequest.deleteMany();
+  await prisma.schoolEvent.deleteMany();
+  await prisma.markCorrection.deleteMany();
+  await prisma.mark.deleteMany();
+  await prisma.examPaper.deleteMany();
+  await prisma.exam.deleteMany();
+  await prisma.courseworkSubmission.deleteMany();
+  await prisma.coursework.deleteMany();
+  await prisma.learningContent.deleteMany();
+  await prisma.timetableSubstitution.deleteMany();
+  await prisma.timetableSlot.deleteMany();
+  await prisma.attendanceCorrection.deleteMany();
   await prisma.studentGroupMember.deleteMany();
   await prisma.studentGroup.deleteMany();
   await prisma.contactMessage.deleteMany();

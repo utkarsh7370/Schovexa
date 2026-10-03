@@ -150,4 +150,63 @@ export const permissionCatalog: PermissionSeed[] = [
     create: 'Create a house or group',
     update: 'Edit a house or group and manage its members',
   }),
+  ...perms('attendance', {
+    requestCorrection: 'Ask for a locked attendance record to be corrected',
+    approveCorrection: 'Approve or reject an attendance correction request',
+  }),
+  ...perms('timetable', {
+    view: 'View timetables',
+    manage: 'Create and change the master timetable and substitutions',
+  }),
+  ...perms('homework', {
+    view: 'View homework',
+    create: 'Set, edit and cancel homework',
+    review: 'Record, review and comment on homework submissions',
+  }),
+  ...perms('assignment', {
+    view: 'View assignments',
+    create: 'Set, edit and cancel assignments',
+    evaluate: 'Evaluate assignment submissions: marks and feedback',
+  }),
+  ...perms('exam', {
+    view: 'View exams and their timetable',
+    manage: 'Create exams and exam papers',
+  }),
+  ...perms('marks', {
+    view: 'View marks',
+    enter: 'Enter, submit and ask to correct marks',
+    review: 'Review submitted marks (academic coordinator)',
+    approve: 'Approve, publish and reopen marks',
+  }),
+  ...perms('result', {
+    view: 'View published results',
+  }),
+  ...perms('content', {
+    view: 'View study material',
+    create: 'Create, publish and archive study material',
+  }),
+  ...perms('remark', {
+    view: 'View teacher remarks and observations',
+    create: 'Write teacher remarks and observations',
+  }),
+  ...perms('message', {
+    view: 'Read teacher–parent messages',
+    send: 'Send teacher–parent messages',
+  }),
+  ...perms('leave', {
+    apply: 'Apply for leave and see your own requests',
+    view: 'View everyone’s leave requests',
+    approve: 'Approve or reject leave requests',
+  }),
+  ...perms('event', {
+    view: 'View school events and meetings',
+    manage: 'Add and edit school events and meetings',
+  }),
+  ...perms('teachingReport', {
+    view: 'View attendance, homework, assignment and marks reports',
+    export: 'Export those reports',
+  }),
+  ...perms('teaching', {
+    dashboard: 'View the teaching dashboard',
+  }),
 ];

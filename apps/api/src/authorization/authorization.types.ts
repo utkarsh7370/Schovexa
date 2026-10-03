@@ -1,4 +1,5 @@
 import type { PermissionScope } from '@prisma/client';
+import type { TeachingScope } from '../teaching/teaching-scope';
 
 // Attached to the request by SchoolContextGuard (base fields) and then
 // PermissionGuard (scope/readOnly/action, once a specific route's
@@ -11,6 +12,9 @@ export interface AuthContext {
   scope?: PermissionScope;
   readOnly?: boolean;
   permissionAction?: string;
+  /** Filled in on first use by TeachingScopeService, then reused for the rest of the request. */
+  teaching?: TeachingScope;
+  teachingMine?: TeachingScope;
 }
 
 // Resource types the scope resolvers know how to check. Kept as a small,

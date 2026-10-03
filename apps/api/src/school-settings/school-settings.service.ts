@@ -21,6 +21,10 @@ export const DEFAULT_SETTINGS = {
   lateFeePerDayMinor: 0,
   lateFeeGraceDays: 0,
   passPercent: 40,
+  teachersSeeParentContact: false,
+  shareRemarksWithParents: false,
+  teacherDocumentCategories: [] as string[],
+  leaveAllowances: { CASUAL: 12, SICK: 10, EARNED: 15 } as { CASUAL: number; SICK: number; EARNED: number },
   maxDiscountPercent: 5,
   paymentCorrectionWindowDays: 2,
   notifyPaymentReceipt: true,
@@ -71,6 +75,9 @@ export class SchoolSettingsService {
     if (missing.length > 0) {
       throw this.invalid('requiredStudentDocuments', `“${missing[0]}” is required but isn’t one of the document categories.`);
     }
+
+    const unknown = next.teacherDocumentCategories.find((c) => !next.documentCategories.some((d) => d.toLowerCase() === c.toLowerCase()));
+    if (unknown) throw this.invalid('teacherDocumentCategories', `“${unknown}” isn’t one of the document categories.`);
 
     const data = { ...input, workingDays: input.workingDays ? [...input.workingDays].sort((a, b) => a - b) : undefined };
     const row = await this.prisma.schoolSettings.upsert({

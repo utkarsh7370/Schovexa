@@ -21,6 +21,7 @@ import type { UpdateProfileInput } from '@schovexa/validation';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { SchoolContextGuard } from '../authorization/guards/school-context.guard';
 import { CurrentAuthContext } from '../authorization/decorators/current-auth-context.decorator';
+import { MAX_PHOTO_SIZE_BYTES } from '../storage/photo-storage.service';
 import type { AuthContext } from '../authorization/authorization.types';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { requestMeta } from '../common/request-meta.util';
@@ -54,6 +55,25 @@ export class MeController {
     @Req() req: Request,
   ) {
     return this.profileService.updateOwn(auth.schoolId, auth.membershipId, auth.userId, body, requestMeta(req));
+  }
+
+  // Own profile photo — JPEG/PNG up to 2 MB, checked by content, served only to the signed-in person.
+  @Post('photo')
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: MAX_PHOTO_SIZE_BYTES } }))
+  async setPhoto(@UploadedFile() file: Express.Multer.File, @CurrentAuthContext() auth: AuthContext) {
+    return this.profileService.setOwnPhoto(auth.userId, auth.schoolId, file);
+  }
+
+  @Get('photo')
+  async photo(@CurrentAuthContext() auth: AuthContext, @Res({ passthrough: true }) res: Response): Promise<StreamableFile> {
+    const { contentType, stream } = await this.profileService.ownPhoto(auth.userId);
+    res.set({ 'Content-Type': contentType, 'Cache-Control': 'private, max-age=300', 'X-Content-Type-Options': 'nosniff' });
+    return new StreamableFile(stream);
+  }
+
+  @Delete('photo')
+  async removePhoto(@CurrentAuthContext() auth: AuthContext) {
+    return this.profileService.removeOwnPhoto(auth.userId);
   }
 
   @Get('documents')
