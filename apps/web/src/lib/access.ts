@@ -19,9 +19,10 @@ const ROLE_ROUTES: Record<string, string[]> = {
     '/dashboard/my-attendance',
     '/dashboard/profile',
   ],
-  Accountant: ['/dashboard', '/dashboard/students', '/dashboard/fees', '/dashboard/holidays', '/dashboard/calendar', '/dashboard/notices', '/dashboard/my-attendance', '/dashboard/profile'],
+  // Finance only. No Students (the finance lookup shows what an accountant needs), no teaching, no administration.
+  Accountant: ['/dashboard', '/dashboard/finance', '/dashboard/receipts', '/dashboard/fees', '/dashboard/holidays', '/dashboard/calendar', '/dashboard/notices', '/dashboard/my-attendance', '/dashboard/profile'],
   Receptionist: ['/dashboard', '/dashboard/students', '/dashboard/parents', '/dashboard/holidays', '/dashboard/calendar', '/dashboard/notices', '/dashboard/my-attendance', '/dashboard/profile'],
-  Parent: ['/dashboard', '/dashboard/my-children', '/dashboard/holidays', '/dashboard/calendar', '/dashboard/notices', '/dashboard/profile'],
+  Parent: ['/dashboard', '/dashboard/my-children', '/dashboard/receipts', '/dashboard/holidays', '/dashboard/calendar', '/dashboard/notices', '/dashboard/profile'],
 };
 
 // Pages that only make sense for one role. "My Children" lists the

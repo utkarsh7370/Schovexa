@@ -31,6 +31,13 @@ import {
   Shapes,
   Trophy,
   CalendarRange,
+  Banknote,
+  Receipt,
+  RotateCcw,
+  Gift,
+  FileSpreadsheet,
+  FileClock,
+  Landmark,
 } from 'lucide-react';
 import { Avatar, LogoMark, Spinner } from '@schovexa/ui';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
@@ -93,7 +100,20 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/dashboard/holidays', label: 'Holidays', icon: PartyPopper },
     ],
   },
-  { label: 'Money', items: [{ href: '/dashboard/fees', label: 'Fees', icon: Wallet }] },
+  {
+    label: 'Finance',
+    items: [
+      { href: '/dashboard/finance', label: 'Finance Dashboard', icon: Landmark, permission: 'finance.dashboard' },
+      { href: '/dashboard/finance/collect', label: 'Collect Fee', icon: Banknote, permission: 'fee.collect' },
+      { href: '/dashboard/finance/transactions', label: 'Transactions', icon: Receipt, permission: 'fee.view' },
+      { href: '/dashboard/finance/demand', label: 'Fee Demand', icon: FileClock, permission: 'fee.view' },
+      { href: '/dashboard/finance/refunds', label: 'Refunds', icon: RotateCcw, permission: 'refund.view' },
+      { href: '/dashboard/finance/concessions', label: 'Discounts', icon: Gift, permission: 'discount.view' },
+      { href: '/dashboard/finance/reports', label: 'Finance Reports', icon: FileSpreadsheet, permission: 'financeReport.view' },
+      { href: '/dashboard/finance/activity', label: 'Finance Log', icon: ScrollText, permission: 'finance.audit' },
+    ],
+  },
+  { label: 'Money', items: [{ href: '/dashboard/fees', label: 'Fee Setup', icon: Wallet }] },
   { label: 'Insights', items: [{ href: '/dashboard/reports', label: 'Reports', icon: BarChart3 }] },
   { label: 'Communication', items: [{ href: '/dashboard/notices', label: 'Notices', icon: Bell }] },
   {
@@ -109,7 +129,7 @@ const NAV_GROUPS: NavGroup[] = [
 // Header search: type a student's name, admission number, class or a
 // parent's name/phone and land on the Students list already filtered.
 // Press "/" anywhere (outside a text field) to jump into it.
-function GlobalSearch() {
+function GlobalSearch({ financeOnly }: { financeOnly: boolean }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState('');
@@ -134,7 +154,8 @@ function GlobalSearch() {
       onSubmit={(e) => {
         e.preventDefault();
         const q = value.trim();
-        router.push(q ? `/dashboard/students?q=${encodeURIComponent(q)}` : '/dashboard/students');
+        if (financeOnly) router.push(q ? `/dashboard/finance/collect?q=${encodeURIComponent(q)}` : '/dashboard/finance/collect');
+        else router.push(q ? `/dashboard/students?q=${encodeURIComponent(q)}` : '/dashboard/students');
         setValue('');
         inputRef.current?.blur();
       }}
@@ -144,8 +165,8 @@ function GlobalSearch() {
         ref={inputRef}
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        aria-label="Search students and parents"
-        placeholder="Search students, parents, classes…"
+        aria-label={financeOnly ? 'Find a student to collect fees' : 'Search students and parents'}
+        placeholder={financeOnly ? 'Find a student to collect fees…' : 'Search students, parents, classes…'}
         className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/80 pl-10 pr-10 text-sm text-slate-900 placeholder:text-slate-400 transition-all duration-200 hover:border-slate-300 focus:border-brand-blue focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-blue/15"
       />
       <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-400 group-focus-within:hidden">/</kbd>
@@ -209,7 +230,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const forbidden = !canAccessRoute(roleName, pathname);
 
   const fullName = `${me.firstName} ${me.lastName}`;
-  const canSearchStudents = groups.some((g) => g.items.some((i) => i.href === '/dashboard/students'));
+  const financeSearch = !groups.some((g) => g.items.some((i) => i.href === '/dashboard/students')) && me.permissions.includes('finance.student');
+  const canSearchStudents = financeSearch || groups.some((g) => g.items.some((i) => i.href === '/dashboard/students'));
 
   const sidebarContent = (
     <>
@@ -227,7 +249,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-white/40">{group.label}</p>
             <div className="space-y-1">
               {group.items.map((item, index) => {
-                const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(`${item.href}/`));
+                const isActive = pathname === item.href || (item.href !== '/dashboard' && item.href !== '/dashboard/finance' && pathname.startsWith(`${item.href}/`));
                 const Icon = item.icon;
                 const isNotices = item.href === '/dashboard/notices';
                 return (
@@ -280,7 +302,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-slate-50">
       {/* Desktop sidebar */}
-      <aside className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col bg-brand-gradient-dark shadow-elevated lg:flex">{sidebarContent}</aside>
+      <aside className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col bg-brand-gradient-dark shadow-elevated lg:flex print:hidden">{sidebarContent}</aside>
 
       {/* Mobile drawer */}
       {mobileOpen && (
@@ -300,7 +322,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between border-b border-slate-200/70 bg-white/80 px-4 backdrop-blur-xl sm:px-6">
+        <header className="sticky top-0 z-30 flex h-16 print:hidden shrink-0 items-center justify-between border-b border-slate-200/70 bg-white/80 px-4 backdrop-blur-xl sm:px-6">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileOpen(true)}
@@ -313,7 +335,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <span className="hidden text-sm text-slate-500 xl:inline">{new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', timeZone: school?.timezone })}</span>
           </div>
 
-          {canSearchStudents && <GlobalSearch />}
+          {canSearchStudents && <GlobalSearch financeOnly={financeSearch} />}
 
           <div className="flex items-center gap-3">
             <NotificationBell />
@@ -371,9 +393,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <EmailVerificationBanner me={me} />
+        <div className="print:hidden"><EmailVerificationBanner me={me} /></div>
 
-        <main className="relative flex-1 bg-gradient-to-br from-slate-50 via-white to-sky-50/60 p-4 sm:p-6 lg:p-8">
+        <main className="relative flex-1 bg-gradient-to-br from-slate-50 via-white to-sky-50/60 p-4 sm:p-6 lg:p-8 print:bg-white print:p-0">
           <div className="bg-grid pointer-events-none absolute inset-x-0 top-0 h-72 opacity-40 [mask-image:linear-gradient(to_bottom,black,transparent)]" aria-hidden="true" />
           <div key={pathname} className="relative animate-fade-in-up">
             {forbidden ? <ForbiddenState /> : children}

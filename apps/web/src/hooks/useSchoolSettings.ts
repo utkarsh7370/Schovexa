@@ -15,6 +15,12 @@ export interface SchoolSettings {
   allowPartialPayments: boolean;
   lateFeePerDayMinor: number;
   lateFeeGraceDays: number;
+  /** The most an accountant can take off a fee without approval, as a percentage of the fee. */
+  maxDiscountPercent: number;
+  /** How long after recording a payment the accountant may still correct it. */
+  paymentCorrectionWindowDays: number;
+  /** Tell the family (in-app and email) when a payment is recorded. */
+  notifyPaymentReceipt: boolean;
   passPercent: number;
   notifyAbsenceEmail: boolean;
   notifyYearApprovalEmail: boolean;

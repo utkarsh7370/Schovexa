@@ -5,7 +5,8 @@ import { Avatar, Badge, EmptyState, PageHeader, Skeleton, type BadgeTone } from 
 import { CalendarCheck, CircleAlert, Clock, GraduationCap, Heart, School, Wallet } from 'lucide-react';
 import { useStudents, useStudent } from '../../../../hooks/useStudents';
 import { useAttendanceHistory, type AttendanceStatus } from '../../../../hooks/useAttendance';
-import { useStudentFees } from '../../../../hooks/useFees';
+import Link from 'next/link';
+import { useFeePayments, useStudentFees } from '../../../../hooks/useFees';
 import { formatMinor } from '../../../../lib/currency';
 import { STUDENT_STATUS_LABELS, STUDENT_STATUS_TONES } from '../../../../components/student-card';
 
@@ -197,8 +198,10 @@ function ChildCard({ studentId, index }: { studentId: string; index: number }) {
                     </div>
                     <p className="mt-2 text-xs text-slate-500">
                       Paid <span className="font-semibold text-emerald-600">{formatMinor(fee.paidMinor)}</span> of{' '}
-                      <span className="font-semibold text-slate-700">{formatMinor(fee.amountDueMinor)}</span>
+                      <span className="font-semibold text-slate-700">{formatMinor(fee.netDueMinor)}</span>
+                      {fee.discountMinor > 0 && <> (after a {formatMinor(fee.discountMinor)} discount)</>}
                     </p>
+                    <FeeReceipts feeId={fee.id} paid={fee.paidMinor > 0} />
                   </li>
                 );
               })}
@@ -209,6 +212,24 @@ function ChildCard({ studentId, index }: { studentId: string; index: number }) {
         </div>
       </div>
     </article>
+  );
+}
+
+// The receipts for payments on one fee, so a parent can keep or print them.
+function FeeReceipts({ feeId, paid }: { feeId: string; paid: boolean }) {
+  const { data: payments } = useFeePayments(paid ? feeId : undefined);
+  const withReceipt = (payments ?? []).filter((p) => p.receipt);
+  if (withReceipt.length === 0) return null;
+  return (
+    <ul className="mt-2 flex flex-wrap gap-2">
+      {withReceipt.map((p) => (
+        <li key={p.id}>
+          <Link href={`/dashboard/receipts/${p.receipt?.id}`} className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-brand-blue ring-1 ring-inset ring-brand-blue/20 hover:bg-brand-blue/5">
+            Receipt {p.receipt?.receiptNo} · {formatMinor(p.amountMinor)}
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
 

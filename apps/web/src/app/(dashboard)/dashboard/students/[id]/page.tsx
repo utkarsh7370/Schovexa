@@ -49,9 +49,11 @@ import { useStudentGroups } from '../../../../../hooks/useGroups';
 import { useStudentDocuments, studentDocumentsQueryKey, useDocumentConfig, describeAllowedTypes } from '../../../../../hooks/useDocuments';
 import { useAttendanceHistory, type AttendanceStatus } from '../../../../../hooks/useAttendance';
 import { useFeeStructures, useStudentFees, studentFeesQueryKey } from '../../../../../hooks/useFees';
+import { useFinanceConfig } from '../../../../../hooks/useFinance';
 import { formatMinor, majorToMinor } from '../../../../../lib/currency';
 import { api, ApiError } from '../../../../../lib/api-client';
 import { ProfileHero } from '../../../../../components/profile-hero';
+import { StudentPhoto } from '../../../../../components/student-photo';
 import { ForbiddenState, NotFoundState } from '../../../../../components/error-state';
 import { SectionCard } from '../../../../../components/section-card';
 import { ageFromDob, STUDENT_STATUS_LABELS, STUDENT_STATUS_TONES } from '../../../../../components/student-card';
@@ -98,6 +100,7 @@ export default function StudentDetailPage() {
   const balanceMinor = (fees ?? []).reduce((sum, f) => sum + f.balanceMinor, 0);
 
   const { can } = useCan();
+  const photoInput = useRef<HTMLInputElement>(null);
   const setSchoolDay = async (schoolDay: SchoolDay) => {
     setBusy(true);
     try {
@@ -107,6 +110,39 @@ export default function StudentDetailPage() {
       toast.show({ tone: 'success', title: `Now attends: ${schoolDayMeta(schoolDay).label.toLowerCase()}` });
     } catch (err) {
       toast.show({ tone: 'error', title: 'Could not update the school day', description: err instanceof ApiError ? err.message : undefined });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const uploadPhoto = async (file: File | undefined) => {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      await api.postForm(`/students/${id}/photo`, form);
+      await queryClient.invalidateQueries({ queryKey: studentQueryKey(id) });
+      await queryClient.invalidateQueries({ queryKey: STUDENTS_QUERY_KEY });
+      await queryClient.invalidateQueries({ queryKey: ['photo'] });
+      toast.show({ tone: 'success', title: 'Photo updated' });
+    } catch (err) {
+      toast.show({ tone: 'error', title: 'Could not upload the photo', description: err instanceof ApiError ? err.message : undefined });
+    } finally {
+      setBusy(false);
+      if (photoInput.current) photoInput.current.value = '';
+    }
+  };
+
+  const removePhoto = async () => {
+    setBusy(true);
+    try {
+      await api.delete(`/students/${id}/photo`);
+      await queryClient.invalidateQueries({ queryKey: studentQueryKey(id) });
+      await queryClient.invalidateQueries({ queryKey: STUDENTS_QUERY_KEY });
+      toast.show({ tone: 'success', title: 'Photo removed' });
+    } catch (err) {
+      toast.show({ tone: 'error', title: 'Could not remove the photo', description: err instanceof ApiError ? err.message : undefined });
     } finally {
       setBusy(false);
     }
@@ -187,6 +223,28 @@ export default function StudentDetailPage() {
           </>
         }
         chips={chips}
+        avatar={
+          <div className="flex flex-col items-center gap-2">
+            <div className="animate-scale-in rounded-full shadow-glow ring-4 ring-white">
+              <StudentPhoto name={fullName} photoUrl={student.photoUrl} size={96} />
+            </div>
+            {can('student.update') && (
+              <>
+                <input ref={photoInput} type="file" accept="image/jpeg,image/png" className="sr-only" aria-label="Upload student photo" onChange={(e) => uploadPhoto(e.target.files?.[0])} />
+                <div className="flex gap-2 text-[11px] font-semibold">
+                  <button type="button" disabled={busy} onClick={() => photoInput.current?.click()} className="rounded-full bg-white/15 px-2.5 py-1 text-white ring-1 ring-inset ring-white/25 hover:bg-white/25 disabled:opacity-50">
+                    {student.photoUrl ? 'Change photo' : 'Add photo'}
+                  </button>
+                  {student.photoUrl && (
+                    <button type="button" disabled={busy} onClick={removePhoto} className="rounded-full bg-white/10 px-2.5 py-1 text-white/80 ring-1 ring-inset ring-white/20 hover:bg-white/20 disabled:opacity-50">
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        }
         actions={
           <div className="flex flex-wrap gap-2">
           {can('student.update') && (
@@ -576,13 +634,6 @@ function AttendancePanel({
 
 // ---------------------------------------------------------------------------
 
-const PAYMENT_METHODS = ['CASH', 'CHEQUE', 'BANK_TRANSFER', 'ONLINE'] as const;
-const PAYMENT_METHOD_LABELS: Record<(typeof PAYMENT_METHODS)[number], string> = {
-  CASH: 'Cash',
-  CHEQUE: 'Cheque',
-  BANK_TRANSFER: 'Bank transfer',
-  ONLINE: 'Online',
-};
 const FEE_STATUS_LABELS: Record<string, string> = {
   PENDING: 'Pending',
   PARTIALLY_PAID: 'Partially paid',
@@ -605,7 +656,10 @@ function FeesPanel({ studentId }: { studentId: string }) {
   const [selectedStructureId, setSelectedStructureId] = useState('');
   const [payingId, setPayingId] = useState<string | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<(typeof PAYMENT_METHODS)[number]>('CASH');
+  const { can: canDo } = useCan();
+  const { data: financeConfig } = useFinanceConfig();
+  const paymentMethods = financeConfig?.paymentMethods ?? [{ value: 'CASH', label: 'Cash' }];
+  const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [confirmingWaive, setConfirmingWaive] = useState<string | null>(null);
@@ -716,7 +770,7 @@ function FeesPanel({ studentId }: { studentId: string }) {
 
       <div className="flex flex-col gap-3">
         {fees?.map((fee) => {
-          const pct = fee.amountDueMinor > 0 ? Math.min(100, Math.round((fee.paidMinor / fee.amountDueMinor) * 100)) : 0;
+          const pct = fee.netDueMinor > 0 ? Math.min(100, Math.round((fee.paidMinor / fee.netDueMinor) * 100)) : 100;
           const open = fee.status !== 'WAIVED' && fee.status !== 'PAID';
           return (
             <div key={fee.id} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 transition-colors hover:bg-white">
@@ -727,7 +781,8 @@ function FeesPanel({ studentId }: { studentId: string }) {
                     <Badge tone={FEE_STATUS_TONES[fee.status] ?? 'neutral'}>{FEE_STATUS_LABELS[fee.status] ?? fee.status}</Badge>
                   </p>
                   <p className="mt-1 text-xs text-slate-500">
-                    Due <span className="font-semibold text-slate-700">{formatMinor(fee.amountDueMinor)}</span> · Paid{' '}
+                    Due <span className="font-semibold text-slate-700">{formatMinor(fee.amountDueMinor)}</span>
+                    {fee.discountMinor > 0 && <span className="font-semibold text-sky-700"> − {formatMinor(fee.discountMinor)} discount</span>} · Paid{' '}
                     <span className="font-semibold text-emerald-600">{formatMinor(fee.paidMinor)}</span> · Balance{' '}
                     <span className={['font-semibold', fee.balanceMinor > 0 ? 'text-amber-600' : 'text-slate-700'].join(' ')}>{formatMinor(fee.balanceMinor)}</span>
                     {fee.lateFeeMinor > 0 && <span className="font-semibold text-rose-600"> · Late fee {formatMinor(fee.lateFeeMinor)} ({fee.daysLate}d overdue)</span>}
@@ -738,9 +793,11 @@ function FeesPanel({ studentId }: { studentId: string }) {
                     <Button size="sm" variant="secondary" onClick={() => setPayingId(payingId === fee.id ? null : fee.id)}>
                       Record payment
                     </Button>
-                    <Button size="sm" variant="soft-danger" loading={busyId === fee.id && payingId !== fee.id} onClick={() => setConfirmingWaive(fee.id)}>
-                      Waive
-                    </Button>
+                    {canDo('fee.refund') && (
+                      <Button size="sm" variant="soft-danger" loading={busyId === fee.id && payingId !== fee.id} onClick={() => setConfirmingWaive(fee.id)}>
+                        Waive
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
@@ -758,10 +815,10 @@ function FeesPanel({ studentId }: { studentId: string }) {
                     value={paymentAmount}
                     onChange={(e) => setPaymentAmount(e.target.value)}
                   />
-                  <SelectField label="Method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as (typeof PAYMENT_METHODS)[number])}>
-                    {PAYMENT_METHODS.map((m) => (
-                      <option key={m} value={m}>
-                        {PAYMENT_METHOD_LABELS[m]}
+                  <SelectField label="Method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} helperText={paymentMethods.length === 1 ? 'Cash is the only method accepted.' : undefined}>
+                    {paymentMethods.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
                       </option>
                     ))}
                   </SelectField>

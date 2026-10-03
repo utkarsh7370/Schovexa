@@ -33,6 +33,7 @@ import { NextHolidayCard } from '../../../components/next-holiday';
 import { AcademicYearAttention } from '../../../components/academic-year-attention';
 import { StaffAttendanceAttention } from '../../../components/staff-attendance-attention';
 import { PunchCard } from '../../../components/punch-card';
+import { FinanceDashboard } from '../../../components/finance/finance-dashboard';
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -67,9 +68,9 @@ export default function DashboardHomePage() {
   const showTeacherView = roleName === 'Teacher';
   const showParentView = roleName === 'Parent';
 
-  const { data: students } = useStudents();
+  const { data: students } = useStudents({ enabled: roleName !== 'Accountant' });
   const { data: memberships } = useMemberships({ enabled: showStaffStat });
-  const { data: outstanding } = useOutstandingFees({ enabled: showFeeStat });
+  const { data: outstanding } = useOutstandingFees({ enabled: showFeeStat && roleName !== 'Accountant' });
   const { data: notices } = useNotices();
 
   const activeStaffCount = memberships?.filter((m) => m.status === 'ACTIVE').length;
@@ -166,6 +167,20 @@ export default function DashboardHomePage() {
           </Card>
         </Link>
         {noticesSection(unreadNotices.length > 0 ? 'New notices' : 'Recent notices', unreadNotices.length > 0 ? unreadNotices.slice(0, 3) : recentNotices)}
+        {viewer.dialog}
+      </div>
+    );
+  }
+
+  if (roleName === 'Accountant') {
+    return (
+      <div className="mx-auto max-w-6xl">
+        {hero}
+        <PunchCard compact className="mt-6" />
+        <div className="mt-6">
+          <FinanceDashboard />
+        </div>
+        {noticesSection('Recent notices', recentNotices)}
         {viewer.dialog}
       </div>
     );

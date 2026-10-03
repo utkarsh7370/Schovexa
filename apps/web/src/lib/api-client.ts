@@ -57,7 +57,45 @@ async function apiRequest<T>(path: string, init?: RequestInit, retried = false):
   return res.json();
 }
 
+// A file (PDF, spreadsheet, photo) as a Blob, for download or preview. Goes through
+// the same cookie session as every other call, so nothing is ever a public URL.
+async function apiBlob(path: string, retried = false): Promise<{ blob: Blob; filename: string | null }> {
+  const res = await fetch(`${API_URL}${path}`, { method: 'GET', credentials: 'include' });
+  if (!res.ok) {
+    const error = await ApiError.fromResponse(res);
+    if (error.code === 'REAUTH_REQUIRED' && reauthHandler && !retried) {
+      if (await reauthHandler()) return apiBlob(path, true);
+    }
+    throw error;
+  }
+  const disposition = res.headers.get('Content-Disposition') ?? '';
+  const match = /filename="?([^";]+)"?/.exec(disposition);
+  return { blob: await res.blob(), filename: match ? match[1] : null };
+}
+
+/** Fetches a file and hands it to the browser as a download. */
+export async function downloadFile(path: string, fallbackName: string): Promise<void> {
+  const { blob, filename } = await apiBlob(path);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename ?? fallbackName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+/** Fetches a file and opens it in a new tab (a PDF to print, say). */
+export async function openFile(path: string): Promise<void> {
+  const { blob } = await apiBlob(path);
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank', 'noopener');
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 export const api = {
+  blob: apiBlob,
   get: <T>(path: string) => apiRequest<T>(path, { method: 'GET' }),
   post: <T>(path: string, body?: unknown) =>
     apiRequest<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),

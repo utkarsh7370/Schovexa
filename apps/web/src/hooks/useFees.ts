@@ -21,10 +21,16 @@ export interface StudentFee {
   studentId: string;
   feeStructureId: string;
   amountDueMinor: number;
+  /** Discounts, scholarships and concessions applied to this fee. */
+  discountMinor: number;
+  /** What the family owes after discounts. */
+  netDueMinor: number;
   dueDate: string | null;
   status: StudentFeeStatus;
   paidMinor: number;
+  refundedMinor: number;
   balanceMinor: number;
+  overdue: boolean;
   /** Days past the due date (after the school's grace days). */
   daysLate: number;
   /** Late fee accrued so far — shown, never added to the amount billed. */
@@ -42,7 +48,7 @@ export interface Payment {
   amountMinor: number;
   method: 'CASH' | 'CHEQUE' | 'BANK_TRANSFER' | 'ONLINE';
   paidAt: string;
-  receipt: { receiptNo: string } | null;
+  receipt: { id: string; receiptNo: string } | null;
 }
 
 export const FEE_CATEGORIES_QUERY_KEY = ['fee-categories'];

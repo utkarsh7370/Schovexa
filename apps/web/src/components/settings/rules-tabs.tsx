@@ -68,6 +68,9 @@ export function FeesTab({ settings, canEdit }: { settings: SchoolSettings; canEd
       allowPartialPayments: settings.allowPartialPayments,
       lateFeePerDay: String(minorToMajor(settings.lateFeePerDayMinor)),
       lateFeeGraceDays: String(settings.lateFeeGraceDays),
+      maxDiscountPercent: String(settings.maxDiscountPercent),
+      paymentCorrectionWindowDays: String(settings.paymentCorrectionWindowDays),
+      notifyPaymentReceipt: settings.notifyPaymentReceipt,
     }),
     [settings],
   );
@@ -80,6 +83,9 @@ export function FeesTab({ settings, canEdit }: { settings: SchoolSettings; canEd
       allowPartialPayments: v.allowPartialPayments,
       lateFeePerDayMinor: majorToMinor(Number(v.lateFeePerDay) || 0),
       lateFeeGraceDays: Number(v.lateFeeGraceDays),
+      maxDiscountPercent: Number(v.maxDiscountPercent),
+      paymentCorrectionWindowDays: Number(v.paymentCorrectionWindowDays),
+      notifyPaymentReceipt: v.notifyPaymentReceipt,
     }),
     fieldMap: { lateFeePerDayMinor: 'lateFeePerDay' },
     successTitle: 'Fee rules saved',
@@ -102,7 +108,12 @@ export function FeesTab({ settings, canEdit }: { settings: SchoolSettings; canEd
         <TextField label="Late fee per day" type="number" min={0} step="0.01" leftIcon={<Coins size={16} />} helperText={perDay > 0 ? `${formatMinor(majorToMinor(perDay))} for each day a fee is overdue.` : 'Leave at 0 for no late fee.'} error={errors.lateFeePerDay?.message} {...register('lateFeePerDay')} />
         <TextField label="Grace days" type="number" min={0} max={365} leftIcon={<Timer size={16} />} helperText="Days after the due date before the late fee starts." error={errors.lateFeeGraceDays?.message} {...register('lateFeeGraceDays')} />
       </div>
-      <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-500">The late fee is shown next to overdue balances so staff can collect it. It never changes the amount billed or the payment history.</p>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <TextField label="Discount the accountant can give alone (%)" type="number" min={0} max={100} leftIcon={<Coins size={16} />} helperText="A plain discount up to this share of a fee is applied at once. Anything bigger, and every scholarship or concession, needs the Principal or Director to approve." error={errors.maxDiscountPercent?.message} {...register('maxDiscountPercent')} />
+        <TextField label="Payment correction window (days)" type="number" min={0} max={365} leftIcon={<Timer size={16} />} helperText="How long after a payment is recorded the accountant can still correct it. After that only the Principal or Director can." error={errors.paymentCorrectionWindowDays?.message} {...register('paymentCorrectionWindowDays')} />
+      </div>
+      <ToggleRow title="Tell parents when a payment is received" description="Sends an in-app notice (and an email, where the school’s mail is set up) with the receipt number and the balance left." {...register('notifyPaymentReceipt')} />
+      <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-500">Only cash is accepted for now — there is no online payment gateway. The late fee is shown next to overdue balances so staff can collect it. It never changes the amount billed or the payment history.</p>
     </SectionFrame>
   );
 }

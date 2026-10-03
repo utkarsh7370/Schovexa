@@ -15,6 +15,9 @@ export interface ProfileUser {
   bio: string | null;
   status: string;
   lastLoginAt: string | null;
+  /** Which non-essential messages this person wants. Security emails are always sent. */
+  notifyByEmail: boolean;
+  notifyInApp: boolean;
 }
 
 export interface TeacherDetail {

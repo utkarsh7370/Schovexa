@@ -12,6 +12,8 @@ export interface Student {
   dateOfBirth: string | null;
   gender: string | null;
   sectionId: string | null;
+  /** Where to fetch the photo through the signed-in session; null when there is none. */
+  photoUrl: string | null;
   status: StudentStatus;
   schoolDay: SchoolDay;
 }
@@ -66,8 +68,8 @@ export interface StudentDetail extends Student {
 export const STUDENTS_QUERY_KEY = ['students'];
 export const studentQueryKey = (id: string | undefined) => ['students', id];
 
-export function useStudents() {
-  return useQuery({ queryKey: STUDENTS_QUERY_KEY, queryFn: () => api.get<Student[]>('/students') });
+export function useStudents(options?: { enabled?: boolean }) {
+  return useQuery({ queryKey: STUDENTS_QUERY_KEY, queryFn: () => api.get<Student[]>('/students'), enabled: options?.enabled });
 }
 
 export function useStudentsPage(params: StudentListParams) {

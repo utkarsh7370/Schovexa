@@ -180,6 +180,21 @@ retry) and `403 EMAIL_NOT_VERIFIED`. Rules: `docs/security-rules.md`.
 | GET/POST/PATCH/DELETE | `/api/v1/groups…`, `/groups/:id/members…`, `GET /groups/student/:studentId` | Session + School + Permission | `group.view` / `.create` / `.update`; the student route follows `student.view` scope |
 | GET | `/api/v1/documents/config` | Session + School + Permission | `document.view`; what the school accepts |
 | GET | `/api/v1/students/:id` | Session + School + Permission | `student.view`; scope-checked against the specific student. Phase 4 demonstration endpoint only — see note below |
+| GET | `/api/v1/finance/config` | Session + School + Permission | `fee.view`; accepted payment methods (cash only), discount limit, correction window |
+| GET | `/api/v1/finance/dashboard` | Session + School + Permission | `finance.dashboard`; today/total collection, outstanding, overdue, pending, refunds, trend |
+| GET | `/api/v1/finance/classes` | Session + School + Permission | `fee.view`; classes + sections for finance filters |
+| GET | `/api/v1/finance/students?search=`, `/finance/students/:id`, `/finance/students/:id/photo` | Session + School + Permission | `finance.student`; limited view (identity, class, parents' contact, fees) — never DOB, gender, attendance, results |
+| GET | `/api/v1/students/:id/ledger` | Session + School + Permission | `fee.view`; billed / discounts / payments / refunds with a running balance |
+| POST | `/api/v1/student-fees/:id/payments` | Session + School + Permission | `fee.collect`; **cash only** (`PAYMENT_METHOD_NOT_ENABLED` otherwise); `AMOUNT_EXCEEDS_BALANCE`, `NOTHING_OWED`, `PARTIAL_PAYMENT_NOT_ALLOWED` |
+| GET/PATCH | `/api/v1/payments`, `/payments/:id` | Session + School + Permission | `fee.view` (school-wide) / `payment.correct`; correction needs a `reason`, keeps old values in the audit log, limited to the school's correction window unless `payment.correctAny` |
+| GET/POST | `/api/v1/receipts/:id`, `/:id/pdf`, `/:id/reprint`, `/:id/notify` | Session + School + Permission | `receipt.view` (parents: own children); `notify` needs `feeNotice.send`; PDF, reprint and send are logged |
+| GET/POST | `/api/v1/refunds`, `/refunds/:id/approve\|reject\|withdraw\|process` | Session + School + Permission | `refund.view` / `.request` / `.approve` / `.process`; request → approve (not your own) → pay out |
+| GET/POST | `/api/v1/concessions`, `/concessions/:id/approve\|reject\|apply` | Session + School + Permission | `discount.view` / `.request` / `.approve` / `.apply`; small discounts (≤ `maxDiscountPercent`, cumulative) apply at once, others need approval |
+| GET | `/api/v1/finance/demand`, `/finance/demand/:studentId/pdf` | Session + School + Permission | `fee.view`; who owes what; printable statement |
+| GET/POST | `/api/v1/finance/reminders` | Session + School + Permission | `feeNotice.send`; in-app + email, once per fee per 24 h, every attempt logged |
+| GET | `/api/v1/finance/reports/:kind`, `/finance/reports/:kind/export?format=csv\|xlsx\|pdf` | Session + School + Permission | `financeReport.view` / `.export`; every export is audited (`finance.export`) |
+| GET | `/api/v1/finance/audit` | Session + School + Permission | `finance.audit`; finance modules only, read-only |
+| POST/GET/DELETE | `/api/v1/students/:id/photo` | Session + School + Permission | `student.update` to change, `student.view` to read; JPEG/PNG ≤ 2 MB, checked by content |
 
 "Session" means `AuthGuard` only (user-level validity). "Session +
 School" adds `SchoolContextGuard` (re-verifies active membership).

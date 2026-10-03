@@ -19,12 +19,14 @@ export interface ProfileHeroProps {
   chips?: ProfileChip[];
   /** Right-hand controls (status selector, invite button, …). */
   actions?: ReactNode;
+  /** Replaces the initials avatar (a photo, say). */
+  avatar?: ReactNode;
 }
 
 // The banner both profile pages (student, parent) open with: dark brand
 // gradient, big ringed avatar, name, status badges, fact chips and an
 // action slot — so a profile reads as "a person", not a form.
-export function ProfileHero({ backHref, backLabel, name, subtitle, badges, chips = [], actions }: ProfileHeroProps) {
+export function ProfileHero({ backHref, backLabel, name, subtitle, badges, chips = [], actions, avatar }: ProfileHeroProps) {
   return (
     <div>
       <Link
@@ -40,7 +42,7 @@ export function ProfileHero({ backHref, backLabel, name, subtitle, badges, chips
         <div className="pointer-events-none absolute -bottom-24 left-1/3 h-64 w-64 animate-blob rounded-full bg-brand-violet/30 blur-3xl [animation-delay:4s]" aria-hidden="true" />
 
         <div className="relative flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:p-8">
-          <Avatar name={name} tone="auto" size={96} ring className="animate-scale-in shadow-glow" />
+          {avatar ?? <Avatar name={name} tone="auto" size={96} ring className="animate-scale-in shadow-glow" />}
           <div className="min-w-0 flex-1 animate-fade-in-up">
             {badges && <div className="mb-2 flex flex-wrap items-center gap-2">{badges}</div>}
             <h1 className="truncate text-2xl font-extrabold tracking-tight sm:text-3xl">{name}</h1>

@@ -60,6 +60,17 @@ export class FinanceService {
     };
   }
 
+  /** Classes and their sections, for the finance filters — so finance doesn't need access to class management. */
+  async classes(auth: AuthContext) {
+    requireSchoolWide(auth);
+    const classes = await this.prisma.class.findMany({
+      where: { schoolId: auth.schoolId, deletedAt: null },
+      include: { sections: { where: { deletedAt: null }, orderBy: { name: 'asc' } } },
+      orderBy: [{ order: 'asc' }, { name: 'asc' }],
+    });
+    return classes.map((c) => ({ id: c.id, name: c.name, sections: c.sections.map((s) => ({ id: s.id, name: s.name })) }));
+  }
+
   // -- Student lookup (limited view) --------------------------------------
 
   private async feeTotals(schoolId: string, studentIds: string[], today: string) {
@@ -216,10 +227,10 @@ export class FinanceService {
     const entries: Entry[] = [];
     for (const fee of fees) {
       const category = fee.feeStructure.feeCategory.name;
-      entries.push({ at: fee.createdAt, type: 'CHARGE', description: `${category} fee billed`, reference: null, debitMinor: fee.amountDueMinor, creditMinor: 0 });
+      entries.push({ at: fee.createdAt, type: 'CHARGE', description: `${category} billed`, reference: null, debitMinor: fee.amountDueMinor, creditMinor: 0 });
       if (fee.status === StudentFeeStatus.WAIVED) {
         const paid = fee.payments.reduce((n, p) => n + p.amountMinor, 0);
-        entries.push({ at: fee.updatedAt, type: 'WAIVER', description: `${category} fee waived`, reference: null, debitMinor: 0, creditMinor: Math.max(fee.amountDueMinor - fee.discountMinor - paid, 0) });
+        entries.push({ at: fee.updatedAt, type: 'WAIVER', description: `${category} waived`, reference: null, debitMinor: 0, creditMinor: Math.max(fee.amountDueMinor - fee.discountMinor - paid, 0) });
       }
       for (const c of fee.concessions) {
         entries.push({ at: c.appliedAt ?? c.updatedAt, type: 'DISCOUNT', description: `${c.name} (${c.kind.toLowerCase()}) on ${category}`, reference: null, debitMinor: 0, creditMinor: c.amountMinor });

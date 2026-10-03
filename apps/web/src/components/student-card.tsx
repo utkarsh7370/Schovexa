@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { Avatar, Badge, Skeleton, type BadgeTone } from '@schovexa/ui';
+import { Badge, Skeleton, type BadgeTone } from '@schovexa/ui';
+import { StudentPhoto } from './student-photo';
 import { ArrowUpRight, Cake, GraduationCap, School } from 'lucide-react';
 import type { StudentListItem } from '../hooks/useStudents';
 import { SCHOOL_DAY_STYLE, isHalfDay } from '../lib/school-day';
@@ -60,7 +61,7 @@ export function StudentCard({ student, index = 0 }: { student: StudentListItem; 
         <div className="relative p-5">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3.5">
-              <Avatar name={fullName} tone="auto" size={52} className="shadow-card transition-transform duration-300 group-hover:scale-105" />
+              <StudentPhoto name={fullName} photoUrl={student.photoUrl} size={52} />
               <div className="min-w-0">
                 <p className="truncate text-base font-bold text-navy">{fullName}</p>
                 <p className="mt-0.5 inline-flex items-center rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-slate-600">

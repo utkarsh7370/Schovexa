@@ -125,7 +125,7 @@ async function main() {
   // 1. School + Director ----------------------------------------------------
   const schoolName = `Sunrise Public School${SUFFIX ? ` ${SUFFIX}` : ''}`;
   const directorEmail = `director${SUFFIX}@demo.school`;
-  console.log(`[1/14] Registering "${schoolName}"...`);
+  console.log(`[1/15] Registering "${schoolName}"...`);
   let reg;
   try {
     reg = await director.call('POST', '/schools/register', {
@@ -161,7 +161,7 @@ async function main() {
   const [yy, mm] = todayIso.split('-').map(Number);
   const startYear = mm >= 4 ? yy : yy - 1;
   const yearName = `${startYear}-${String(startYear + 1).slice(2)}`;
-  console.log(`[2/14] Academic year ${yearName}...`);
+  console.log(`[2/15] Academic year ${yearName}...`);
   const ay = await director.call('POST', '/academic-years', {
     name: yearName,
     startDate: `${startYear}-04-01`,
@@ -172,7 +172,7 @@ async function main() {
   // Everything under Settings: who the school is, its day and week, and the
   // attendance / fee / notification / document rules. Done before fees and
   // attendance so receipts carry the prefix and the rules apply from the start.
-  console.log('[3/14] School profile, timings and rules...');
+  console.log('[3/15] School profile, timings and rules...');
   await director.call('PATCH', '/schools/me', {
     motto: 'Learn, lead, serve',
     description: 'A friendly K–5 school where every child is known by name. Small classes, strong basics, and a lot of curiosity.',
@@ -211,7 +211,7 @@ async function main() {
   console.log('   Profile, Mon–Sat week (2nd & 4th Saturday off), 08:00–14:30 with a break, ₹50/day late fee, receipts SPS/…');
 
   // 4. Classes + sections -------------------------------------------------------
-  console.log('[4/14] Classes and sections...');
+  console.log('[4/15] Classes and sections...');
   const classes = [];
   const sections = []; // { id, name, classId, className }
   for (let i = 0; i < CLASS_NAMES.length; i++) {
@@ -225,14 +225,14 @@ async function main() {
   console.log(`   ${classes.length} classes, ${sections.length} sections`);
 
   // 5. Subjects -----------------------------------------------------------------
-  console.log('[5/14] Subjects...');
+  console.log('[5/15] Subjects...');
   const subjects = [];
   for (const name of SUBJECT_NAMES) {
     subjects.push(await director.call('POST', '/subjects', { name }));
   }
 
   // 6. Teachers (10) — invite, accept, profile, class-teacher, 2 subjects each --
-  console.log('[6/14] Teachers (10)...');
+  console.log('[6/15] Teachers (10)...');
   const teachers = [];
   for (let i = 0; i < 10; i++) {
     const [first, last] = TEACHER_NAMES[i];
@@ -260,8 +260,9 @@ async function main() {
   console.log(`   ${teachers.length} teachers — each is class teacher of one section and teaches 2 subjects there`);
 
   // 7. Other staff roles ----------------------------------------------------------
-  console.log('[7/14] Additional staff (Accountant, Receptionist)...');
+  console.log('[7/15] Additional staff (Principal, Accountant, Receptionist)...');
   const staffDefs = [
+    { role: 'Principal', first: 'Rohit', last: 'Menon' },
     { role: 'Accountant', first: 'Meera', last: 'Iyer' },
     { role: 'Receptionist', first: 'Karan', last: 'Bhatt' },
   ];
@@ -278,7 +279,7 @@ async function main() {
   }
 
   // 8. Students (3 per section = 30) -----------------------------------------------
-  console.log('[8/14] Students (30)...');
+  console.log('[8/15] Students (30)...');
   const students = [];
   let admNo = 1;
   for (const section of sections) {
@@ -300,7 +301,7 @@ async function main() {
   console.log(`   ${students.length} students admitted, 3 per section`);
 
   // 9. Structure: terms, grading, holidays, departments, houses and clubs ---------
-  console.log('[9/14] Terms, grading, holidays, departments, houses and clubs...');
+  console.log('[9/15] Terms, grading, holidays, departments, houses and clubs...');
 
   await director.call('POST', `/academic-years/${ay.id}/terms`, { name: 'Term 1', startDate: `${startYear}-04-01`, endDate: `${startYear}-09-30` });
   await director.call('POST', `/academic-years/${ay.id}/terms`, { name: 'Term 2', startDate: `${startYear}-10-01`, endDate: `${startYear + 1}-03-31` });
@@ -379,7 +380,7 @@ async function main() {
   console.log(`   2 terms, 7 grades, ${holidays.length} holidays, ${departments.length} departments, ${houses.length} houses, ${clubs.length} clubs/teams`);
 
   // 10. Parents — link some students, invite a few to the portal --------------------
-  console.log('[10/14] Parents...');
+  console.log('[10/15] Parents...');
   const linkPlan = [[0, 1], [2, 3]]; // two sibling pairs sharing one parent
   for (let i = 4; i < 20; i++) linkPlan.push([i]); // remaining 16 get one parent each
   const invitePortalAt = new Set([0, 1, 2]); // first 3 parent groups get a real portal login
@@ -414,7 +415,7 @@ async function main() {
   // 11. Attendance — mark 2 days, then correct a few records -----------------------
   // The API only allows marking/changing attendance on the day itself (in
   // the school's time zone), so the demo can only seed today.
-  console.log("[11/14] Attendance (today only — past days are locked by the API, with a few corrections)...");
+  console.log("[11/15] Attendance (today only — past days are locked by the API, with a few corrections)...");
   // New schools default to Asia/Kolkata, and "today" must be that zone's today.
   const dates = [new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date())];
   const todaysFirstRecordBySection = [];
@@ -453,7 +454,7 @@ async function main() {
   console.log(`   Marked today's attendance across ${sections.length} sections, corrected ${corrected} record(s)`);
 
   // 12. Notices — one of each audience type ---------------------------------------
-  console.log('[12/14] Notices (one of each audience type)...');
+  console.log('[12/15] Notices (one of each audience type)...');
   async function createAndPublish(payload) {
     const notice = await director.call('POST', '/notices', payload);
     await director.call('POST', `/notices/${notice.id}/publish`);
@@ -485,7 +486,7 @@ async function main() {
   });
 
   // 13. Fee categories + one structure per frequency type --------------------------
-  console.log('[13/14] Fee structures (one per frequency type)...');
+  console.log('[13/15] Fee structures (one per frequency type)...');
   const tuitionCat = await director.call('POST', '/fee-categories', { name: 'Tuition Fee' });
   const admissionCat = await director.call('POST', '/fee-categories', { name: 'Admission Fee' });
   const examCat = await director.call('POST', '/fee-categories', { name: 'Examination Fee' });
@@ -522,38 +523,69 @@ async function main() {
   }
   console.log('   Tuition -> Grade 1 only; Admission/Examination/Annual Day -> every student');
 
-  // 14. Record some payments so there's a real due amount to look at ---------------
-  console.log('[14/14] Recording some payments (so there is a real due amount)...');
+  // 14. Collect some cash payments, as the Accountant ------------------------------
+  // Money is collected by the Accountant (not the Director) and only cash is switched on,
+  // so this signs in as her, exactly as the app would.
+  console.log('[14/15] Collecting cash payments as the Accountant (so there is a real due amount)...');
+  const accountantEmail = `accountant${SUFFIX}@demo.school`;
+  const principalEmail = `principal${SUFFIX}@demo.school`;
+  async function loginStaff(email, password) {
+    const session = makeSession();
+    await session.call('POST', '/auth/login', { email, password });
+    const me = await session.call('GET', '/auth/me');
+    await session.call('POST', '/auth/select-school', { membershipId: me.memberships[0].membershipId });
+    return session;
+  }
+  const accountant = await loginStaff(accountantEmail, STAFF_PASSWORD);
+  const principal = await loginStaff(principalEmail, STAFF_PASSWORD);
+
+  const feeOf = async (student, category) => (await accountant.call('GET', `/students/${student.id}/fees`)).find((f) => f.feeCategory.name === category);
+  const payments = [];
   let paidFull = 0;
   let paidPartial = 0;
   for (let i = 0; i < 12; i++) {
-    const fees = await director.call('GET', `/students/${students[i].id}/fees`);
-    const examFee = fees.find((f) => f.feeCategory.name === 'Examination Fee');
+    const examFee = await feeOf(students[i], 'Examination Fee');
     if (!examFee) continue;
     if (i % 3 === 0) {
-      await director.call('POST', `/student-fees/${examFee.id}/payments`, { amountMinor: examFee.amountDueMinor, method: 'CASH' });
+      payments.push(await accountant.call('POST', `/student-fees/${examFee.id}/payments`, { amountMinor: examFee.amountDueMinor, method: 'CASH', receivedFrom: 'Parent', reference: `BOOK-${100 + i}` }));
       paidFull++;
     } else if (i % 3 === 1) {
-      await director.call('POST', `/student-fees/${examFee.id}/payments`, {
-        amountMinor: Math.round(examFee.amountDueMinor * 0.6),
-        method: 'ONLINE',
-      });
+      payments.push(await accountant.call('POST', `/student-fees/${examFee.id}/payments`, { amountMinor: Math.round(examFee.amountDueMinor * 0.6), method: 'CASH', receivedFrom: 'Parent', reference: `BOOK-${100 + i}` }));
       paidPartial++;
     }
     // i % 3 === 2: left fully PENDING on purpose
   }
   const grade1Students = students.filter((s) => s.sectionId === sections[0].id || s.sectionId === sections[1].id).slice(0, 2);
+  const tuitionFees = [];
   for (const student of grade1Students) {
-    const fees = await director.call('GET', `/students/${student.id}/fees`);
-    const tuitionFee = fees.find((f) => f.feeCategory.name === 'Tuition Fee');
+    const tuitionFee = await feeOf(student, 'Tuition Fee');
     if (tuitionFee) {
-      await director.call('POST', `/student-fees/${tuitionFee.id}/payments`, {
-        amountMinor: Math.round(tuitionFee.amountDueMinor * 0.5),
-        method: 'BANK_TRANSFER',
-      });
+      tuitionFees.push(tuitionFee);
+      payments.push(await accountant.call('POST', `/student-fees/${tuitionFee.id}/payments`, { amountMinor: Math.round(tuitionFee.amountDueMinor * 0.5), method: 'CASH' }));
     }
   }
-  console.log(`   ${paidFull} fee(s) paid in full, ${paidPartial} paid partially, the rest left outstanding`);
+  console.log(`   ${paidFull} fee(s) paid in full, ${paidPartial} paid partially (all cash), the rest left outstanding`);
+
+  // 15. Finance workflows: corrections, refunds, discounts, scholarships ------------------
+  console.log('[15/15] Finance workflows (correction, refunds, discounts, a scholarship, reminders)...');
+  if (payments.length >= 4) {
+    // A payment typed wrongly, then corrected with a reason (the old value stays in the log).
+    await accountant.call('PATCH', `/payments/${payments[1].id}`, { receivedFrom: 'Mother', reason: 'Wrong name written on the voucher' });
+    // A refund the whole way: accountant asks, the Principal approves, the accountant pays it out.
+    const done = await accountant.call('POST', '/refunds', { paymentId: payments[0].id, amountMinor: 5000, reason: 'Paid twice by mistake' });
+    await principal.call('POST', `/refunds/${done.id}/approve`, { note: 'Checked against the receipt book' });
+    await accountant.call('POST', `/refunds/${done.id}/process`);
+    // One waiting for the Principal, so the approval screen has something to show.
+    await accountant.call('POST', '/refunds', { paymentId: payments[3].id, amountMinor: 10000, reason: 'Child moved to another school' });
+  }
+  if (tuitionFees.length >= 2) {
+    // A small discount the accountant may apply alone (within 5% of the fee)…
+    await accountant.call('POST', '/concessions', { studentFeeId: tuitionFees[0].id, kind: 'DISCOUNT', name: 'Sibling discount', amountMinor: Math.floor(tuitionFees[0].amountDueMinor * 0.04), reason: 'Second child at the school' });
+    // …and a scholarship, which always waits for the Principal or Director.
+    await accountant.call('POST', '/concessions', { studentFeeId: tuitionFees[1].id, kind: 'SCHOLARSHIP', name: 'Merit scholarship', amountMinor: Math.floor(tuitionFees[1].amountDueMinor * 0.25), reason: 'Topped the Grade 1 exams' });
+  }
+  const reminder = await accountant.call('POST', '/finance/reminders', { kind: 'OUTSTANDING', classId: classes[0].id }).catch(() => null);
+  console.log(`   1 payment corrected, 2 refunds (1 paid out, 1 waiting), a sibling discount applied, a scholarship waiting for approval${reminder ? `, reminders sent for ${reminder.fees} fees` : ''}`);
 
   // Summary --------------------------------------------------------------------------
   console.log('\n================ DONE ================');
@@ -574,6 +606,7 @@ async function main() {
   console.log('\n(Teachers 4-10 share the same password as Teacher 1-3 above.)');
   console.log('Also set up: school profile & logo-ready settings, Mon–Sat week with 2nd/4th Saturday off, 2 terms, grading scale,');
   console.log('6 holidays, 3 departments (with heads), 4 houses, 3 clubs/teams, fee rules (SPS/ receipts, ₹50/day late fee).');
+  console.log('Money: cash only. The Accountant collected the payments; a refund and a scholarship are waiting for the Principal/Director to approve.');
   console.log('=======================================\n');
 }
 

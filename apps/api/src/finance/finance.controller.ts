@@ -44,6 +44,12 @@ export class FinanceController {
     return this.finance.config(auth.schoolId);
   }
 
+  @Get('finance/classes')
+  @RequirePermission('fee.view')
+  classes(@CurrentAuthContext() auth: AuthContext) {
+    return this.finance.classes(auth);
+  }
+
   @Get('finance/dashboard')
   @RequirePermission('finance.dashboard')
   dashboard(@CurrentAuthContext() auth: AuthContext) {

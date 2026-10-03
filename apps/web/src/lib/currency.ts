@@ -5,7 +5,9 @@
 // into display formatting yet (Intl.NumberFormat currency codes would
 // need it), matching this phase's other simplifications.
 export function formatMinor(amountMinor: number): string {
-  return `₹${(amountMinor / 100).toFixed(2)}`;
+  // Indian digit grouping (₹1,23,456.00) — the same as receipts, emails and exports.
+  const sign = amountMinor < 0 ? '-' : '';
+  return `${sign}₹${(Math.abs(amountMinor) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function majorToMinor(amount: number): number {

@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { changePasswordSchema, updateProfileSchema, type ChangePasswordInput, type UpdateProfileInput } from '@schovexa/validation';
 import { Alert, Badge, Button, SelectField, Skeleton, StatCard, Tabs, TextAreaField, TextField, useToast } from '@schovexa/ui';
-import { CalendarDays, FileText, KeyRound, Lock, Mail, MapPin, Phone, Save, School, ShieldCheck, Undo2, User, UserRound, HeartPulse, CalendarCheck } from 'lucide-react';
+import { Bell, CalendarDays, FileText, KeyRound, Lock, Mail, MapPin, Phone, Save, School, ShieldCheck, Undo2, User, UserRound, HeartPulse, CalendarCheck } from 'lucide-react';
 import { SESSIONS_QUERY_KEY, SECURITY_ACTIVITY_QUERY_KEY } from '../../../../hooks/useSecurity';
 import { MY_PROFILE_QUERY_KEY, useMyProfile, type PersonProfile } from '../../../../hooks/useProfile';
 import { CURRENT_USER_QUERY_KEY } from '../../../../hooks/useCurrentUser';
@@ -14,6 +14,7 @@ import { api, ApiError } from '../../../../lib/api-client';
 import { applyServerErrors } from '../../../../lib/forms';
 import { ProfileHero } from '../../../../components/profile-hero';
 import { SectionCard } from '../../../../components/section-card';
+import { ToggleRow } from '../../../../components/settings-frame';
 import { PersonDocumentsPanel } from '../../../../components/person-documents-panel';
 import { DevicesPanel, SecurityActivityPanel } from '../../../../components/security-devices';
 
@@ -131,6 +132,8 @@ function DetailsForm({ profile }: { profile: PersonProfile }) {
       emergencyContactName: u.emergencyContactName ?? '',
       emergencyContactPhone: u.emergencyContactPhone ?? '',
       bio: u.bio ?? '',
+      notifyByEmail: u.notifyByEmail,
+      notifyInApp: u.notifyInApp,
     }),
     [u],
   );
@@ -190,6 +193,13 @@ function DetailsForm({ profile }: { profile: PersonProfile }) {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <TextField label="Contact name" leftIcon={<User size={16} />} placeholder="Name of a relative or friend" error={errors.emergencyContactName?.message} {...register('emergencyContactName')} />
           <TextField label="Contact phone" type="tel" leftIcon={<Phone size={16} />} placeholder="+91 90000 11111" error={errors.emergencyContactPhone?.message} {...register('emergencyContactPhone')} />
+        </div>
+      </SectionCard>
+
+      <SectionCard icon={<Bell size={18} />} title="Notifications" description="Choose which messages reach you. Security emails — a new sign-in, a password reset — are always sent.">
+        <div className="flex flex-col gap-3">
+          <ToggleRow title="In-app notifications" description="Notices and updates in the bell at the top of the page — approvals, reminders and decisions." {...register('notifyInApp')} />
+          <ToggleRow title="Email notifications" description="The same updates by email, where the school’s mail is set up." {...register('notifyByEmail')} />
         </div>
       </SectionCard>
 
