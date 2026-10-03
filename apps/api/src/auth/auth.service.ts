@@ -277,8 +277,10 @@ export class AuthService {
       firstName: user.firstName,
       lastName: user.lastName,
       status: user.status,
+      photoUrl: user.photoKey ? '/me/photo' : null,
       activeSchoolId: activeMembership?.schoolId ?? null,
       permissions: activeMembership?.role.permissions.map((rp) => rp.permission.key).sort() ?? [],
+      permissionScopes: Object.fromEntries(activeMembership?.role.permissions.map((rp) => [rp.permission.key, rp.scope]) ?? []),
       schoolCountry: activeMembership?.school.country ?? null,
       emailVerified: !!user.emailVerifiedAt,
       memberships: user.memberships.map((m) => ({

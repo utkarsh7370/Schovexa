@@ -28,8 +28,8 @@ export interface Parent {
 export const PARENTS_QUERY_KEY = ['parents'];
 export const parentQueryKey = (id: string | undefined) => ['parents', id];
 
-export function useParents() {
-  return useQuery({ queryKey: PARENTS_QUERY_KEY, queryFn: () => api.get<Parent[]>('/parents') });
+export function useParents(options?: { enabled?: boolean }) {
+  return useQuery({ queryKey: PARENTS_QUERY_KEY, queryFn: () => api.get<Parent[]>('/parents'), enabled: options?.enabled });
 }
 
 export function useParent(id: string | undefined) {

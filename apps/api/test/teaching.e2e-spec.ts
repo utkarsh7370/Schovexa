@@ -777,6 +777,11 @@ describe('Teacher workspace (e2e)', () => {
       expect((await get(w.principal, `/leave/${req.body.id}/files/${file.body.id}`)).status).toBe(200);
       expect((await get(w.t2, `/leave/mine/${req.body.id}/files/${file.body.id}`)).status).toBe(404);
       expect((await get(w.t2, `/leave/${req.body.id}/files/${file.body.id}`)).status).toBe(403);
+      // The applicant can list their own attachments; nobody else can list them through that route.
+      const mine = await get(w.t1, `/leave/mine/${req.body.id}/files`);
+      expect(mine.status).toBe(200);
+      expect(mine.body).toHaveLength(1);
+      expect((await get(w.t2, `/leave/mine/${req.body.id}/files`)).status).toBe(404);
     });
 
     it('never lets anyone decide their own leave', async () => {
@@ -938,6 +943,21 @@ describe('Teacher workspace (e2e)', () => {
       // …and nothing financial.
       expect((await get(coordinator, '/fees/outstanding')).status).toBe(403);
       expect((await get(coordinator, '/payments')).status).toBe(403);
+    });
+
+    it('offers planners the whole school’s classes, subjects and teachers — and nobody else', async () => {
+      const w = await world();
+      const coordinator = (await invite(w.director, 'Academic Coordinator', 'planner@example.test', 'Pia')).cookie;
+      for (const path of ['/exams/options', '/timetable/options']) {
+        const res = await get(coordinator, path);
+        expect(res.status).toBe(200);
+        expect(res.body.sections.length).toBeGreaterThanOrEqual(2);
+        expect(res.body.teachers.length).toBeGreaterThanOrEqual(2);
+        expect(res.body.assignments.length).toBeGreaterThan(0);
+        expect(res.body.academicYears.length).toBeGreaterThan(0);
+        expect((await get(w.t1, path)).status).toBe(403);
+        expect((await get(w.parent, path)).status).toBe(403);
+      }
     });
   });
 

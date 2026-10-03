@@ -8,6 +8,7 @@ import { RequirePermission } from '../authorization/decorators/require-permissio
 import { CurrentAuthContext } from '../authorization/decorators/current-auth-context.decorator';
 import type { AuthContext } from '../authorization/authorization.types';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
+import { PlanningOptionsService } from '../teaching/planning-options.service';
 import { TimetableService } from './timetable.service';
 
 const text = (v: string | undefined) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
@@ -15,12 +16,22 @@ const text = (v: string | undefined) => (typeof v === 'string' && v.trim() ? v.t
 @Controller('timetable')
 @UseGuards(AuthGuard, SchoolContextGuard, PermissionGuard)
 export class TimetableController {
-  constructor(private readonly timetable: TimetableService) {}
+  constructor(
+    private readonly timetable: TimetableService,
+    private readonly planning: PlanningOptionsService,
+  ) {}
 
   @Get()
   @RequirePermission('timetable.view')
   list(@Query('sectionId') sectionId: string | undefined, @Query('teacherId') teacherId: string | undefined, @Query('mine') mine: string | undefined, @CurrentAuthContext() auth: AuthContext) {
     return this.timetable.list(auth, { sectionId: text(sectionId), teacherId: text(teacherId), mine: mine === '1' || mine === 'true' });
+  }
+
+  // The whole school's classes, subjects and teachers, for building the timetable.
+  @Get('options')
+  @RequirePermission('timetable.manage')
+  options(@CurrentAuthContext() auth: AuthContext) {
+    return this.planning.load(auth.schoolId);
   }
 
   // "My day": the signed-in teacher's lessons on a date, with cover applied.

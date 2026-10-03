@@ -13,6 +13,7 @@ import { CURRENT_USER_QUERY_KEY } from '../../../../hooks/useCurrentUser';
 import { api, ApiError } from '../../../../lib/api-client';
 import { applyServerErrors } from '../../../../lib/forms';
 import { ProfileHero } from '../../../../components/profile-hero';
+import { OwnPhoto } from '../../../../components/own-photo';
 import { SectionCard } from '../../../../components/section-card';
 import { ToggleRow } from '../../../../components/settings-frame';
 import { PersonDocumentsPanel } from '../../../../components/person-documents-panel';
@@ -61,6 +62,7 @@ export default function MyProfilePage() {
         backLabel="Back to dashboard"
         name={fullName}
         subtitle={profile.school.name}
+        avatar={<OwnPhoto name={fullName} photoUrl={user.photoUrl} />}
         badges={
           <>
             <Badge tone="brand" className="!bg-white/15 !text-white !ring-white/25">{profile.role.name}</Badge>

@@ -4,6 +4,19 @@
 // permission server-side regardless (docs/authorization.md). An
 // unrecognized role name (a school-customized role) falls through to
 // "everything except the role-specific pages below".
+// Teaching tools shared by everyone who teaches or coordinates teaching. What each person can *do* on them is
+// decided by their permissions and teaching scope on the server.
+const TEACHING_ROUTES = [
+  '/dashboard/timetable',
+  '/dashboard/homework',
+  '/dashboard/assignments',
+  '/dashboard/marks',
+  '/dashboard/content',
+  '/dashboard/messages',
+  '/dashboard/leave',
+  '/dashboard/teaching-reports',
+];
+
 const ROLE_ROUTES: Record<string, string[]> = {
   Teacher: [
     '/dashboard',
@@ -13,6 +26,23 @@ const ROLE_ROUTES: Record<string, string[]> = {
     '/dashboard/departments',
     '/dashboard/groups',
     '/dashboard/attendance',
+    ...TEACHING_ROUTES,
+    '/dashboard/holidays',
+    '/dashboard/calendar',
+    '/dashboard/notices',
+    '/dashboard/my-attendance',
+    '/dashboard/profile',
+  ],
+  // Runs the academic side (exams, timetable, mark review) — no money, no school administration.
+  'Academic Coordinator': [
+    '/dashboard',
+    '/dashboard/students',
+    '/dashboard/classes',
+    '/dashboard/subjects',
+    '/dashboard/departments',
+    '/dashboard/groups',
+    '/dashboard/attendance',
+    ...TEACHING_ROUTES,
     '/dashboard/holidays',
     '/dashboard/calendar',
     '/dashboard/notices',
@@ -20,9 +50,9 @@ const ROLE_ROUTES: Record<string, string[]> = {
     '/dashboard/profile',
   ],
   // Finance only. No Students (the finance lookup shows what an accountant needs), no teaching, no administration.
-  Accountant: ['/dashboard', '/dashboard/finance', '/dashboard/receipts', '/dashboard/fees', '/dashboard/holidays', '/dashboard/calendar', '/dashboard/notices', '/dashboard/my-attendance', '/dashboard/profile'],
-  Receptionist: ['/dashboard', '/dashboard/students', '/dashboard/parents', '/dashboard/holidays', '/dashboard/calendar', '/dashboard/notices', '/dashboard/my-attendance', '/dashboard/profile'],
-  Parent: ['/dashboard', '/dashboard/my-children', '/dashboard/receipts', '/dashboard/holidays', '/dashboard/calendar', '/dashboard/notices', '/dashboard/profile'],
+  Accountant: ['/dashboard', '/dashboard/leave', '/dashboard/finance', '/dashboard/receipts', '/dashboard/fees', '/dashboard/holidays', '/dashboard/calendar', '/dashboard/notices', '/dashboard/my-attendance', '/dashboard/profile'],
+  Receptionist: ['/dashboard', '/dashboard/leave', '/dashboard/students', '/dashboard/parents', '/dashboard/holidays', '/dashboard/calendar', '/dashboard/notices', '/dashboard/my-attendance', '/dashboard/profile'],
+  Parent: ['/dashboard', '/dashboard/my-children', '/dashboard/messages', '/dashboard/homework', '/dashboard/content', '/dashboard/receipts', '/dashboard/holidays', '/dashboard/calendar', '/dashboard/notices', '/dashboard/profile'],
 };
 
 // Pages that only make sense for one role. "My Children" lists the

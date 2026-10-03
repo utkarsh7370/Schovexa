@@ -10,6 +10,8 @@ export interface Notice {
   audienceType: NoticeAudience;
   audienceRefId: string | null;
   publishedAt: string | null;
+  /** Set while the notice is waiting to go out at a chosen time. */
+  scheduledFor?: string | null;
   createdAt: string;
   isRead: boolean;
 }

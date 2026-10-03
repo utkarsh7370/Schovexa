@@ -6,5 +6,10 @@ import { useCurrentUser } from './useCurrentUser';
 export function useCan() {
   const { data: me, isLoading } = useCurrentUser();
   const granted = new Set(me?.permissions ?? []);
-  return { can: (permissionKey: string) => granted.has(permissionKey), isLoading };
+  return {
+    can: (permissionKey: string) => granted.has(permissionKey),
+    /** True when the permission covers the whole school, not just the person's own classes or students. */
+    canSchoolWide: (permissionKey: string) => me?.permissionScopes?.[permissionKey] === 'ALL_SCHOOL',
+    isLoading,
+  };
 }

@@ -22,6 +22,7 @@ import {
 import { FilterX, GraduationCap, School, SearchX, Shapes, Sunrise, UserPlus2, Users, X } from 'lucide-react';
 import { useStudentsPage, STUDENTS_QUERY_KEY } from '../../../../hooks/useStudents';
 import { useClasses } from '../../../../hooks/useClasses';
+import { useCan } from '../../../../hooks/useCan';
 import { useSections } from '../../../../hooks/useSections';
 import { useTeachers } from '../../../../hooks/useTeachers';
 import { api, ApiError } from '../../../../lib/api-client';
@@ -96,6 +97,8 @@ function StudentsView() {
     status: status || undefined,
     schoolDay: schoolDay || undefined,
   });
+  const { can } = useCan();
+  const canAdmit = can('student.create');
   const { data: classes } = useClasses();
   const { data: sections } = useSections(classId || undefined);
   const { data: teachers } = useTeachers();
@@ -178,13 +181,15 @@ function StudentsView() {
           data
             ? hasFilters
               ? `${total} ${total === 1 ? 'student matches' : 'students match'} your filters.`
-              : `${total} ${total === 1 ? 'student' : 'students'} enrolled at your school.`
+              : `${total} ${total === 1 ? 'student' : 'students'} ${canAdmit ? 'enrolled at your school' : 'in your classes'}.`
             : 'Everyone enrolled at your school, in one place.'
         }
         action={
-          <Button onClick={() => setCreating(true)}>
-            <UserPlus2 size={16} /> New admission
-          </Button>
+          canAdmit ? (
+            <Button onClick={() => setCreating(true)}>
+              <UserPlus2 size={16} /> New admission
+            </Button>
+          ) : undefined
         }
       />
 
@@ -389,6 +394,9 @@ function StudentsView() {
           {serverError && <Alert variant="error">{serverError}</Alert>}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <TextField label="Admission number" placeholder="A-001" error={errors.admissionNo?.message} {...register('admissionNo')} />
+            <TextField label="Roll number" placeholder="Optional" error={errors.rollNo?.message} {...register('rollNo')} />
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <TextField label="Gender" placeholder="Optional" error={errors.gender?.message} {...register('gender')} />
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

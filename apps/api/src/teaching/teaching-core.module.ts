@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { DocumentsModule } from '../documents/documents.module';
 import { AttachmentsService } from './attachments.service';
+import { PlanningOptionsService } from './planning-options.service';
 import { RecipientsService } from './recipients.service';
 import { SchoolClockService } from './school-clock.service';
 import { TeachingScopeService } from './teaching-scope.service';
@@ -11,7 +12,7 @@ import { TeachingScopeService } from './teaching-scope.service';
 @Global()
 @Module({
   imports: [AuthModule, DocumentsModule],
-  providers: [TeachingScopeService, SchoolClockService, AttachmentsService, RecipientsService],
-  exports: [TeachingScopeService, SchoolClockService, AttachmentsService, RecipientsService, AuthModule],
+  providers: [TeachingScopeService, SchoolClockService, AttachmentsService, RecipientsService, PlanningOptionsService],
+  exports: [TeachingScopeService, SchoolClockService, AttachmentsService, RecipientsService, PlanningOptionsService, AuthModule],
 })
 export class TeachingCoreModule {}

@@ -38,8 +38,17 @@ import {
   FileSpreadsheet,
   FileClock,
   Landmark,
+  CalendarClock,
+  NotebookPen,
+  FileCheck2,
+  PencilRuler,
+  Library,
+  LineChart,
+  MessageSquare,
+  CalendarOff,
 } from 'lucide-react';
-import { Avatar, LogoMark, Spinner } from '@schovexa/ui';
+import { LogoMark, Spinner } from '@schovexa/ui';
+import { StudentPhoto } from '../../components/student-photo';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { useCurrentSchool } from '../../hooks/useCurrentSchool';
 import { useLogout } from '../../hooks/useLogout';
@@ -89,6 +98,11 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/dashboard/departments', label: 'Departments', icon: Shapes, permission: 'department.view' },
       { href: '/dashboard/groups', label: 'Houses & Groups', icon: Trophy, permission: 'group.view' },
       { href: '/dashboard/attendance', label: 'Attendance', icon: ClipboardCheck },
+      { href: '/dashboard/timetable', label: 'Timetable', icon: CalendarClock, permission: 'timetable.view' },
+      { href: '/dashboard/homework', label: 'Homework', icon: NotebookPen, permission: 'homework.view' },
+      { href: '/dashboard/assignments', label: 'Assignments', icon: FileCheck2, permission: 'assignment.view' },
+      { href: '/dashboard/marks', label: 'Marks & Exams', icon: PencilRuler, permission: 'exam.view' },
+      { href: '/dashboard/content', label: 'Study Material', icon: Library, permission: 'content.view' },
       { href: '/dashboard/my-attendance', label: 'My Attendance', icon: Fingerprint, permission: 'staffAttendance.mark' },
       { href: '/dashboard/staff-attendance', label: 'Staff Attendance', icon: UserCheck, permission: 'staffAttendance.view' },
     ],
@@ -114,8 +128,21 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   { label: 'Money', items: [{ href: '/dashboard/fees', label: 'Fee Setup', icon: Wallet }] },
-  { label: 'Insights', items: [{ href: '/dashboard/reports', label: 'Reports', icon: BarChart3 }] },
-  { label: 'Communication', items: [{ href: '/dashboard/notices', label: 'Notices', icon: Bell }] },
+  {
+    label: 'Insights',
+    items: [
+      { href: '/dashboard/reports', label: 'Reports', icon: BarChart3 },
+      { href: '/dashboard/teaching-reports', label: 'Teaching Reports', icon: LineChart, permission: 'teachingReport.view' },
+    ],
+  },
+  {
+    label: 'Communication',
+    items: [
+      { href: '/dashboard/notices', label: 'Notices', icon: Bell },
+      { href: '/dashboard/messages', label: 'Messages', icon: MessageSquare, permission: 'message.view' },
+    ],
+  },
+  { label: 'Me', items: [{ href: '/dashboard/leave', label: 'My Leave', icon: CalendarOff, permission: 'leave.apply' }] },
   {
     label: 'Administration',
     items: [
@@ -289,7 +316,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
       <div className="border-t border-white/10 p-4">
         <div className="flex items-center gap-3 rounded-xl bg-white/[0.07] p-3">
-          <Avatar name={fullName} size={36} />
+          <StudentPhoto name={fullName} photoUrl={me.photoUrl} size={36} />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-white">{fullName}</p>
             <p className="truncate text-[11px] text-white/50">{me.email}</p>
@@ -347,7 +374,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               aria-haspopup="menu"
               aria-expanded={menuOpen}
             >
-              <Avatar name={fullName} size={32} />
+              <StudentPhoto name={fullName} photoUrl={me.photoUrl} size={32} />
               <span className="hidden text-sm font-medium text-navy sm:inline">{me.firstName}</span>
               <ChevronDown size={16} className="hidden text-slate-400 sm:inline" />
             </button>

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { Alert, Badge, Button, PageHeader, Skeleton, StatCard } from '@schovexa/ui';
 import { CalendarCheck, CalendarDays, ChevronLeft, ChevronRight, Clock, PartyPopper, Sun } from 'lucide-react';
 import { useCalendar, type CalendarDay } from '../../../../hooks/useCalendar';
+import { CalendarAgenda } from '../../../../components/teaching/calendar-agenda';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -121,6 +122,8 @@ export default function CalendarPage() {
           </>
         )}
       </section>
+
+      <CalendarAgenda from={monthStart(year, month)} to={monthEnd(year, month)} selected={selected} />
 
       {data && (data.terms.length > 0 || data.years.length > 0) && (
         <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-card" aria-label="Academic year and terms">

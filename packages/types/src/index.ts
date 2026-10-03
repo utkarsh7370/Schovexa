@@ -39,6 +39,8 @@ export interface CurrentUser {
   firstName: string;
   lastName: string;
   status: UserStatus;
+  // Where to fetch this person's own photo (through the session); null when they have none.
+  photoUrl: string | null;
   // The session's actively-selected school, if any — null means no
   // school is selected yet (send the user to pick one). This is
   // session state, not a permission check: it must stay readable by
@@ -53,6 +55,9 @@ export interface CurrentUser {
   // For showing or hiding controls only — every API route still enforces
   // its own permission, so this is a convenience, never a security check.
   permissions: string[];
+  // Where each of those permissions applies (ALL_SCHOOL, OWN_CLASS, …) — lets a screen offer a teacher only the
+  // classes they teach. Again a convenience: the API enforces the real scope.
+  permissionScopes: Record<string, PermissionScope>;
   // Where the active school is (ISO 3166-1 alpha-2) — readable by every
   // role, since the header shows it to teachers and parents too.
   schoolCountry: string | null;

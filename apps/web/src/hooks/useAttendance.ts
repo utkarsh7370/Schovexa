@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api-client';
 import type { SchoolDay } from '../lib/school-day';
 
-export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED';
+export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED' | 'HALF_DAY';
 
 export interface RosterEntry {
   studentId: string;
@@ -25,6 +25,7 @@ export interface AttendanceSummaryRow {
   absent: number;
   late: number;
   excused: number;
+  halfDay: number;
   total: number;
 }
 

@@ -29,6 +29,13 @@ export interface SchoolSettings {
   allowedDocumentTypes: string[];
   documentCategories: string[];
   requiredStudentDocuments: string[];
+  /** Whether teachers see parents' phone and email. */
+  teachersSeeParentContact: boolean;
+  /** Whether a teacher's remark is shared with parents unless they choose otherwise. */
+  shareRemarksWithParents: boolean;
+  /** Document categories a teacher may open on their students. */
+  teacherDocumentCategories: string[];
+  leaveAllowances: { CASUAL: number; SICK: number; EARNED: number };
 }
 
 export interface GradeBand {

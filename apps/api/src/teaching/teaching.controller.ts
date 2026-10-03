@@ -30,6 +30,13 @@ export class TeachingController {
     return this.dashboard.dashboard(auth);
   }
 
+  // The sections and subjects I can work with — what every picker on a teaching screen offers.
+  @Get('options')
+  @RequirePermission('teaching.dashboard')
+  options(@CurrentAuthContext() auth: AuthContext) {
+    return this.dashboard.options(auth);
+  }
+
   // Everything dated that concerns me, for the calendar: holidays, events, my exams, work due, my leave.
   @Get('agenda')
   @RequirePermission('teaching.dashboard')

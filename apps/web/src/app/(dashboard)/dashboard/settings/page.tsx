@@ -12,13 +12,15 @@ import { ProfileTab } from '../../../../components/settings/profile-tab';
 import { TimingsTab } from '../../../../components/settings/timings-tab';
 import { AttendanceTab, DocumentsTab, FeesTab, NotificationsTab } from '../../../../components/settings/rules-tabs';
 import { GradingTab } from '../../../../components/settings/grading-tab';
+import { TeachingTab } from '../../../../components/settings/teaching-tab';
 
-type TabId = 'profile' | 'timings' | 'attendance' | 'fees' | 'notifications' | 'documents' | 'grading';
+type TabId = 'profile' | 'timings' | 'attendance' | 'teaching' | 'fees' | 'notifications' | 'documents' | 'grading';
 
 const TABS = [
   { id: 'profile', label: 'Profile', icon: <Building2 size={16} /> },
   { id: 'timings', label: 'Timings & days', icon: <Clock size={16} /> },
   { id: 'attendance', label: 'Attendance', icon: <CalendarCheck size={16} /> },
+  { id: 'teaching', label: 'Teaching', icon: <GraduationCap size={16} /> },
   { id: 'fees', label: 'Fees', icon: <Coins size={16} /> },
   { id: 'notifications', label: 'Notifications', icon: <Bell size={16} /> },
   { id: 'documents', label: 'Documents', icon: <FileText size={16} /> },
@@ -107,6 +109,7 @@ function Settings({ school }: { school: SchoolRecord }) {
         {tab !== 'profile' && tab !== 'grading' && !settings && !settingsError && <Skeleton className="h-64 rounded-2xl" />}
         {settings && tab === 'timings' && <TimingsTab school={school} settings={settings} canEdit={canEdit} />}
         {settings && tab === 'attendance' && <AttendanceTab settings={settings} canEdit={canEdit} />}
+        {settings && tab === 'teaching' && <TeachingTab settings={settings} canEdit={canEdit} />}
         {settings && tab === 'fees' && <FeesTab settings={settings} canEdit={canEdit} />}
         {settings && tab === 'notifications' && <NotificationsTab school={school} settings={settings} canEdit={canEdit} />}
         {settings && tab === 'documents' && <DocumentsTab settings={settings} canEdit={canEdit} />}

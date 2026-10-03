@@ -1,32 +1,50 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { createNoticeSchema, type CreateNoticeInput } from '@schovexa/validation';
-import { Button, Card, TextField, Alert, PageHeader, EmptyState, SkeletonRows, useToast } from '@schovexa/ui';
+import { Badge, Button, Card, TextField, Alert, PageHeader, EmptyState, Skeleton, SkeletonRows, useToast } from '@schovexa/ui';
 import { Bell } from 'lucide-react';
 import { useNotices, NOTICES_QUERY_KEY, type NoticeAudience } from '../../../../hooks/useNotices';
 import { useClasses } from '../../../../hooks/useClasses';
 import { useSections } from '../../../../hooks/useSections';
 import { useMemberships } from '../../../../hooks/useMemberships';
+import { useCan } from '../../../../hooks/useCan';
+import { useTeachingOptions } from '../../../../hooks/useTeaching';
 import { api, ApiError } from '../../../../lib/api-client';
 import { AUDIENCE_LABELS, NoticeCard, useNoticeViewer } from '../../../../components/notice-card';
 
-export default function NoticesPage() {
+function NoticesView() {
+  const params = useSearchParams();
+  const { can, canSchoolWide } = useCan();
+  const canCreate = can('notice.create');
+  const canPublish = can('notice.publish');
+  // A teacher's notices go to the classes they teach; school-wide and individual notices come from the office.
+  const schoolWide = canSchoolWide('notice.create');
   const { data: notices, isLoading } = useNotices();
-  const { data: classes } = useClasses();
-  const { data: memberships } = useMemberships();
+  const { data: allClasses } = useClasses();
+  const { data: teaching } = useTeachingOptions(canCreate && !schoolWide && can('teaching.dashboard'));
+  const { data: memberships } = useMemberships({ enabled: schoolWide });
+  const classes = useMemo(() => {
+    if (schoolWide) return allClasses;
+    const seen = new Map<string, string>();
+    teaching?.sections.forEach((s) => seen.set(s.classId, s.className));
+    return [...seen.entries()].map(([id, name]) => ({ id, name }));
+  }, [schoolWide, allClasses, teaching]);
   const queryClient = useQueryClient();
   const toast = useToast();
   const viewer = useNoticeViewer();
-  const [creating, setCreating] = useState(false);
-  const [audienceType, setAudienceType] = useState<NoticeAudience>('ALL_SCHOOL');
+  const [creating, setCreating] = useState(params.get('new') === '1' && canCreate);
+  const [audienceType, setAudienceType] = useState<NoticeAudience>(schoolWide ? 'ALL_SCHOOL' : 'SECTION');
+  const [sendAt, setSendAt] = useState('');
   const [selectedClassId, setSelectedClassId] = useState('');
   const [serverError, setServerError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const { data: sectionsForClass } = useSections(selectedClassId || undefined);
+  const { data: allSections } = useSections(schoolWide ? selectedClassId || undefined : undefined);
+  const sectionsForClass = schoolWide ? allSections : teaching?.sections.filter((s) => s.classId === selectedClassId).map((s) => ({ id: s.id, name: s.name.split(' – ').slice(1).join(' – ') || s.name }));
 
   const {
     register,
@@ -34,16 +52,26 @@ export default function NoticesPage() {
     reset,
     setValue,
     formState: { errors, isSubmitting },
-  } = useForm<CreateNoticeInput>({ resolver: zodResolver(createNoticeSchema), defaultValues: { audienceType: 'ALL_SCHOOL' } });
+  } = useForm<CreateNoticeInput>({ resolver: zodResolver(createNoticeSchema), defaultValues: { audienceType: schoolWide ? 'ALL_SCHOOL' : 'SECTION' } });
 
   const onCreate = async (data: CreateNoticeInput) => {
     setServerError(null);
     try {
-      await api.post('/notices', data);
+      let scheduledFor: string | undefined;
+      if (sendAt) {
+        const at = new Date(sendAt);
+        if (Number.isNaN(at.getTime()) || at.getTime() <= Date.now()) {
+          setServerError('Choose a time in the future, or clear it to save a draft.');
+          return;
+        }
+        scheduledFor = at.toISOString();
+      }
+      await api.post('/notices', { ...data, scheduledFor });
       await queryClient.invalidateQueries({ queryKey: NOTICES_QUERY_KEY });
-      toast.show({ tone: 'success', title: 'Draft saved', description: 'Publish it when you are ready for people to see it.' });
+      toast.show(scheduledFor ? { tone: 'success', title: 'Scheduled', description: `It goes out on ${new Date(scheduledFor).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}.` } : { tone: 'success', title: 'Draft saved', description: 'Publish it when you are ready for people to see it.' });
       reset();
-      setAudienceType('ALL_SCHOOL');
+      setAudienceType(schoolWide ? 'ALL_SCHOOL' : 'SECTION');
+      setSendAt('');
       setSelectedClassId('');
       setCreating(false);
     } catch (err) {
@@ -66,8 +94,8 @@ export default function NoticesPage() {
     <div className="mx-auto max-w-3xl">
       <PageHeader
         title="Notices"
-        description="School announcements."
-        action={!creating && <Button onClick={() => setCreating(true)}>New notice</Button>}
+        description={schoolWide || !canCreate ? 'School announcements.' : 'School announcements, and updates for the classes you teach.'}
+        action={canCreate && !creating && <Button onClick={() => setCreating(true)}>{schoolWide ? 'New notice' : 'Announce to my class'}</Button>}
       />
 
       {creating && (
@@ -98,7 +126,7 @@ export default function NoticesPage() {
                   setSelectedClassId('');
                 }}
               >
-                {(Object.keys(AUDIENCE_LABELS) as NoticeAudience[]).map((a) => (
+                {(Object.keys(AUDIENCE_LABELS) as NoticeAudience[]).filter((a) => schoolWide || a === 'CLASS' || a === 'SECTION').map((a) => (
                   <option key={a} value={a}>
                     {AUDIENCE_LABELS[a]}
                   </option>
@@ -167,6 +195,8 @@ export default function NoticesPage() {
             )}
             {errors.audienceRefId && <p className="text-sm text-red-600">{errors.audienceRefId.message}</p>}
 
+            <TextField label="Send later (optional)" type="datetime-local" value={sendAt} onChange={(e) => setSendAt(e.target.value)} helperText="Leave empty to save a draft you publish yourself." />
+
             <div className="flex gap-2">
               <Button type="submit" loading={isSubmitting}>
                 Save draft
@@ -194,9 +224,14 @@ export default function NoticesPage() {
                 index={i}
                 actions={
                   !notice.publishedAt && (
-                    <Button size="sm" loading={busyId === notice.id} onClick={() => publish(notice.id)}>
-                      Publish
-                    </Button>
+                    <span className="flex items-center gap-2">
+                      {notice.scheduledFor && <Badge tone="info">Goes out {new Date(notice.scheduledFor).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</Badge>}
+                      {canPublish && (
+                        <Button size="sm" loading={busyId === notice.id} onClick={() => publish(notice.id)}>
+                          {notice.scheduledFor ? 'Send now' : 'Publish'}
+                        </Button>
+                      )}
+                    </span>
                   )
                 }
               />
@@ -206,5 +241,13 @@ export default function NoticesPage() {
       </div>
       {viewer.dialog}
     </div>
+  );
+}
+
+export default function NoticesPage() {
+  return (
+    <Suspense fallback={<Skeleton className="mx-auto h-64 max-w-3xl" />}>
+      <NoticesView />
+    </Suspense>
   );
 }

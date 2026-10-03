@@ -14,6 +14,8 @@ export interface ProfileUser {
   emergencyContactPhone: string | null;
   bio: string | null;
   status: string;
+  /** Where to fetch the photo through the session; null when there is none. */
+  photoUrl: string | null;
   lastLoginAt: string | null;
   /** Which non-essential messages this person wants. Security emails are always sent. */
   notifyByEmail: boolean;

@@ -53,6 +53,13 @@ export class LeaveController {
     return this.leave.uploadFile(auth, id, file);
   }
 
+  @Get('mine/:id/files')
+  @RequirePermission('leave.apply')
+  async myFiles(@Param('id') id: string, @CurrentAuthContext() auth: AuthContext) {
+    await this.leave.fileOwner(auth, id, true);
+    return this.leave.listFiles(auth, id);
+  }
+
   @Get('mine/:id/files/:docId')
   @RequirePermission('leave.apply')
   async downloadMine(@Param('id') id: string, @Param('docId') docId: string, @CurrentAuthContext() auth: AuthContext, @Res({ passthrough: true }) res: Response): Promise<StreamableFile> {

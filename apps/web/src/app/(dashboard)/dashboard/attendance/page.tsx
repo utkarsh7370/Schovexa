@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Alert, Avatar, Badge, Button, EmptyState, PageHeader, SelectField, Skeleton, StatCard, TextField, useToast } from '@schovexa/ui';
+import { Alert, Avatar, Badge, Button, EmptyState, PageHeader, SelectField, Skeleton, StatCard, Tabs, TextField, useToast } from '@schovexa/ui';
 import {
   CalendarCheck,
   CalendarDays,
@@ -19,6 +19,7 @@ import {
   School,
   Shapes,
   ShieldCheck,
+  Sunset,
   TriangleAlert,
   UserX,
 } from 'lucide-react';
@@ -28,11 +29,14 @@ import { useAbsenceAlerts, absenceAlertsQueryKey, useAttendanceRoster, useAttend
 import { api, ApiError } from '../../../../lib/api-client';
 import { SchoolDayBadge } from '../../../../components/school-day-badge';
 import { isHalfDay } from '../../../../lib/school-day';
+import { useCan } from '../../../../hooks/useCan';
+import { AttendanceCorrections, RequestCorrectionDialog, type CorrectionTarget } from '../../../../components/teaching/attendance-corrections';
 
 const STATUSES: { value: AttendanceStatus; label: string; short: string; icon: typeof CircleCheck; active: string; text: string; dot: string }[] = [
   { value: 'PRESENT', label: 'Present', short: 'P', icon: CircleCheck, active: 'border-emerald-500 bg-emerald-500 text-white shadow-[0_6px_16px_-6px_rgba(16,185,129,0.7)]', text: 'text-emerald-600', dot: 'bg-emerald-500' },
   { value: 'ABSENT', label: 'Absent', short: 'A', icon: CircleAlert, active: 'border-red-500 bg-red-500 text-white shadow-[0_6px_16px_-6px_rgba(239,68,68,0.7)]', text: 'text-red-600', dot: 'bg-red-500' },
   { value: 'LATE', label: 'Late', short: 'L', icon: Clock, active: 'border-amber-500 bg-amber-500 text-white shadow-[0_6px_16px_-6px_rgba(245,158,11,0.7)]', text: 'text-amber-600', dot: 'bg-amber-500' },
+  { value: 'HALF_DAY', label: 'Half day', short: 'H', icon: Sunset, active: 'border-orange-500 bg-orange-500 text-white shadow-[0_6px_16px_-6px_rgba(249,115,22,0.7)]', text: 'text-orange-600', dot: 'bg-orange-500' },
   { value: 'EXCUSED', label: 'Excused', short: 'E', icon: ShieldCheck, active: 'border-slate-500 bg-slate-500 text-white shadow-[0_6px_16px_-6px_rgba(100,116,139,0.7)]', text: 'text-slate-600', dot: 'bg-slate-400' },
 ];
 
@@ -44,6 +48,29 @@ function toDateInput(date: Date): string {
 const shiftIso = (iso: string, days: number) => new Date(new Date(`${iso}T00:00:00Z`).getTime() + days * 86_400_000).toISOString().slice(0, 10);
 
 export default function AttendancePage() {
+  const { can } = useCan();
+  const showCorrections = can('attendance.requestCorrection') || can('attendance.approveCorrection');
+  const [view, setView] = useState('register');
+  return (
+    <>
+      {showCorrections && (
+        <div className="mx-auto mb-6 max-w-5xl">
+          <Tabs className="w-fit" value={view} onChange={setView} tabs={[{ id: 'register', label: 'Register' }, { id: 'corrections', label: 'Corrections' }]} />
+        </div>
+      )}
+      {view === 'corrections' && showCorrections ? (
+        <div className="mx-auto max-w-5xl">
+          <PageHeader eyebrow="Teaching" title="Attendance corrections" description="A locked register is never edited quietly. A teacher asks, a coordinator decides, and the change is logged." />
+          <div className="mt-6"><AttendanceCorrections /></div>
+        </div>
+      ) : (
+        <RegisterPage />
+      )}
+    </>
+  );
+}
+
+function RegisterPage() {
   const { data: classes } = useClasses();
   const { data: school } = useAttendanceToday();
   const [classId, setClassId] = useState('');
@@ -151,7 +178,7 @@ export default function AttendancePage() {
               marking state (including the "Saved" confirmation) always
               starts fresh rather than needing to be reset by an effect
               racing against the post-save roster refetch below. */}
-          <MarkingPanel key={`${sectionId}-${date}`} sectionId={sectionId} date={date} locked={mode === 'locked'} lockMessage={lockMessage} title={`${className ?? ''} · Section ${sectionName ?? ''}`} />
+          <MarkingPanel key={`${sectionId}-${date}`} sectionId={sectionId} date={date} locked={mode === 'locked'} canRequestCorrection={mode === 'locked' && !closedToday} lockMessage={lockMessage} title={`${className ?? ''} · Section ${sectionName ?? ''}`} />
         </div>
       )}
 
@@ -164,7 +191,10 @@ export default function AttendancePage() {
   );
 }
 
-function MarkingPanel({ sectionId, date, title, locked, lockMessage }: { sectionId: string; date: string; title: string; locked: boolean; lockMessage: string }) {
+function MarkingPanel({ sectionId, date, title, locked, lockMessage, canRequestCorrection }: { sectionId: string; date: string; title: string; locked: boolean; lockMessage: string; canRequestCorrection: boolean }) {
+  const { can } = useCan();
+  const [correcting, setCorrecting] = useState<CorrectionTarget | null>(null);
+  const mayAsk = canRequestCorrection && can('attendance.requestCorrection');
   const { data: roster, isLoading } = useAttendanceRoster(sectionId, date);
   const { data: alerts } = useAbsenceAlerts(sectionId, date);
   const alertByStudent = useMemo(() => new Map((alerts ?? []).map((a) => [a.studentId, a])), [alerts]);
@@ -188,7 +218,7 @@ function MarkingPanel({ sectionId, date, title, locked, lockMessage }: { section
   }, [roster]);
 
   const counts = useMemo(() => {
-    const c: Record<AttendanceStatus | 'UNMARKED', number> = { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0, UNMARKED: 0 };
+    const c: Record<AttendanceStatus | 'UNMARKED', number> = { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0, HALF_DAY: 0, UNMARKED: 0 };
     (roster ?? []).forEach((s) => {
       const status = entries[s.studentId]?.status;
       if (status) c[status] += 1;
@@ -286,7 +316,7 @@ function MarkingPanel({ sectionId, date, title, locked, lockMessage }: { section
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Present" tone="emerald" icon={<CircleCheck size={18} />} value={counts.PRESENT} hint={`of ${total} students`} />
         <StatCard label="Absent" tone="violet" icon={<CircleAlert size={18} />} value={counts.ABSENT} hint={counts.ABSENT ? 'Consider informing parents' : 'Nobody absent'} />
-        <StatCard label="Late" tone="amber" icon={<Clock size={18} />} value={counts.LATE} />
+        <StatCard label="Late / half day" tone="amber" icon={<Clock size={18} />} value={counts.LATE + counts.HALF_DAY} hint={counts.HALF_DAY ? `${counts.LATE} late, ${counts.HALF_DAY} half day` : undefined} />
         <StatCard
           label={locked ? 'No record' : 'Not marked yet'}
           tone="default"
@@ -410,6 +440,11 @@ function MarkingPanel({ sectionId, date, title, locked, lockMessage }: { section
                   onChange={(e) => setRemarks(student.studentId, e.target.value)}
                   className="h-9 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-sm placeholder:text-slate-400 transition-all hover:border-slate-300 focus:border-brand-blue focus:outline-none focus:ring-4 focus:ring-brand-blue/15"
                 />
+                {mayAsk && (
+                  <Button size="sm" variant="secondary" onClick={() => setCorrecting({ studentId: student.studentId, studentName: name, sectionId, date, current: student.status })}>
+                    Request correction
+                  </Button>
+                )}
               </li>
             );
           })}
@@ -446,6 +481,7 @@ function MarkingPanel({ sectionId, date, title, locked, lockMessage }: { section
           </footer>
         )}
       </section>
+      <RequestCorrectionDialog target={correcting} onClose={() => setCorrecting(null)} />
     </div>
   );
 }
@@ -505,21 +541,22 @@ function SummaryPanel({ sectionId, today }: { sectionId: string; today: string }
       </div>
 
       <div className="mt-5 overflow-x-auto rounded-xl border border-slate-100">
-        <table className="w-full min-w-[34rem] text-left text-sm">
+        <table className="w-full min-w-[38rem] text-left text-sm">
           <thead className="bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-4 py-3">Student</th>
               <th className="px-3 py-3 text-center">Present</th>
               <th className="px-3 py-3 text-center">Absent</th>
               <th className="px-3 py-3 text-center">Late</th>
+              <th className="px-3 py-3 text-center">Half day</th>
               <th className="px-3 py-3 text-center">Excused</th>
               <th className="px-4 py-3">Attendance</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {summary?.map((row) => {
-              // Late still means the student came to school.
-              const rate = row.total ? Math.round(((row.present + row.late) / row.total) * 100) : null;
+              // Late still means the student came to school; a half day counts as half.
+              const rate = row.total ? Math.round(((row.present + row.late + row.halfDay * 0.5) / row.total) * 100) : null;
               const bar = rate === null ? 'bg-slate-200' : rate >= 90 ? 'from-emerald-400 to-teal-500' : rate >= 75 ? 'from-amber-400 to-orange-500' : 'from-rose-400 to-red-500';
               const name = `${row.firstName} ${row.lastName}`;
               return (
@@ -539,6 +576,7 @@ function SummaryPanel({ sectionId, today }: { sectionId: string; today: string }
                   <td className="px-3 py-3 text-center font-semibold text-emerald-600">{row.present}</td>
                   <td className="px-3 py-3 text-center font-semibold text-red-600">{row.absent}</td>
                   <td className="px-3 py-3 text-center font-semibold text-amber-600">{row.late}</td>
+                  <td className="px-3 py-3 text-center font-semibold text-orange-600">{row.halfDay}</td>
                   <td className="px-3 py-3 text-center font-semibold text-slate-500">{row.excused}</td>
                   <td className="px-4 py-3">
                     {rate === null ? (
@@ -557,7 +595,7 @@ function SummaryPanel({ sectionId, today }: { sectionId: string; today: string }
             })}
             {isLoading && (
               <tr>
-                <td colSpan={6} className="px-4 py-4">
+                <td colSpan={7} className="px-4 py-4">
                   <Skeleton className="h-6 w-full" />
                 </td>
               </tr>

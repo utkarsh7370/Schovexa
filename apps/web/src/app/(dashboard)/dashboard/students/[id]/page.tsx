@@ -33,6 +33,7 @@ import {
   Hash,
   IdCard,
   Link2,
+  MessageSquareText,
   Percent,
   Phone,
   School,
@@ -59,12 +60,13 @@ import { SectionCard } from '../../../../../components/section-card';
 import { ageFromDob, STUDENT_STATUS_LABELS, STUDENT_STATUS_TONES } from '../../../../../components/student-card';
 import { SchoolDayBadge } from '../../../../../components/school-day-badge';
 import { useCan } from '../../../../../hooks/useCan';
+import { StudentRemarksPanel, StudentResultsPanel } from '../../../../../components/teaching/student-teaching-panels';
 import { SCHOOL_DAY_OPTIONS, schoolDayMeta, type SchoolDay } from '../../../../../lib/school-day';
 
 const STATUS_OPTIONS: StudentStatus[] = ['ENROLLED', 'TRANSFERRED', 'GRADUATED', 'WITHDRAWN'];
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
 
-type TabId = 'overview' | 'attendance' | 'fees' | 'documents';
+type TabId = 'overview' | 'attendance' | 'results' | 'remarks' | 'fees' | 'documents';
 
 function toDateInput(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -86,20 +88,24 @@ export default function StudentDetailPage() {
     to: toDateInput(new Date()),
   }));
   const { data: history } = useAttendanceHistory(id, range.from, range.to);
-  const { data: fees } = useStudentFees(id);
+  const { can } = useCan();
+  // Fees are a finance matter: a teacher's view of a student has no fee tab, balance or request behind it.
+  const showFees = can('fee.view');
+  const showResults = can('result.view');
+  const showRemarks = can('remark.view');
+  const { data: fees } = useStudentFees(showFees ? id : undefined);
   const { data: documents } = useStudentDocuments(id);
 
   const attendance = useMemo(() => {
-    const counts: Record<AttendanceStatus, number> = { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0 };
+    const counts: Record<AttendanceStatus, number> = { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0, HALF_DAY: 0 };
     (history ?? []).forEach((r) => (counts[r.status] += 1));
     const total = history?.length ?? 0;
-    // Late still means the child was in school; only Absent/Excused lower the rate.
-    const rate = total ? Math.round(((counts.PRESENT + counts.LATE) / total) * 100) : null;
+    // Late still means the child was in school, and a half day counts as half; only Absent/Excused lower the rate.
+    const rate = total ? Math.round(((counts.PRESENT + counts.LATE + counts.HALF_DAY * 0.5) / total) * 100) : null;
     return { counts, total, rate };
   }, [history]);
   const balanceMinor = (fees ?? []).reduce((sum, f) => sum + f.balanceMinor, 0);
 
-  const { can } = useCan();
   const photoInput = useRef<HTMLInputElement>(null);
   const setSchoolDay = async (schoolDay: SchoolDay) => {
     setBusy(true);
@@ -264,6 +270,7 @@ export default function StudentDetailPage() {
               </SelectField>
             </div>
           )}
+          {can('student.update') && (
           <div className="w-44">
             <SelectField
               fieldSize="sm"
@@ -279,6 +286,7 @@ export default function StudentDetailPage() {
               ))}
             </SelectField>
           </div>
+          )}
           </div>
         }
       />
@@ -291,13 +299,17 @@ export default function StudentDetailPage() {
           value={attendance.rate === null ? '—' : `${attendance.rate}%`}
           hint={attendance.total ? `${attendance.counts.PRESENT} present · ${attendance.counts.ABSENT} absent` : 'No records yet'}
         />
-        <StatCard
-          label="Fee balance"
-          tone={balanceMinor > 0 ? 'amber' : 'emerald'}
-          icon={<Wallet size={18} />}
-          value={fees ? formatMinor(balanceMinor) : '—'}
-          hint={balanceMinor > 0 ? 'Payment pending' : fees?.length ? 'All settled' : 'No fees assigned'}
-        />
+        {showFees ? (
+          <StatCard
+            label="Fee balance"
+            tone={balanceMinor > 0 ? 'amber' : 'emerald'}
+            icon={<Wallet size={18} />}
+            value={fees ? formatMinor(balanceMinor) : '—'}
+            hint={balanceMinor > 0 ? 'Payment pending' : fees?.length ? 'All settled' : 'No fees assigned'}
+          />
+        ) : (
+          <StatCard label="Class" tone="blue" icon={<School size={18} />} value={student.section ? `${student.section.class.name} ${student.section.name}` : '—'} hint={student.section?.classTeacher ? `Teacher: ${student.section.classTeacher.user.firstName}` : undefined} />
+        )}
         <StatCard label="Parents linked" tone="blue" icon={<Users size={18} />} value={student.parents.length} hint={student.parents.some((l) => l.isPrimary) ? 'Primary contact set' : 'No primary contact'} />
         <StatCard label="Documents" tone="violet" icon={<FileText size={18} />} value={documents?.length ?? '—'} hint="PDF, JPEG or PNG" />
       </div>
@@ -308,7 +320,9 @@ export default function StudentDetailPage() {
         tabs={[
           { id: 'overview', label: 'Overview', icon: <IdCard size={16} /> },
           { id: 'attendance', label: 'Attendance', icon: <CalendarCheck size={16} />, count: attendance.total || undefined },
-          { id: 'fees', label: 'Fees', icon: <Wallet size={16} />, count: fees?.length || undefined },
+          ...(showResults ? [{ id: 'results', label: 'Results', icon: <GraduationCap size={16} /> }] : []),
+          ...(showRemarks ? [{ id: 'remarks', label: 'Remarks', icon: <MessageSquareText size={16} /> }] : []),
+          ...(showFees ? [{ id: 'fees', label: 'Fees', icon: <Wallet size={16} />, count: fees?.length || undefined }] : []),
           { id: 'documents', label: 'Documents', icon: <FileText size={16} />, count: documents?.length || undefined },
         ]}
       />
@@ -325,7 +339,9 @@ export default function StudentDetailPage() {
           </div>
         )}
         {tab === 'attendance' && <AttendancePanel history={history} range={range} counts={attendance.counts} rate={attendance.rate} />}
-        {tab === 'fees' && <FeesPanel studentId={id} />}
+        {tab === 'results' && showResults && <StudentResultsPanel studentId={id} />}
+        {tab === 'remarks' && showRemarks && <StudentRemarksPanel studentId={id} />}
+        {tab === 'fees' && showFees && <FeesPanel studentId={id} />}
         {tab === 'documents' && <DocumentsPanel studentId={id} />}
       </div>
     </div>
@@ -337,6 +353,7 @@ export default function StudentDetailPage() {
 function DetailsPanel({ student, age }: { student: StudentDetail; age: number | null }) {
   const rows: { icon: React.ReactNode; label: string; value: React.ReactNode }[] = [
     { icon: <Hash size={16} />, label: 'Admission no.', value: <span className="font-mono">{student.admissionNo}</span> },
+    ...(student.rollNo ? [{ icon: <Hash size={16} />, label: 'Roll no.', value: <span className="font-mono">{student.rollNo}</span> }] : []),
     { icon: <Cake size={16} />, label: 'Date of birth', value: student.dateOfBirth ? `${new Date(student.dateOfBirth).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}${age !== null ? ` (${age} yrs)` : ''}` : '—' },
     { icon: <UserRound size={16} />, label: 'Gender', value: student.gender || '—' },
     { icon: <School size={16} />, label: 'Class', value: student.section ? student.section.class.name : 'Not assigned yet' },
@@ -373,7 +390,11 @@ function ParentsPanel({
   studentId: string;
   linkedParents: StudentDetail['parents'];
 }) {
-  const { data: parents } = useParents();
+  const { can } = useCan();
+  // Linking parents is an admissions task; a teacher only reads who the parents are.
+  const canLink = can('student.update');
+  const canOpenParent = can('parent.view');
+  const { data: parents } = useParents({ enabled: canLink });
   const queryClient = useQueryClient();
   const toast = useToast();
   const [linking, setLinking] = useState(false);
@@ -425,7 +446,7 @@ function ParentsPanel({
       title="Parents & guardians"
       description="Who can see this student’s records."
       action={
-        !linking && (
+        canLink && !linking && (
           <Button size="sm" variant="secondary" onClick={() => setLinking(true)}>
             <UserRoundPlus size={15} /> Link parent
           </Button>
@@ -438,7 +459,7 @@ function ParentsPanel({
           return (
             <div key={link.id} className="group flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3 transition-colors hover:border-brand-blue/30 hover:bg-white">
               <Avatar name={name} tone="auto" size={42} />
-              <Link href={`/dashboard/parents/${link.parent.id}`} className="min-w-0 flex-1">
+              <Link href={canOpenParent ? `/dashboard/parents/${link.parent.id}` : '#'} aria-disabled={!canOpenParent} onClick={(e) => !canOpenParent && e.preventDefault()} className={['min-w-0 flex-1', canOpenParent ? '' : 'cursor-default'].join(' ')}>
                 <p className="flex items-center gap-2 truncate text-sm font-bold text-navy group-hover:text-brand-blue">
                   {name}
                   {link.isPrimary && <Badge tone="brand">Primary</Badge>}
@@ -452,6 +473,7 @@ function ParentsPanel({
                   )}
                 </p>
               </Link>
+              {canLink && (
               <Button
                 size="sm"
                 variant="soft-danger"
@@ -461,15 +483,16 @@ function ParentsPanel({
               >
                 <Link2 size={14} /> Unlink
               </Button>
+              )}
             </div>
           );
         })}
         {linkedParents.length === 0 && !linking && (
-          <EmptyState icon={<UserRound size={22} />} title="No parents linked yet" description="Link a parent so they can follow attendance, fees and notices." />
+          <EmptyState icon={<UserRound size={22} />} title="No parents linked yet" description={canLink ? 'Link a parent so they can follow attendance, fees and notices.' : 'No parent has been linked to this student yet.'} />
         )}
       </div>
 
-      {linking && (
+      {canLink && linking && (
         <form onSubmit={handleSubmit(onLink)} className="mt-4 flex animate-fade-in-up flex-col gap-4 rounded-2xl border border-brand-blue/20 bg-brand-gradient-soft p-4" noValidate>
           {serverError && <Alert variant="error">{serverError}</Alert>}
           <SelectField label="Parent" error={errors.parentId?.message} {...register('parentId')}>
@@ -534,18 +557,21 @@ const ATTENDANCE_LABELS: Record<AttendanceStatus, string> = {
   ABSENT: 'Absent',
   LATE: 'Late',
   EXCUSED: 'Excused',
+  HALF_DAY: 'Half day',
 };
 const ATTENDANCE_TONES: Record<AttendanceStatus, BadgeTone> = {
   PRESENT: 'success',
   ABSENT: 'danger',
   LATE: 'warning',
   EXCUSED: 'neutral',
+  HALF_DAY: 'warning',
 };
 const ATTENDANCE_CELL: Record<AttendanceStatus, string> = {
   PRESENT: 'bg-emerald-400',
   ABSENT: 'bg-red-400',
   LATE: 'bg-amber-400',
   EXCUSED: 'bg-slate-400',
+  HALF_DAY: 'bg-orange-400',
 };
 
 function AttendancePanel({
@@ -858,6 +884,7 @@ function formatBytes(bytes: number): string {
 }
 
 function DocumentsPanel({ studentId }: { studentId: string }) {
+  const { can } = useCan();
   const { data: documents } = useStudentDocuments(studentId);
   const { data: config } = useDocumentConfig();
   const [category, setCategory] = useState('');
@@ -902,12 +929,16 @@ function DocumentsPanel({ studentId }: { studentId: string }) {
     }
   };
 
+  const canUpload = can('document.upload');
+  const canDelete = can('document.delete');
+
   return (
     <SectionCard
       icon={<FileText size={18} />}
       title="Documents"
-      description="Birth certificate, transfer certificate, report cards…"
+      description={canUpload ? 'Birth certificate, transfer certificate, report cards…' : 'The documents you are allowed to see for this student.'}
       action={
+        canUpload && (
         <>
           <Button size="sm" variant="secondary" loading={uploading} onClick={() => fileInputRef.current?.click()}>
             <Upload size={15} /> Upload document
@@ -923,6 +954,7 @@ function DocumentsPanel({ studentId }: { studentId: string }) {
             }}
           />
         </>
+        )
       }
     >
       {serverError && (
@@ -931,7 +963,7 @@ function DocumentsPanel({ studentId }: { studentId: string }) {
         </Alert>
       )}
 
-      {config && config.categories.length > 0 && (
+      {canUpload && config && config.categories.length > 0 && (
         <div className="mb-4 max-w-xs">
           <SelectField label="Next upload is a…" fieldSize="sm" value={category} onChange={(e) => setCategory(e.target.value)}>
             <option value="">Not categorised</option>
@@ -940,7 +972,7 @@ function DocumentsPanel({ studentId }: { studentId: string }) {
         </div>
       )}
 
-      {config && config.requiredStudentDocuments.length > 0 && documents && (
+      {canUpload && config && config.requiredStudentDocuments.length > 0 && documents && (
         <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50/60 p-3" aria-label="Required documents">
           <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Required documents</p>
           <ul className="flex flex-wrap gap-2">
@@ -970,20 +1002,24 @@ function DocumentsPanel({ studentId }: { studentId: string }) {
                 {formatBytes(doc.sizeBytes)} · {new Date(doc.createdAt).toLocaleDateString()}
               </p>
             </a>
-            <Button size="sm" variant="soft-danger" aria-label={`Delete ${doc.fileName}`} loading={busyDocId === doc.id} onClick={() => removeDoc(doc.id)}>
-              <Trash2 size={14} /> Delete
-            </Button>
+            {canDelete && (
+              <Button size="sm" variant="soft-danger" aria-label={`Delete ${doc.fileName}`} loading={busyDocId === doc.id} onClick={() => removeDoc(doc.id)}>
+                <Trash2 size={14} /> Delete
+              </Button>
+            )}
           </div>
         ))}
         {documents?.length === 0 && (
           <EmptyState
             icon={<FileText size={22} />}
             title="No documents uploaded yet"
-            description={`${acceptedTypes}, up to ${sizeLimit} each.`}
+            description={canUpload ? `${acceptedTypes}, up to ${sizeLimit} each.` : 'Nothing has been shared with you for this student.'}
             action={
-              <Button size="sm" variant="secondary" onClick={() => fileInputRef.current?.click()}>
-                <Upload size={15} /> Upload the first one
-              </Button>
+              canUpload ? (
+                <Button size="sm" variant="secondary" onClick={() => fileInputRef.current?.click()}>
+                  <Upload size={15} /> Upload the first one
+                </Button>
+              ) : undefined
             }
           />
         )}

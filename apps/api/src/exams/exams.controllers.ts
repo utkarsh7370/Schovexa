@@ -11,6 +11,7 @@ import { AuthorizationService } from '../authorization/authorization.service';
 import type { AuthContext } from '../authorization/authorization.types';
 import { requestMeta } from '../common/request-meta.util';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
+import { PlanningOptionsService } from '../teaching/planning-options.service';
 import { ExamsService } from './exams.service';
 import { MarkCorrectionsService } from './mark-corrections.service';
 import { MarksService } from './marks.service';
@@ -26,7 +27,15 @@ export class ExamsController {
     private readonly marks: MarksService,
     private readonly corrections: MarkCorrectionsService,
     private readonly authorization: AuthorizationService,
+    private readonly planning: PlanningOptionsService,
   ) {}
+
+  // The whole school's classes, subjects and teachers, for setting up exam papers.
+  @Get('options')
+  @RequirePermission('exam.manage')
+  options(@CurrentAuthContext() auth: AuthContext) {
+    return this.planning.load(auth.schoolId);
+  }
 
   // -- Exams and papers ------------------------------------------------------------------
   @Get()

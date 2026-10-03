@@ -135,4 +135,27 @@ export class TeachingDashboardService {
     ];
     return items.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.time ?? '') < (b.time ?? '') ? -1 : 1));
   }
+
+  /**
+   * The sections and subjects this person can set work, take marks or write to — for the pickers on every
+   * teaching screen. A teacher gets their own assignments; an administrator, everything that is taught.
+   */
+  async options(auth: AuthContext) {
+    const all = auth.scope === 'ALL_SCHOOL';
+    const mine = all ? null : await this.scopeService.resolveMine(auth);
+    const rows = await this.prisma.teacherAssignment.findMany({
+      where: { schoolId: auth.schoolId, deletedAt: null, section: { deletedAt: null }, subject: { deletedAt: null }, ...(mine ? { teacherId: mine.teacherId ?? '__none__' } : {}) },
+      select: { sectionId: true, subjectId: true, section: { select: { id: true, name: true, classId: true, class: { select: { name: true, order: true } } } }, subject: { select: { id: true, name: true } } },
+    });
+    // A class teacher can see (and announce to) their section even if they teach no subject in it.
+    const classTeacher = mine?.teacherId ? await this.prisma.section.findMany({ where: { classTeacherId: mine.teacherId, deletedAt: null }, select: { id: true, name: true, classId: true, class: { select: { name: true, order: true } } } }) : [];
+    const sections = new Map<string, { id: string; name: string; classId: string; className: string; order: number }>();
+    for (const s of [...rows.map((r) => r.section), ...classTeacher]) sections.set(s.id, { id: s.id, name: `${s.class.name} – ${s.name}`, classId: s.classId, className: s.class.name, order: s.class.order });
+    const subjects = new Map(rows.map((r) => [r.subject.id, r.subject]));
+    return {
+      sections: [...sections.values()].sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, undefined, { numeric: true })),
+      subjects: [...subjects.values()].sort((a, b) => a.name.localeCompare(b.name)),
+      pairs: rows.map((r) => ({ sectionId: r.sectionId, subjectId: r.subjectId })),
+    };
+  }
 }

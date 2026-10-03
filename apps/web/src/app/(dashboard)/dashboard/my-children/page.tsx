@@ -1,8 +1,10 @@
 'use client';
 
-import { useMemo } from 'react';
-import { Avatar, Badge, EmptyState, PageHeader, Skeleton, type BadgeTone } from '@schovexa/ui';
-import { CalendarCheck, CircleAlert, Clock, GraduationCap, Heart, School, Wallet } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Avatar, Badge, Button, EmptyState, PageHeader, Skeleton, type BadgeTone } from '@schovexa/ui';
+import { CalendarCheck, CircleAlert, Clock, GraduationCap, Heart, Library, MessageSquare, MessageSquareText, NotebookPen, School, Wallet } from 'lucide-react';
+import { useCan } from '../../../../hooks/useCan';
+import { StudentRemarksPanel, StudentResultsPanel } from '../../../../components/teaching/student-teaching-panels';
 import { useStudents, useStudent } from '../../../../hooks/useStudents';
 import { useAttendanceHistory, type AttendanceStatus } from '../../../../hooks/useAttendance';
 import Link from 'next/link';
@@ -106,10 +108,10 @@ function ChildCard({ studentId, index }: { studentId: string; index: number }) {
   const { data: fees } = useStudentFees(studentId);
 
   const { counts, rate } = useMemo(() => {
-    const c: Record<AttendanceStatus, number> = { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0 };
+    const c: Record<AttendanceStatus, number> = { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0, HALF_DAY: 0 };
     (history ?? []).forEach((r) => (c[r.status] += 1));
     const total = history?.length ?? 0;
-    return { counts: c, rate: total ? Math.round(((c.PRESENT + c.LATE) / total) * 100) : null };
+    return { counts: c, rate: total ? Math.round(((c.PRESENT + c.LATE + c.HALF_DAY * 0.5) / total) * 100) : null };
   }, [history]);
 
   if (!student) return <ChildCardSkeleton />;
@@ -210,8 +212,48 @@ function ChildCard({ studentId, index }: { studentId: string; index: number }) {
             <p className="mt-2 text-sm text-slate-500">No fees assigned yet.</p>
           )}
         </div>
+
+        <ChildLearning studentId={studentId} />
       </div>
     </article>
+  );
+}
+
+// Results, teacher notes and the shortcuts a parent uses to follow their child's learning.
+function ChildLearning({ studentId }: { studentId: string }) {
+  const { can } = useCan();
+  const [open, setOpen] = useState<'results' | 'notes' | null>(null);
+  const links = [
+    can('homework.view') && { href: '/dashboard/homework', label: 'Homework', icon: <NotebookPen size={14} /> },
+    can('content.view') && { href: '/dashboard/content', label: 'Study material', icon: <Library size={14} /> },
+    can('message.view') && { href: '/dashboard/messages', label: 'Ask a teacher', icon: <MessageSquare size={14} /> },
+  ].filter(Boolean) as { href: string; label: string; icon: React.ReactNode }[];
+  const showResults = can('result.view');
+  const showNotes = can('remark.view');
+  if (links.length === 0 && !showResults && !showNotes) return null;
+  return (
+    <div className="mt-6 border-t border-slate-100 pt-5">
+      <h3 className="text-sm font-bold text-navy">Learning</h3>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {showResults && (
+          <Button size="sm" variant={open === 'results' ? 'primary' : 'secondary'} onClick={() => setOpen(open === 'results' ? null : 'results')} aria-expanded={open === 'results'}>
+            <GraduationCap size={14} /> Exam results
+          </Button>
+        )}
+        {showNotes && (
+          <Button size="sm" variant={open === 'notes' ? 'primary' : 'secondary'} onClick={() => setOpen(open === 'notes' ? null : 'notes')} aria-expanded={open === 'notes'}>
+            <MessageSquareText size={14} /> Teacher notes
+          </Button>
+        )}
+        {links.map((l) => (
+          <Link key={l.href} href={l.href}>
+            <Button size="sm" variant="secondary">{l.icon} {l.label}</Button>
+          </Link>
+        ))}
+      </div>
+      {open === 'results' && <div className="mt-4"><StudentResultsPanel studentId={studentId} /></div>}
+      {open === 'notes' && <div className="mt-4"><StudentRemarksPanel studentId={studentId} /></div>}
+    </div>
   );
 }
 
@@ -239,7 +281,7 @@ export default function MyChildrenPage() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <PageHeader eyebrow="Family" title="My Children" description="Attendance and fee status for your linked children, at a glance." />
+      <PageHeader eyebrow="Family" title="My Children" description="Attendance, fees, results and notes for your linked children, at a glance." />
 
       <div className="mt-6 flex flex-col gap-6">
         {isLoading && (

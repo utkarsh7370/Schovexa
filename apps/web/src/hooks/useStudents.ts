@@ -7,6 +7,7 @@ export type StudentStatus = 'ENROLLED' | 'TRANSFERRED' | 'GRADUATED' | 'WITHDRAW
 export interface Student {
   id: string;
   admissionNo: string;
+  rollNo: string | null;
   firstName: string;
   lastName: string;
   dateOfBirth: string | null;

@@ -67,6 +67,7 @@ export function StudentCard({ student, index = 0 }: { student: StudentListItem; 
                 <p className="mt-0.5 inline-flex items-center rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-slate-600">
                   {student.admissionNo}
                 </p>
+                {student.rollNo && <span className="ml-1.5 text-[11px] font-semibold text-slate-400">Roll {student.rollNo}</span>}
               </div>
             </div>
             <Badge tone={STUDENT_STATUS_TONES[student.status] ?? 'neutral'} dot>
