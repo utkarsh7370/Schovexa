@@ -125,7 +125,7 @@ async function main() {
   // 1. School + Director ----------------------------------------------------
   const schoolName = `Sunrise Public School${SUFFIX ? ` ${SUFFIX}` : ''}`;
   const directorEmail = `director${SUFFIX}@demo.school`;
-  console.log(`[1/15] Registering "${schoolName}"...`);
+  console.log(`[1/16] Registering "${schoolName}"...`);
   let reg;
   try {
     reg = await director.call('POST', '/schools/register', {
@@ -161,7 +161,7 @@ async function main() {
   const [yy, mm] = todayIso.split('-').map(Number);
   const startYear = mm >= 4 ? yy : yy - 1;
   const yearName = `${startYear}-${String(startYear + 1).slice(2)}`;
-  console.log(`[2/15] Academic year ${yearName}...`);
+  console.log(`[2/16] Academic year ${yearName}...`);
   const ay = await director.call('POST', '/academic-years', {
     name: yearName,
     startDate: `${startYear}-04-01`,
@@ -172,7 +172,7 @@ async function main() {
   // Everything under Settings: who the school is, its day and week, and the
   // attendance / fee / notification / document rules. Done before fees and
   // attendance so receipts carry the prefix and the rules apply from the start.
-  console.log('[3/15] School profile, timings and rules...');
+  console.log('[3/16] School profile, timings and rules...');
   await director.call('PATCH', '/schools/me', {
     motto: 'Learn, lead, serve',
     description: 'A friendly K–5 school where every child is known by name. Small classes, strong basics, and a lot of curiosity.',
@@ -211,7 +211,7 @@ async function main() {
   console.log('   Profile, Mon–Sat week (2nd & 4th Saturday off), 08:00–14:30 with a break, ₹50/day late fee, receipts SPS/…');
 
   // 4. Classes + sections -------------------------------------------------------
-  console.log('[4/15] Classes and sections...');
+  console.log('[4/16] Classes and sections...');
   const classes = [];
   const sections = []; // { id, name, classId, className }
   for (let i = 0; i < CLASS_NAMES.length; i++) {
@@ -225,14 +225,14 @@ async function main() {
   console.log(`   ${classes.length} classes, ${sections.length} sections`);
 
   // 5. Subjects -----------------------------------------------------------------
-  console.log('[5/15] Subjects...');
+  console.log('[5/16] Subjects...');
   const subjects = [];
   for (const name of SUBJECT_NAMES) {
     subjects.push(await director.call('POST', '/subjects', { name }));
   }
 
   // 6. Teachers (10) — invite, accept, profile, class-teacher, 2 subjects each --
-  console.log('[6/15] Teachers (10)...');
+  console.log('[6/16] Teachers (10)...');
   const teachers = [];
   for (let i = 0; i < 10; i++) {
     const [first, last] = TEACHER_NAMES[i];
@@ -260,7 +260,7 @@ async function main() {
   console.log(`   ${teachers.length} teachers — each is class teacher of one section and teaches 2 subjects there`);
 
   // 7. Other staff roles ----------------------------------------------------------
-  console.log('[7/15] Additional staff (Principal, Accountant, Receptionist)...');
+  console.log('[7/16] Additional staff (Principal, Accountant, Receptionist)...');
   const staffDefs = [
     { role: 'Principal', first: 'Rohit', last: 'Menon' },
     { role: 'Accountant', first: 'Meera', last: 'Iyer' },
@@ -279,7 +279,7 @@ async function main() {
   }
 
   // 8. Students (3 per section = 30) -----------------------------------------------
-  console.log('[8/15] Students (30)...');
+  console.log('[8/16] Students (30)...');
   const students = [];
   let admNo = 1;
   for (const section of sections) {
@@ -301,7 +301,7 @@ async function main() {
   console.log(`   ${students.length} students admitted, 3 per section`);
 
   // 9. Structure: terms, grading, holidays, departments, houses and clubs ---------
-  console.log('[9/15] Terms, grading, holidays, departments, houses and clubs...');
+  console.log('[9/16] Terms, grading, holidays, departments, houses and clubs...');
 
   await director.call('POST', `/academic-years/${ay.id}/terms`, { name: 'Term 1', startDate: `${startYear}-04-01`, endDate: `${startYear}-09-30` });
   await director.call('POST', `/academic-years/${ay.id}/terms`, { name: 'Term 2', startDate: `${startYear}-10-01`, endDate: `${startYear + 1}-03-31` });
@@ -380,7 +380,7 @@ async function main() {
   console.log(`   2 terms, 7 grades, ${holidays.length} holidays, ${departments.length} departments, ${houses.length} houses, ${clubs.length} clubs/teams`);
 
   // 10. Parents — link some students, invite a few to the portal --------------------
-  console.log('[10/15] Parents...');
+  console.log('[10/16] Parents...');
   const linkPlan = [[0, 1], [2, 3]]; // two sibling pairs sharing one parent
   for (let i = 4; i < 20; i++) linkPlan.push([i]); // remaining 16 get one parent each
   const invitePortalAt = new Set([0, 1, 2]); // first 3 parent groups get a real portal login
@@ -415,7 +415,7 @@ async function main() {
   // 11. Attendance — mark 2 days, then correct a few records -----------------------
   // The API only allows marking/changing attendance on the day itself (in
   // the school's time zone), so the demo can only seed today.
-  console.log("[11/15] Attendance (today only — past days are locked by the API, with a few corrections)...");
+  console.log("[11/16] Attendance (today only — past days are locked by the API, with a few corrections)...");
   // New schools default to Asia/Kolkata, and "today" must be that zone's today.
   const dates = [new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date())];
   const todaysFirstRecordBySection = [];
@@ -454,7 +454,7 @@ async function main() {
   console.log(`   Marked today's attendance across ${sections.length} sections, corrected ${corrected} record(s)`);
 
   // 12. Notices — one of each audience type ---------------------------------------
-  console.log('[12/15] Notices (one of each audience type)...');
+  console.log('[12/16] Notices (one of each audience type)...');
   async function createAndPublish(payload) {
     const notice = await director.call('POST', '/notices', payload);
     await director.call('POST', `/notices/${notice.id}/publish`);
@@ -486,7 +486,7 @@ async function main() {
   });
 
   // 13. Fee categories + one structure per frequency type --------------------------
-  console.log('[13/15] Fee structures (one per frequency type)...');
+  console.log('[13/16] Fee structures (one per frequency type)...');
   const tuitionCat = await director.call('POST', '/fee-categories', { name: 'Tuition Fee' });
   const admissionCat = await director.call('POST', '/fee-categories', { name: 'Admission Fee' });
   const examCat = await director.call('POST', '/fee-categories', { name: 'Examination Fee' });
@@ -526,7 +526,7 @@ async function main() {
   // 14. Collect some cash payments, as the Accountant ------------------------------
   // Money is collected by the Accountant (not the Director) and only cash is switched on,
   // so this signs in as her, exactly as the app would.
-  console.log('[14/15] Collecting cash payments as the Accountant (so there is a real due amount)...');
+  console.log('[14/16] Collecting cash payments as the Accountant (so there is a real due amount)...');
   const accountantEmail = `accountant${SUFFIX}@demo.school`;
   const principalEmail = `principal${SUFFIX}@demo.school`;
   async function loginStaff(email, password) {
@@ -567,7 +567,7 @@ async function main() {
   console.log(`   ${paidFull} fee(s) paid in full, ${paidPartial} paid partially (all cash), the rest left outstanding`);
 
   // 15. Finance workflows: corrections, refunds, discounts, scholarships ------------------
-  console.log('[15/15] Finance workflows (correction, refunds, discounts, a scholarship, reminders)...');
+  console.log('[15/16] Finance workflows (correction, refunds, discounts, a scholarship, reminders)...');
   if (payments.length >= 4) {
     // A payment typed wrongly, then corrected with a reason (the old value stays in the log).
     await accountant.call('PATCH', `/payments/${payments[1].id}`, { receivedFrom: 'Mother', reason: 'Wrong name written on the voucher' });
@@ -586,6 +586,109 @@ async function main() {
   }
   const reminder = await accountant.call('POST', '/finance/reminders', { kind: 'OUTSTANDING', classId: classes[0].id }).catch(() => null);
   console.log(`   1 payment corrected, 2 refunds (1 paid out, 1 waiting), a sibling discount applied, a scholarship waiting for approval${reminder ? `, reminders sent for ${reminder.fees} fees` : ''}`);
+
+  // 16. The teaching workspace ----------------------------------------------------------
+  // Everything a teacher does in a day, done the way they do it: through their own sessions,
+  // so every scope and workflow rule applies to the seeded data too.
+  console.log('[16/16] Teaching workspace (timetable, homework, assignments, exams and marks, remarks, messages, leave, events)...');
+  const addDays = (iso, n) => new Date(new Date(`${iso}T00:00:00Z`).getTime() + n * 86_400_000).toISOString().slice(0, 10);
+  const weekdayOf = (iso) => ((new Date(`${iso}T00:00:00Z`).getUTCDay() + 6) % 7) + 1; // 1 = Monday
+  const coordinatorEmail = `coordinator${SUFFIX}@demo.school`;
+  const coordInvite = await director.call('POST', '/memberships/invitations', { email: coordinatorEmail, firstName: 'Nisha', lastName: 'Pillai', roleId: roleIdByName['Academic Coordinator'] });
+  await director.call('POST', '/auth/accept-invite', { token: coordInvite.inviteToken, password: STAFF_PASSWORD });
+  credentials.push({ role: 'Academic Coordinator', name: 'Nisha Pillai', email: coordinatorEmail, password: STAFF_PASSWORD });
+  const coordinator = await loginStaff(coordinatorEmail, STAFF_PASSWORD);
+
+  // Timetable: Monday–Friday, four lessons a day before the break (three for every second teacher, so
+  // the others are free to cover).
+  const PERIODS = [['08:00', '08:45'], ['08:45', '09:30'], ['09:30', '10:15'], ['10:15', '11:00']];
+  const slotsByTeacher = new Map();
+  for (let i = 0; i < teachers.length; i++) {
+    const t = teachers[i];
+    const own = [subjects[i % subjects.length], subjects[(i + 1) % subjects.length]];
+    const lessons = i % 2 === 0 ? 4 : 3;
+    const slots = [];
+    for (let day = 1; day <= 5; day++) {
+      for (let period = 1; period <= lessons; period++) {
+        const subject = own[(period + day) % 2];
+        const [startTime, endTime] = PERIODS[period - 1];
+        const slot = await coordinator.call('POST', '/timetable', { sectionId: t.sectionId, subjectId: subject.id, teacherId: t.id, dayOfWeek: day, period, startTime, endTime, room: `Room ${100 + i}` });
+        slots.push(slot);
+      }
+    }
+    slotsByTeacher.set(t.id, slots);
+  }
+  // Teacher 2 covers Teacher 1's last lesson on the next working day.
+  const coverDay = (() => { let d = addDays(todayIso, 1); while (weekdayOf(d) > 5) d = addDays(d, 1); return d; })();
+  const coverSlot = slotsByTeacher.get(teachers[0].id).find((x) => x.dayOfWeek === weekdayOf(coverDay) && x.period === 4);
+  if (coverSlot) await coordinator.call('POST', '/timetable/substitutions', { slotId: coverSlot.id, date: coverDay, substituteTeacherId: teachers[1].id, reason: 'Teacher 1 is at a workshop' });
+
+  // Homework and assignments, set by the first four teachers for their own sections.
+  const teacherSessions = [];
+  for (let i = 0; i < 4; i++) teacherSessions.push(await loginStaff(teachers[i].email, TEACHER_PASSWORD));
+  const subjectOf = (i, n) => subjects[(i + n) % subjects.length];
+  const coursework = [];
+  for (let i = 0; i < 4; i++) {
+    const t = teachers[i];
+    const [hw] = await teacherSessions[i].call('POST', '/homework', { kind: 'HOMEWORK', sectionIds: [t.sectionId], subjectId: subjectOf(i, 0).id, title: `${subjectOf(i, 0).name}: practice sheet ${i + 1}`, description: 'Complete the practice sheet and bring it to the next class.', dueDate: addDays(todayIso, 2 + i), priority: i === 0 ? 'HIGH' : 'NORMAL' });
+    const [asg] = await teacherSessions[i].call('POST', '/assignments', { kind: 'ASSIGNMENT', sectionIds: [t.sectionId], subjectId: subjectOf(i, 1).id, title: `${subjectOf(i, 1).name}: project ${i + 1}`, description: 'A short project. Marks are out of 20.', dueDate: addDays(todayIso, 7), priority: 'NORMAL', maxMarks: 20 });
+    coursework.push({ hw, asg, i });
+  }
+  // Teacher 1 has already collected some homework and marked an assignment.
+  {
+    const { hw, asg } = coursework[0];
+    const mine = students.filter((x) => x.sectionId === teachers[0].sectionId);
+    await teacherSessions[0].call('POST', `/homework/${hw.id}/submissions`, { records: mine.map((x, k) => ({ studentId: x.id, status: k === 0 ? 'REVIEWED' : 'SUBMITTED', feedback: k === 0 ? 'Neat work, well done.' : undefined })) });
+    await teacherSessions[0].call('POST', `/assignments/${asg.id}/submissions`, { records: mine.map((x, k) => ({ studentId: x.id, status: k === 0 ? 'REVIEWED' : k === 1 ? 'SUBMITTED' : 'PENDING', marks: k === 0 ? 17 : undefined, feedback: k === 0 ? 'Good structure, check the units.' : undefined })) });
+  }
+
+  // Study material.
+  await teacherSessions[0].call('POST', '/content', { sectionIds: [teachers[0].sectionId], subjectId: subjectOf(0, 0).id, kind: 'NOTE', title: 'Chapter 1 revision notes', description: 'Key points from this month, in one page.', publish: true });
+  await teacherSessions[1].call('POST', '/content', { sectionIds: [teachers[1].sectionId], subjectId: subjectOf(1, 0).id, kind: 'LINK', title: 'A video on the water cycle', url: 'https://www.youtube.com/', publish: true });
+  await teacherSessions[2].call('POST', '/content', { sectionIds: [teachers[2].sectionId], subjectId: subjectOf(2, 1).id, kind: 'WORKSHEET', title: 'Practice questions (draft)', publish: false });
+
+  // An exam with three papers at three different stages of the marks workflow.
+  const exam = await coordinator.call('POST', '/exams', { name: 'Unit test 1', academicYearId: ay.id, startDate: todayIso, endDate: addDays(todayIso, 10) });
+  const papers = [];
+  for (let i = 0; i < 3; i++) {
+    papers.push(await coordinator.call('POST', `/exams/${exam.id}/papers`, { sectionId: teachers[i].sectionId, subjectId: subjectOf(i, 0).id, date: addDays(todayIso, 3 + i), startTime: '09:00', endTime: '10:00', room: `Room ${100 + i}`, maxMarks: 25 }));
+  }
+  const marksFor = (sectionId, base) => students.filter((x) => x.sectionId === sectionId).map((x, k) => ({ studentId: x.id, marks: Math.min(25, base + k * 3) }));
+  // Paper 1: all the way to published, so results show on the students' and parents' pages.
+  await teacherSessions[0].call('PUT', `/exams/papers/${papers[0].id}/marks`, { records: marksFor(teachers[0].sectionId, 15) });
+  await teacherSessions[0].call('POST', `/exams/papers/${papers[0].id}/submit`);
+  await coordinator.call('POST', `/exams/papers/${papers[0].id}/review`);
+  await principal.call('POST', `/exams/papers/${papers[0].id}/approve`);
+  await principal.call('POST', `/exams/papers/${papers[0].id}/publish`);
+  // Paper 2: submitted, waiting for the coordinator.
+  await teacherSessions[1].call('PUT', `/exams/papers/${papers[1].id}/marks`, { records: marksFor(teachers[1].sectionId, 10) });
+  await teacherSessions[1].call('POST', `/exams/papers/${papers[1].id}/submit`);
+  // Paper 3: marks half-entered as a draft.
+  await teacherSessions[2].call('PUT', `/exams/papers/${papers[2].id}/marks`, { records: marksFor(teachers[2].sectionId, 12).slice(0, 1) });
+
+  // Remarks, a class message, a parent's question.
+  const teacher1Students = students.filter((x) => x.sectionId === teachers[0].sectionId);
+  await teacherSessions[0].call('POST', '/remarks', { studentId: teacher1Students[0].id, kind: 'STRENGTH', body: 'Explains her reasoning clearly and helps classmates.', visibleToParents: true, subjectId: subjectOf(0, 0).id });
+  await teacherSessions[0].call('POST', '/remarks', { studentId: teacher1Students[1].id, kind: 'WEAK_AREA', body: 'Rushes through word problems — slow down and underline the question.', visibleToParents: false });
+  await teacherSessions[0].call('POST', '/messages', { kind: 'ANNOUNCEMENT', sectionId: teachers[0].sectionId, subject: 'Practice sheet due Wednesday', body: 'Please make sure the practice sheet is finished. Ask me if anything is unclear.' });
+  const parentSession = await loginStaff(`parent1${SUFFIX}@demo.school`, PARENT_PASSWORD);
+  const kids = await parentSession.call('GET', '/students');
+  if (kids[0]) await parentSession.call('POST', '/messages/query', { studentId: kids[0].id, subject: 'Extra practice', body: 'Could you suggest some extra practice for fractions?' });
+
+  // A class announcement by a teacher, one scheduled for later, and school events from the office.
+  const note = await teacherSessions[0].call('POST', '/notices', { title: 'Class trip next week', body: 'Please send the signed slip by Friday.', audienceType: 'SECTION', audienceRefId: teachers[0].sectionId });
+  await teacherSessions[0].call('POST', `/notices/${note.id}/publish`);
+  await teacherSessions[0].call('POST', '/notices', { title: 'Reminder: practice sheet', body: 'Just a nudge — it is due tomorrow.', audienceType: 'SECTION', audienceRefId: teachers[0].sectionId, scheduledFor: new Date(Date.now() + 3 * 3_600_000).toISOString() });
+  await coordinator.call('POST', '/events', { kind: 'PARENT_TEACHER', title: 'Parent–teacher meeting', startDate: addDays(todayIso, 9), startTime: '10:00', endTime: '13:00', location: 'Main hall' });
+  await coordinator.call('POST', '/events', { kind: 'MEETING', title: 'Staff meeting', startDate: addDays(todayIso, 4), startTime: '15:00', endTime: '16:00', location: 'Staff room' });
+
+  // Leave: one approved, one waiting.
+  const leaveDay = (() => { let d = addDays(todayIso, 14); while (weekdayOf(d) > 5) d = addDays(d, 1); return d; })();
+  const approvedLeave = await teacherSessions[2].call('POST', '/leave', { kind: 'CASUAL', startDate: leaveDay, endDate: leaveDay, reason: 'Family function out of town' });
+  await principal.call('POST', `/leave/${approvedLeave.id}/approve`, { note: 'Enjoy — a cover will be arranged.' });
+  await teacherSessions[1].call('POST', '/leave', { kind: 'SICK', startDate: addDays(leaveDay, 7), endDate: addDays(leaveDay, 8), reason: 'Planned medical procedure' });
+  console.log('   Timetable (Mon–Fri) with a cover, homework + assignments for 4 sections, study material, an exam with papers published / waiting / draft,');
+  console.log('   remarks, a class message and a parent question, a teacher announcement (and a scheduled one), 2 events, 1 approved + 1 pending leave');
 
   // Summary --------------------------------------------------------------------------
   console.log('\n================ DONE ================');
@@ -606,6 +709,7 @@ async function main() {
   console.log('\n(Teachers 4-10 share the same password as Teacher 1-3 above.)');
   console.log('Also set up: school profile & logo-ready settings, Mon–Sat week with 2nd/4th Saturday off, 2 terms, grading scale,');
   console.log('6 holidays, 3 departments (with heads), 4 houses, 3 clubs/teams, fee rules (SPS/ receipts, ₹50/day late fee).');
+  console.log('Teaching: a timetable, homework, an exam at three stages of the marks workflow, leave, events — and an Academic Coordinator (coordinator@demo.school).');
   console.log('Money: cash only. The Accountant collected the payments; a refund and a scholarship are waiting for the Principal/Director to approve.');
   console.log('=======================================\n');
 }

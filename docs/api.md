@@ -195,6 +195,18 @@ retry) and `403 EMAIL_NOT_VERIFIED`. Rules: `docs/security-rules.md`.
 | GET | `/api/v1/finance/reports/:kind`, `/finance/reports/:kind/export?format=csv\|xlsx\|pdf` | Session + School + Permission | `financeReport.view` / `.export`; every export is audited (`finance.export`) |
 | GET | `/api/v1/finance/audit` | Session + School + Permission | `finance.audit`; finance modules only, read-only |
 | POST/GET/DELETE | `/api/v1/students/:id/photo` | Session + School + Permission | `student.update` to change, `student.view` to read; JPEG/PNG ≤ 2 MB, checked by content |
+| GET | `/api/v1/teaching/dashboard`, `/teaching/agenda?from=&to=`, `/teaching/options` | Session + School + Permission | `teaching.dashboard`; "what do I need to do today", dated agenda, the sections/subjects the caller may work with |
+| GET | `/api/v1/teaching/reports/:kind`, `/teaching/reports/:kind/export?format=csv\|xlsx\|pdf` | Session + School + Permission | `teachingReport.view` / `teachingReport.export` (audited); kinds: class-attendance, student-performance, exam-performance, subject-marks, homework-completion, assignment-completion, class-trends, student-list |
+| GET/POST/PATCH/DELETE | `/api/v1/timetable`, `/timetable/today`, `/timetable/substitutions`, `/timetable/options` | Session + School + Permission | `timetable.view` (scope-limited); writes and `/options` need `timetable.manage` |
+| GET/POST/PATCH | `/api/v1/homework`, `/api/v1/assignments` (+ `/:id`, `/:id/submissions`, `/:id/files`, `/:id/students/:studentId/files`) | Session + School + Permission | `homework.*` / `assignment.*`; own subject in own section; parents see their children's rows only |
+| GET/POST/PATCH | `/api/v1/content` (+ `/:id/files`) | Session + School + Permission | `content.view` / `content.create`; draft → published → archived |
+| GET/POST/PUT/DELETE | `/api/v1/exams`, `/exams/options`, `/exams/:examId/papers`, `/exams/papers/:id[/marks\|/submit\|/review\|/return\|/approve\|/publish\|/corrections]`, `/exams/corrections[/:id/approve\|/reject]` | Session + School + Permission | `exam.*`, `marks.enter` / `marks.review` / `marks.approve`; DRAFT → SUBMITTED → REVIEWED → APPROVED → PUBLISHED, corrections by request |
+| GET | `/api/v1/results/students/:studentId` | Session + School + Permission | `result.view`; published results only |
+| GET/POST/PATCH/DELETE | `/api/v1/remarks` | Session + School + Permission | `remark.view` / `remark.create`; parents only see shared remarks |
+| GET/POST | `/api/v1/messages`, `/messages/query`, `/messages/:id/reply`, `/messages/unread-count` | Session + School + Permission | `message.view` / `message.send`; teacher → class parents, parent → own child's teachers |
+| GET/POST | `/api/v1/leave`, `/leave/mine`, `/leave/mine/:id/cancel`, `/leave/:id/approve\|/reject` (+ files) | Session + School + Permission | `leave.apply` (own), `leave.view`, `leave.approve` (never your own) |
+| GET/POST/PATCH/DELETE | `/api/v1/events` | Session + School + Permission | `event.view` / `event.manage` |
+| GET/POST | `/api/v1/attendance/corrections[/:id/approve\|/reject]` | Session + School + Permission | `attendance.requestCorrection` / `attendance.approveCorrection`; only for locked days |
 
 "Session" means `AuthGuard` only (user-level validity). "Session +
 School" adds `SchoolContextGuard` (re-verifies active membership).

@@ -282,13 +282,18 @@ export class AuthorizationService {
   // -- OWN_CLASS: resolved via TeacherAssignment / Section.classTeacherId --
 
   private async checkOwnClass(auth: AuthContext, resourceType: ResourceType, resourceId: string) {
-    if (resourceType !== 'Section') return false;
+    if (resourceType !== 'Section' && resourceType !== 'Student') return false;
 
     const teacherProfile = await this.prisma.teacher.findFirst({
       where: { schoolId: auth.schoolId, userId: auth.userId, deletedAt: null },
     });
     if (!teacherProfile) return false;
 
+    // A student belongs to a class through their section: a teacher may see a student whose section they own.
+    if (resourceType === 'Student') {
+      const student = await this.prisma.student.findFirst({ where: { id: resourceId, schoolId: auth.schoolId, deletedAt: null }, select: { sectionId: true } });
+      return !!student?.sectionId && this.teacherOwnsSection(teacherProfile.id, student.sectionId);
+    }
     return this.teacherOwnsSection(teacherProfile.id, resourceId);
   }
 

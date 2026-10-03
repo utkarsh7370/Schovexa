@@ -204,7 +204,7 @@ function CourseworkCard({ kind, row, parentView }: { kind: Kind; row: Coursework
             <p className="font-semibold text-navy">Due {shortDay(row.dueDate)}</p>
             {!parentView && p && (
               <p className="mt-1 flex items-center justify-end gap-1 text-xs text-slate-500">
-                <Users size={12} /> {p.submitted + p.reviewed}/{p.students} handed in
+                <Users size={12} /> {p.submitted}/{p.students} handed in
                 {p.toReview > 0 && <Badge tone="warning">{p.toReview} to review</Badge>}
               </p>
             )}

@@ -183,6 +183,10 @@ describe('Teacher workspace (e2e)', () => {
       expect((await get(w.t1, `/students/${w.s[0]}`)).status).toBe(200);
       expect((await get(w.t1, `/students/${w.s[4]}`)).status).toBe(404);
       expect((await get(w.t3, `/students/${w.s[0]}`)).status).toBe(404);
+      // A student's attendance history follows the same rule: own class yes, anybody else's no.
+      const range = 'from=2026-01-01&to=2026-12-31';
+      expect((await get(w.t1, `/attendance/history?studentId=${w.s[0]}&${range}`)).status).toBe(200);
+      expect((await get(w.t1, `/attendance/history?studentId=${w.s[4]}&${range}`)).status).toBe(404);
     });
 
     it('keeps teaching Maths in 6A from opening English in 8A', async () => {

@@ -347,8 +347,8 @@ export function TimetableView() {
       <Tabs className="mt-6 w-fit max-w-full" value={tab} onChange={setTab} tabs={tabs} />
 
       {tab === 'mine' && (
-        <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-card sm:p-5 lg:col-span-1">
+        <div className="mt-4 grid grid-cols-1 gap-6 xl:grid-cols-3">
+          <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-card sm:p-5 xl:col-span-1">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-bold text-navy">{date === isoDay(new Date()) ? 'Today' : shortDay(date)}</h2>
               <div className="flex items-center gap-1">
@@ -358,7 +358,7 @@ export function TimetableView() {
             </div>
             <div className="mt-3">{today.isLoading ? <Skeleton className="h-40 w-full" /> : <LessonList lessons={today.data?.lessons ?? []} />}</div>
           </section>
-          <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-card sm:p-5 lg:col-span-2">
+          <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-card sm:p-5 xl:col-span-2">
             <h2 className="mb-3 text-lg font-bold text-navy">My week</h2>
             {mine.isLoading ? <Skeleton className="h-64 w-full" /> : <Grid slots={mine.data ?? []} showTeacher={false} showSection />}
           </section>
